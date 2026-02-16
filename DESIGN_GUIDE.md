@@ -1,75 +1,203 @@
-# BodegaDK – Design Guide
+# BodegaDK – Design Guide (Bodega Edition)
 
-## Mål
-En konsistent, enkel UI-stil til hele spilleplatformen:
-- Dansk som standard
-- Klar struktur: Topbar + Sidebar + Main
-- Skalerbart: nye sider/spil kan tilføjes uden at ændre hele layoutet
+------------------------------------------------------------
+VISION
+------------------------------------------------------------
 
----
+BodegaDK skal ligne en digital bodega:
 
-## Design tokens (kilden til sandheden)
-Brug CSS-variabler i `styles.css`. Alle farver/afstande/typografi kommer derfra.
+- Mørk træstemning
+- Varme amber/røde nuancer
+- Serif overskrifter (skilt/etiket feel)
+- Sans-serif UI tekst
+- Følelse af: kortspil, øl, nikotin, laminerede skilte
 
-### Farver
-- Background (app): `--bg`
-- Surface (kort/paneler): `--surface`
-- Text: `--text`
-- Muted text: `--muted`
-- Border: `--border`
-- Primary (CTA): `--primary`
-- Primary hover: `--primaryHover`
-- Focus ring: `--focus`
+Det må gerne være hyggeligt, lidt råt – men stadig moderne og brugbart.
 
-### Radius, spacing, shadows
-- Radius: `--radius`
-- Spacing (8px grid): `--s1..--s6`
-- Shadow: `--shadow1`
 
----
+------------------------------------------------------------
+DESIGN TOKENS (Single Source of Truth)
+------------------------------------------------------------
 
-## Layout-regler
-### Topbar
-- Fast højde: 56px
-- Indeholder: Logo/Home, sprog, login/opret, profil
-- Skal altid være synlig (sticky/fixed)
+Alle designbeslutninger styres fra styles.css via CSS-variabler.
 
-### Sidebar (burger/menu)
-- Venstrestillet og fuld højde
-- Kan toggles (collapsed/expanded)
-- Menu items: Spil, Indstillinger, Hjælp (placeholder ok)
+Farvepalette (Bodega Theme)
 
-### Main
-- Alt indhold ligger i main og skifter ud fra navigation (simple “view state”)
+--bg            = Mørk træ-baggrund
+--surface       = Paneler / kort
+--text          = Varm lys beige tekst
+--muted         = Støvet beige sekundær tekst
+--primary       = Øl/amber (CTA farve)
+--danger        = Rød neon
+--border        = Diskret lys border
+--focus         = Fokus-outline
 
----
+Designprincip:
+- Ingen blå startup-farver
+- Ingen kolde gråtoner
+- Alt skal føles varmt
 
-## Komponenter
-### Knapper
-- Primær: solid `--primary`, hvid tekst
-- Sekundær: outline (border), transparent baggrund
-- Fokus: tydelig ring via `--focus`
 
-### Cards
-- Brug `--surface`, border `--border`, radius `--radius`
-- Brug samme padding på tværs (fx `--s4`)
+------------------------------------------------------------
+TYPOGRAFI
+------------------------------------------------------------
 
----
+Overskrifter:
+- Serif stack:
+  ui-serif, Georgia, "Times New Roman", serif
+- Uppercase
+- Let øget letter-spacing
+- Skal føles som et pubs skilt
 
-## Sprog / i18n
-- Al tekst skal komme fra `src/i18n.ts` via en `t(key)`-funktion
-- Elementer i DOM tagges med `data-i18n="some.key"`
-- Aktivt sprog gemmes i localStorage (`lang`)
+UI / Brødtekst:
+- Sans-serif stack:
+  system-ui, -apple-system, Segoe UI, Roboto
+- Læsbart
+- Simpelt
+- Ikke dekorativt
 
----
 
-## Navngivning
-- CSS classes: kebab-case (fx `.topbar`, `.sidebar-item`)
-- i18n keys: dot notation (fx `nav.play`, `home.title`)
+------------------------------------------------------------
+LAYOUT SYSTEM
+------------------------------------------------------------
 
----
+Struktur:
 
-## Tilgængelighed (min. standard)
-- Alle klikbare ting skal kunne nås med keyboard
-- Fokusmarkering må ikke fjernes
-- Kontrast skal være læsbar (tekst vs. baggrund)
+Topbar
+Sidebar | Main
+
+Topbar:
+- 60px høj
+- Sticky
+- Indeholder:
+    - Logo
+    - Sprogvalg
+    - Login / Opret / Profil
+- Mørk halvtransparent baggrund
+
+Sidebar:
+- Træpanel look
+- Burger toggle
+- Menu:
+    - Spil
+    - Indstillinger
+    - Hjælp
+
+Active menu item:
+- Amber highlight
+- Diskret inset shadow
+
+Main:
+- Luft
+- Cards i grid
+- Max 3 kolonner desktop
+
+
+------------------------------------------------------------
+KOMPONENTER
+------------------------------------------------------------
+
+CARDS (Lamineret bodega-skilt)
+
+- Mørk varm baggrund
+- Diskret highlight (slidt plast look)
+- Serif titel
+- Amber CTA knap
+
+Hover:
+- Let lysere baggrund
+- Ingen glow-effekter
+
+
+KNAPPER
+
+Primary:
+- Amber gradient
+- Mørk tekst
+- Bold font
+
+Secondary:
+- Transparent
+- Lys border
+- Diskret hover
+
+Fokus:
+- Skal altid have outline
+- Må aldrig fjernes
+
+
+------------------------------------------------------------
+SPROG / I18N
+------------------------------------------------------------
+
+- Standard: Dansk
+- Fremtidssikret til engelsk
+- Al tekst kommer fra src/i18n.ts
+- Ingen hardcoded strings
+
+Key format:
+nav.play
+home.title
+game.cheat
+
+
+------------------------------------------------------------
+TONE OF VOICE
+------------------------------------------------------------
+
+Må gerne have bodega-humor:
+
+Eksempler:
+- "Taber betaler næste omgang"
+- "Vælg en klassiker"
+- "Flere spil kommer løbende"
+
+Men:
+- Ikke for useriøst
+- Ingen intern humor der forvirrer
+
+
+------------------------------------------------------------
+TILGÆNGELIGHED
+------------------------------------------------------------
+
+- Keyboard navigation skal virke
+- Fokusmarkering skal være synlig
+- Kontrast skal være læsbar
+- Klikbare elementer skal være mobilvenlige
+
+
+------------------------------------------------------------
+FREMTIDIGE TEMAER
+------------------------------------------------------------
+
+Hvis vi senere vil have:
+- Neon tema
+- Kridttavle tema
+
+Så implementeres det via:
+
+body[data-theme="neon"]
+body[data-theme="chalk"]
+
+Ikke via inline styles.
+
+
+------------------------------------------------------------
+HVAD VI IKKE GØR
+------------------------------------------------------------
+
+- Ingen Tailwind
+- Ingen tilfældige farver
+- Ingen Google Fonts
+- Ingen inline styles
+- Ingen blå gradients
+
+
+------------------------------------------------------------
+KORT SAGT
+------------------------------------------------------------
+
+BodegaDK er:
+
+Digital brunt værtshus møder moderne web-app.
