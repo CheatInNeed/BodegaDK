@@ -32,6 +32,14 @@ if (Test-Path "$root/apps") {
 }
 
 # ------------------------------------------------------------
+# 2b) Include Markdown files (.md)
+# ------------------------------------------------------------
+$files += Get-ChildItem -Path $root -Recurse -File -Filter "*.md" |
+    Where-Object {
+        $_.FullName -notmatch "node_modules|dist|\.git|\.idea"
+    }
+
+# ------------------------------------------------------------
 # 3) Important root configuration files
 # ------------------------------------------------------------
 $importantFiles = @(

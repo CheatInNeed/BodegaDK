@@ -1,15 +1,15 @@
 {
-  "name": "BodegaDK",
+  "name": "bodegadk",
   "version": "1.0.0",
-  "description": "",
-  "main": "dist/index.js",
+  "private": true,
+  "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "python3 -m http.server 5173"
+    "watch": "tsc -w",
+    "serve": "python3 -m http.server 5173",
+    "dev": "npm run build && npm run serve"
   },
-  "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.5.3"
-  },
-  "private": true
+    "typescript": "^5.4.0"
+  }
 }
