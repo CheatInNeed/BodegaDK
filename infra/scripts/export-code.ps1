@@ -1,8 +1,7 @@
-# To run type pwsh ./scripts/export-code.ps1
-
+# To run: pwsh ./infra/scripts/export-code.ps1
 
 # ============================================================
-# Project Code Dump Script (Focused / Chat-friendly)
+# Project Code Dump Script (Monorepo / Chat-friendly)
 # ============================================================
 
 $root = (Resolve-Path ".").Path
@@ -15,37 +14,64 @@ if (Test-Path $outputFile) {
 
 Write-Host "Creating project dump..."
 
+# Helper: exclude noisy folders
+function IsExcludedPath($fullName) {
+    return ($fullName -match "node_modules|dist|\.git|\.idea|\.vscode|target|build|out")
+}
+
 $files = @()
 
 # ------------------------------------------------------------
-# 1) Include all TypeScript source files
+# 1) Web client files (apps/web)
 # ------------------------------------------------------------
-if (Test-Path "$root/src") {
-    $files += Get-ChildItem -Path "$root/src" -Recurse -File -Filter "*.ts"
+if (Test-Path "$root/apps/web") {
+    $files += Get-ChildItem -Path "$root/apps/web/src" -Recurse -File -Filter "*.ts" -ErrorAction SilentlyContinue
+    $files += Get-ChildItem -Path "$root/apps/web/public" -Recurse -File -Include "*.html","*.css","*.js","*.json","*.svg","*.png","*.jpg","*.jpeg","*.webp" -ErrorAction SilentlyContinue
+    $files += Get-ChildItem -Path "$root/apps/web" -File -Include "package.json","tsconfig.json","vite.config.ts","Dockerfile" -ErrorAction SilentlyContinue
 }
 
 # ------------------------------------------------------------
-# 2) Optional: include apps folder (if used)
+# 2) Server files (apps/server) - Java + Maven + config
 # ------------------------------------------------------------
-if (Test-Path "$root/apps") {
-    $files += Get-ChildItem -Path "$root/apps" -Recurse -File -Filter "*.ts"
+if (Test-Path "$root/apps/server") {
+    $files += Get-ChildItem -Path "$root/apps/server/src" -Recurse -File -Include `
+        "*.java","*.kt","*.xml","*.yml","*.yaml","*.properties","*.sql" -ErrorAction SilentlyContinue
+
+    $files += Get-ChildItem -Path "$root/apps/server" -File -Include `
+        "pom.xml","Dockerfile",".dockerignore" -ErrorAction SilentlyContinue
 }
 
 # ------------------------------------------------------------
-# 2b) Include Markdown files (.md)
+# 3) Infra (docker/nginx/etc.)
 # ------------------------------------------------------------
-$files += Get-ChildItem -Path $root -Recurse -File -Filter "*.md" |
-    Where-Object {
-        $_.FullName -notmatch "node_modules|dist|\.git|\.idea"
-    }
+if (Test-Path "$root/infra") {
+    $files += Get-ChildItem -Path "$root/infra" -Recurse -File -Include `
+        "*.yml","*.yaml","*.conf","*.sh","*.ps1","*.sql",".env","Dockerfile" -ErrorAction SilentlyContinue
+}
 
 # ------------------------------------------------------------
-# 3) Important root configuration files
+# 4) Protocol / packages
+# ------------------------------------------------------------
+if (Test-Path "$root/packages") {
+    $files += Get-ChildItem -Path "$root/packages" -Recurse -File -Include `
+        "*.md","*.json","*.yaml","*.yml","*.ts","*.js" -ErrorAction SilentlyContinue
+}
+
+# ------------------------------------------------------------
+# 5) Docs (*.md) (already useful)
+# ------------------------------------------------------------
+if (Test-Path "$root/docs") {
+    $files += Get-ChildItem -Path "$root/docs" -Recurse -File -Filter "*.md" -ErrorAction SilentlyContinue
+}
+
+# ------------------------------------------------------------
+# 6) Important root configuration files
 # ------------------------------------------------------------
 $importantFiles = @(
     "package.json",
-    "tsconfig.json",
-    "index.html"
+    "package-lock.json",
+    ".gitignore",
+    "docker-compose.yml"
 )
 
 foreach ($name in $importantFiles) {
@@ -58,9 +84,10 @@ foreach ($name in $importantFiles) {
     }
 }
 
-# Remove duplicates and sort
+# Remove excluded + duplicates and sort
 $files = $files |
     Where-Object { $_ -ne $null } |
+    Where-Object { -not (IsExcludedPath $_.FullName) } |
     Sort-Object FullName -Unique
 
 # ------------------------------------------------------------

@@ -9,3 +9,19 @@ yarn-error.log*
 .pnp.js
 project_dump.txt
 .vscode/*
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Web build output (nu ligger den i apps/web/public/dist)
+apps/web/public/dist/
+
+# Java build
+apps/server/target/
+apps/server/build/
+
+# OS/IDE
+.DS_Store
+.idea/
+*.iml
