@@ -2,6 +2,10 @@
 
 Denne guide forklarer hvordan du kører og udvikler på projektet lokalt.
 
+Se også:
+
+-   `docs/WEB_CLIENT_GAME_ROOM.md` for detaljer om game-room client layer.
+
 ------------------------------------------------------------------------
 
 ## Forudsætninger
@@ -85,6 +89,51 @@ docker compose up --build
 
 Nginx: - serverer web (static) - proxyer `/api/*` til backend - proxyer
 `/ws` til backend (WebSocket)
+
+------------------------------------------------------------------------
+
+## 4) Kør Game Room (ny client layer)
+
+Game room læses fra URL query params:
+
+-   `view=room`
+-   `game=snyd`
+-   `room=ABC123`
+-   `token=player-token`
+
+Eksempel:
+
+``` text
+http://localhost:5173/?view=room&game=snyd&room=ABC123&token=p1
+```
+
+### Mock mode (indtil rigtig server-logic findes)
+
+Tilføj `mock=1` for lokal simulation af server updates:
+
+``` text
+http://localhost:5173/?view=room&game=snyd&room=ABC123&token=p1&mock=1
+```
+
+For at teste public/private split med 2 clients:
+
+1.  Åbn tab A med `token=p1`
+2.  Åbn tab B med `token=p2`
+3.  Brug samme `room` i begge tabs
+
+I mock mode:
+
+-   public updates broadcastes til alle tabs i samme room
+-   private updates sendes kun til relevant playerId
+
+### Open game fra UI
+
+Når du klikker "Open" på Snyd-kortet:
+
+-   client navigerer til `view=room`
+-   sætter default `room=ABC123` hvis mangler
+-   genererer token hvis mangler
+-   kører i `mock=1` som default
 
 ------------------------------------------------------------------------
 

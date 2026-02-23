@@ -7,6 +7,11 @@ Formål: - Undgå breaking changes - Have én kilde til sandhed for
 payload-struktur - Gøre det tydeligt hvordan nye endpoints og
 WS-messages tilføjes
 
+Se også:
+
+-   `docs/WEB_CLIENT_GAME_ROOM.md` for hvordan web-clienten bruger disse
+    messages i game-room runtime.
+
 ------------------------------------------------------------------------
 
 ## Grundregel

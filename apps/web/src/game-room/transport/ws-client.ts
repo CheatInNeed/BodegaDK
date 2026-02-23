@@ -1,6 +1,9 @@
 import type { ClientToServerMessage } from '../../net/protocol.js';
 import type { RoomTransport, RoomTransportHandlers } from '../types.js';
 
+/**
+ * Browser WebSocket transport implementation of the RoomTransport interface.
+ */
 export function createWebSocketTransport(url: string): RoomTransport {
     let socket: WebSocket | null = null;
 

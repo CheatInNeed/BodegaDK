@@ -30,6 +30,10 @@ type BroadcastPayload = {
 
 const STORAGE_PREFIX = 'bodegadk.mock.room.';
 
+/**
+ * Dev-only in-browser transport that simulates a server-authoritative room.
+ * It shares room state across tabs and emits protocol-compatible messages.
+ */
 export function createMockServerTransport(): RoomTransport {
     let handlers: RoomTransportHandlers | null = null;
     let channel: BroadcastChannel | null = null;
@@ -192,6 +196,9 @@ function handlePlayCards(
     }
 }
 
+/**
+ * Loads room state from localStorage or creates a deterministic default room.
+ */
 function readOrCreateRoom(roomCode: string): MockRoomData {
     const key = getStorageKey(roomCode);
     const raw = localStorage.getItem(key);
@@ -221,6 +228,9 @@ function readOrCreateRoom(roomCode: string): MockRoomData {
     return room;
 }
 
+/**
+ * Stable token -> player mapping per room for repeatable multi-tab testing.
+ */
 function registerToken(room: MockRoomData, token: string): string {
     if (room.tokens[token]) return room.tokens[token];
 
@@ -277,6 +287,9 @@ function saveRoom(room: MockRoomData) {
     localStorage.setItem(getStorageKey(room.roomCode), JSON.stringify(room));
 }
 
+/**
+ * Broadcast public messages to all room listeners.
+ */
 function broadcast(roomCode: string, message: ServerToClientMessage) {
     const channel = new BroadcastChannel(getChannelName(roomCode));
     const payload: BroadcastPayload = { roomCode, targetPlayerId: null, message };
@@ -284,6 +297,9 @@ function broadcast(roomCode: string, message: ServerToClientMessage) {
     channel.close();
 }
 
+/**
+ * Send private updates to a single player listener.
+ */
 function sendToPlayer(roomCode: string, targetPlayerId: string, message: ServerToClientMessage) {
     const channel = new BroadcastChannel(getChannelName(roomCode));
     const payload: BroadcastPayload = { roomCode, targetPlayerId, message };

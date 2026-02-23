@@ -9,6 +9,10 @@ type RoomStoreAction =
 
 type Listener = (state: RoomSessionState) => void;
 
+/**
+ * Minimal observable store for game-room session state.
+ * All state transitions go through the reducer below.
+ */
 export function createRoomStore(initial: RoomSessionState) {
     let state = initial;
     const listeners = new Set<Listener>();
@@ -28,6 +32,12 @@ export function createRoomStore(initial: RoomSessionState) {
     return { getState, subscribe, dispatch };
 }
 
+/**
+ * Reducer with server-authoritative rules:
+ * - snapshot replaces authoritative state
+ * - public/private updates apply independently
+ * - private updates for other players are ignored
+ */
 function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionState {
     if (action.type === 'SET_CONNECTION') {
         return { ...state, connection: action.connection };
@@ -116,6 +126,9 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
     return state;
 }
 
+/**
+ * Defensive hand extraction from partial/unknown private payloads.
+ */
 function readHand(privateState: SnydPrivateState | Record<string, unknown>): string[] {
     const hand = privateState.hand;
     return Array.isArray(hand) ? hand.filter((card) => typeof card === 'string') : [];

@@ -5,6 +5,10 @@
 This document describes the architecture, repository structure, and
 deployment model for the BodegaDK web-based game platform.
 
+Detaljer om den konkrete web game-room implementation findes i:
+
+-   `docs/WEB_CLIENT_GAME_ROOM.md`
+
 Platform goals:
 
 -   Server-authoritative game logic
@@ -112,10 +116,23 @@ Flow:
       src/
         index.ts
         i18n.ts
-
-        ui/
-        views/
+        app/
+          router.ts
+        game-room/
+          types.ts
+          store.ts
+          session.ts
+          view.ts
+          transport/
+            ws-client.ts
+        games/
+          snyd/
+            adapter.ts
+            actions.ts
+            view.ts
         net/
+          protocol.ts
+          mock-server.ts
 
       package.json
       tsconfig.json
@@ -129,6 +146,33 @@ Responsibilities:
 -   REST communication
 -   WebSocket connection
 -   Local UI state management
+-   Game-room session lifecycle
+-   Public/private state rendering through per-game adapters
+
+### 4.1 Game Room Client Layer
+
+Client game-room flow (implemented):
+
+1.  URL bootstrap: `?view=room&game=...&room=...&token=...`
+2.  Session opens transport (`/ws` or mock transport)
+3.  Session sends `CONNECT`
+4.  Store receives:
+    -   `STATE_SNAPSHOT`
+    -   `PUBLIC_UPDATE`
+    -   `PRIVATE_UPDATE`
+    -   `ERROR`
+    -   `GAME_FINISHED`
+5.  Adapter maps protocol state → UI view model
+6.  UI renders:
+    -   room header + connection status
+    -   public table (players, turn, pile, claim)
+    -   private hand (selectable cards)
+7.  UI intents map to protocol messages (`PLAY_CARDS`, `CALL_SNYD`)
+
+Key principle remains unchanged:
+
+-   server is authoritative for rules and outcomes
+-   client only renders state and sends intents
 
 ------------------------------------------------------------------------
 

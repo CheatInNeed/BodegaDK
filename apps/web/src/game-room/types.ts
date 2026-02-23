@@ -2,6 +2,9 @@ import type { ClientToServerMessage } from '../net/protocol.js';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
+/**
+ * Session state shared between transport, reducer, and UI mapping layers.
+ */
 export type RoomSessionState = {
     connection: ConnectionStatus;
     roomCode: string;
@@ -18,6 +21,9 @@ export type UiIntent =
     | { type: 'PLAY_SELECTED'; claimRank: string }
     | { type: 'CALL_SNYD' };
 
+/**
+ * Game-specific bridge that maps generic room state to concrete UI behavior.
+ */
 export type GameAdapter<TPublic extends Record<string, unknown>, TPrivate extends Record<string, unknown>, TViewModel> = {
     id: string;
     canHandle(game: string): boolean;

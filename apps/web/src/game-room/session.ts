@@ -10,6 +10,13 @@ type SessionOptions<TPublic extends Record<string, unknown>, TPrivate extends Re
     wsUrl?: string;
 };
 
+/**
+ * Creates a single game-room session that owns:
+ * - connection lifecycle
+ * - socket/mock transport wiring
+ * - store dispatching
+ * - UI intent -> outbound protocol messages
+ */
 export function createGameRoomSession<TPublic extends Record<string, unknown>, TPrivate extends Record<string, unknown>, TViewModel>(
     options: SessionOptions<TPublic, TPrivate, TViewModel>,
 ) {
@@ -80,6 +87,7 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
 
     const sendIntent = (intent: UiIntent) => {
         const state = store.getState();
+        // Guard against client-side actions when room is not actionable.
         if (state.connection !== 'connected') return;
         if (state.winnerPlayerId) return;
         const message = options.adapter.buildAction?.(intent, state);
@@ -108,6 +116,9 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
     };
 }
 
+/**
+ * Resolve default WS endpoint from current browser origin.
+ */
 function resolveWsUrl(explicitUrl?: string): string {
     if (explicitUrl) return explicitUrl;
 

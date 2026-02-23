@@ -3,6 +3,9 @@ import type { SnydPrivateState, SnydPublicState } from '../../net/protocol.js';
 import { buildSnydAction } from './actions.js';
 import type { SnydViewModel } from './view.js';
 
+/**
+ * Snyd-specific adapter between protocol state and UI view model.
+ */
 export const snydAdapter: GameAdapter<SnydPublicState, SnydPrivateState, SnydViewModel> = {
     id: 'snyd',
 

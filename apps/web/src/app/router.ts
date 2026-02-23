@@ -8,6 +8,9 @@ export type AppRoute = {
     mock: boolean;
 };
 
+/**
+ * Parse current query string into a normalized app route object.
+ */
 export function readRoute(): AppRoute {
     const params = new URLSearchParams(window.location.search);
     const view = parseView(params.get('view'));
@@ -21,6 +24,9 @@ export function readRoute(): AppRoute {
     };
 }
 
+/**
+ * Patch route values and push a new query string into browser history.
+ */
 export function writeRoute(patch: Partial<AppRoute>) {
     const current = readRoute();
     const next: AppRoute = {
@@ -54,6 +60,9 @@ function parseView(value: string | null): View {
     return 'play';
 }
 
+/**
+ * Keep query params absent when values are empty.
+ */
 function setNullable(params: URLSearchParams, key: string, value: string | null) {
     if (value && value.trim().length > 0) {
         params.set(key, value);

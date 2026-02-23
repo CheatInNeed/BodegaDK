@@ -1,3 +1,6 @@
+/**
+ * Base envelope for all WebSocket traffic between client and server.
+ */
 export type WsEnvelope<TType extends string, TPayload> = {
     type: TType;
     payload: TPayload;
@@ -49,6 +52,10 @@ export type ServerToClientMessage =
     | ErrorMessage
     | GameFinishedMessage;
 
+/**
+ * Runtime guard for untyped JSON payloads from the socket layer.
+ * Returns null for unknown/unsupported message shapes.
+ */
 export function parseServerMessage(raw: unknown): ServerToClientMessage | null {
     if (!isRecord(raw)) return null;
     if (typeof raw.type !== 'string') return null;
@@ -67,6 +74,9 @@ export function parseServerMessage(raw: unknown): ServerToClientMessage | null {
     return null;
 }
 
+/**
+ * Narrow unknown values to non-null object records.
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
 }
