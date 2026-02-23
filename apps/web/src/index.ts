@@ -1,12 +1,24 @@
 import { applyI18n, getInitialLang, setLang, type Lang } from './i18n.js';
+import { readRoute, writeRoute, type AppRoute, type View } from './app/router.js';
+import { createGameRoomSession } from './game-room/session.js';
+import { renderRoomError, renderRoomFrame } from './game-room/view.js';
+import { snydAdapter } from './games/snyd/adapter.js';
+import { renderSnydRoom } from './games/snyd/view.js';
 
-type View = 'home' | 'play' | 'settings' | 'help';
+const adapters = [snydAdapter];
 
 const state = {
     lang: getInitialLang() as Lang,
     view: 'play' as View,
     sidebarCollapsed: false,
+    route: readRoute() as AppRoute,
 };
+
+type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, ReturnType<typeof snydAdapter.toViewModel>>>;
+
+let roomSession: ActiveSession | null = null;
+let roomSessionKey: string | null = null;
+let unsubscribeRoomSession: (() => void) | null = null;
 
 function iconSvg(pathD: string) {
     return `
@@ -57,17 +69,11 @@ function renderApp() {
     </div>
   `;
 
-    // Set language select UI
     const langSelect = document.getElementById('langSelect') as HTMLSelectElement | null;
     if (langSelect) langSelect.value = state.lang;
 
-    // Apply translations
     applyI18n(app, state.lang);
-
-    // Render view content
     renderView();
-
-    // Wire events
     wireEvents();
 }
 
@@ -86,18 +92,21 @@ function renderView() {
     if (!main) return;
 
     if (state.view === 'home') {
+        cleanupRoomSession();
         main.innerHTML = `
       <h1 class="h1" data-i18n="home.title"></h1>
       <p class="sub" data-i18n="home.subtitle"></p>
       ${playCards()}
     `;
     } else if (state.view === 'play') {
+        cleanupRoomSession();
         main.innerHTML = `
       <h1 class="h1" data-i18n="play.title"></h1>
       <p class="sub" data-i18n="play.subtitle"></p>
       ${playCards()}
     `;
     } else if (state.view === 'settings') {
+        cleanupRoomSession();
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.settings"></h1>
       <div class="card">
@@ -111,6 +120,7 @@ function renderView() {
       </div>
     `;
     } else if (state.view === 'help') {
+        cleanupRoomSession();
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.help"></h1>
       <div class="card">
@@ -119,15 +129,80 @@ function renderView() {
         </p>
       </div>
     `;
+    } else if (state.view === 'room') {
+        main.innerHTML = renderRoomContent();
     }
 
     applyI18n(document, state.lang);
+    wireRoomEvents();
+}
+
+function renderRoomContent(): string {
+    const route = state.route;
+
+    if (!route.room || !route.token || !route.game) {
+        cleanupRoomSession();
+        return renderRoomError('Missing query params. Required: view=room&game=snyd&room=ABC123&token=yourToken');
+    }
+
+    const adapter = adapters.find((candidate) => candidate.canHandle(route.game ?? ''));
+    if (!adapter) {
+        cleanupRoomSession();
+        return renderRoomError(`Unsupported game mode: ${route.game}`);
+    }
+
+    const key = `${route.game}|${route.room}|${route.token}|${route.mock ? 'mock' : 'ws'}`;
+    if (!roomSession || roomSessionKey !== key) {
+        cleanupRoomSession();
+        roomSessionKey = key;
+        roomSession = createGameRoomSession({
+            bootstrap: {
+                game: route.game,
+                roomCode: route.room,
+                token: route.token,
+                useMock: route.mock,
+            },
+            adapter,
+        });
+
+        unsubscribeRoomSession = roomSession.subscribe(() => {
+            if (state.view === 'room') {
+                renderView();
+            }
+        });
+
+        roomSession.start();
+    }
+
+    const roomState = roomSession.getState();
+    const viewModel = roomSession.toViewModel();
+    const disableByConnection = roomState.connection !== 'connected' || !!roomState.winnerPlayerId;
+    const bodyHtml = renderSnydRoom(viewModel, {
+        disablePlay: disableByConnection || !viewModel.isMyTurn || viewModel.selectedCount === 0,
+        disableCallSnyd: disableByConnection || !viewModel.isMyTurn,
+    });
+
+    return renderRoomFrame({
+        connection: roomState.connection,
+        gameTitle: route.game,
+        errorMessage: roomState.lastError,
+        winnerPlayerId: roomState.winnerPlayerId,
+        bodyHtml,
+    });
+}
+
+function cleanupRoomSession() {
+    unsubscribeRoomSession?.();
+    unsubscribeRoomSession = null;
+    roomSession?.stop();
+    roomSession = null;
+    roomSessionKey = null;
 }
 
 function playCards() {
     return `
     <div class="grid">
-      ${gameCard('game.cheat', 'Et klassisk bluff-spil (placeholder).', 'action.open')}
+      ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.open')}
       ${gameCard('game.500', 'Kortspil med stik og meldinger (placeholder).', 'action.open')}
       ${gameCard('game.dice', 'Terningebaseret spil (placeholder).', 'action.open')}
       ${gameCard('game.more', 'Flere spil bliver tilføjet løbende.', 'action.play')}
@@ -149,21 +224,18 @@ function gameCard(titleKey: string, desc: string, actionKey: string) {
 }
 
 function wireEvents() {
-    // Burger
     const burgerBtn = document.getElementById('burgerBtn');
     burgerBtn?.addEventListener('click', () => {
         state.sidebarCollapsed = !state.sidebarCollapsed;
         renderApp();
     });
 
-    // Nav items
     document.querySelectorAll<HTMLElement>('.nav-item').forEach((el) => {
         const view = el.dataset.view as View | undefined;
         if (!view) return;
 
         const go = () => {
-            state.view = view;
-            renderApp();
+            navigate({ view });
         };
 
         el.addEventListener('click', go);
@@ -175,15 +247,12 @@ function wireEvents() {
         });
     });
 
-    // Brand -> home
     const goHome = document.getElementById('goHome');
     goHome?.addEventListener('click', (e) => {
         e.preventDefault();
-        state.view = 'home';
-        renderApp();
+        navigate({ view: 'home' });
     });
 
-    // Language
     const langSelect = document.getElementById('langSelect') as HTMLSelectElement | null;
     langSelect?.addEventListener('change', () => {
         const next = langSelect.value === 'en' ? 'en' : 'da';
@@ -192,11 +261,16 @@ function wireEvents() {
         renderApp();
     });
 
-    // Placeholder actions
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-game"]').forEach((btn) => {
         btn.addEventListener('click', () => {
-            const game = btn.dataset.game ?? 'unknown';
-            alert(`(Placeholder) Åbner spil: ${game}`);
+            const game = normalizeGameKey(btn.dataset.game ?? '');
+            navigate({
+                view: 'room',
+                game,
+                room: state.route.room ?? 'ABC123',
+                token: state.route.token ?? randomToken(),
+                mock: true,
+            });
         });
     });
 
@@ -205,4 +279,54 @@ function wireEvents() {
     document.getElementById('profileBtn')?.addEventListener('click', () => alert('(Placeholder) Profil'));
 }
 
+function wireRoomEvents() {
+    if (state.view !== 'room' || !roomSession) return;
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="toggle-card"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const card = button.dataset.card;
+            if (!card) return;
+            roomSession?.toggleCard(card);
+        });
+    });
+
+    const playButton = document.querySelector<HTMLButtonElement>('button[data-action="play-selected"]');
+    playButton?.addEventListener('click', () => {
+        const claimRankInput = document.getElementById('claimRankInput') as HTMLInputElement | null;
+        const claimRank = claimRankInput?.value.trim().toUpperCase() || 'A';
+        roomSession?.sendIntent({ type: 'PLAY_SELECTED', claimRank });
+    });
+
+    const callSnydButton = document.querySelector<HTMLButtonElement>('button[data-action="call-snyd"]');
+    callSnydButton?.addEventListener('click', () => {
+        roomSession?.sendIntent({ type: 'CALL_SNYD' });
+    });
+}
+
+function navigate(patch: Partial<AppRoute>) {
+    writeRoute(patch);
+    syncStateFromRoute();
+    renderApp();
+}
+
+function syncStateFromRoute() {
+    state.route = readRoute();
+    state.view = state.route.view;
+}
+
+function normalizeGameKey(game: string): string {
+    if (game === 'game.cheat') return 'snyd';
+    return game;
+}
+
+function randomToken(): string {
+    return `player-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+window.addEventListener('popstate', () => {
+    syncStateFromRoute();
+    renderApp();
+});
+
+syncStateFromRoute();
 renderApp();

@@ -152,6 +152,7 @@ button { font: inherit; }
 
 .btn:hover { background: rgba(255, 255, 255, 0.06); }
 .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .btn.primary {
     border-color: rgba(0,0,0,0.25);
@@ -335,4 +336,100 @@ button { font: inherit; }
     gap: var(--s2);
     align-items: center;
     justify-content: space-between;
+}
+
+.room-layout {
+    display: grid;
+    gap: var(--s3);
+}
+
+.room-card {
+    display: grid;
+    gap: var(--s3);
+}
+
+.room-header-row {
+    display: flex;
+    gap: var(--s2);
+    flex-wrap: wrap;
+}
+
+.room-banner {
+    border-radius: var(--radius);
+    padding: var(--s2) var(--s3);
+    margin-bottom: var(--s3);
+    border: 1px solid var(--border);
+}
+
+.room-banner-error {
+    background: rgba(178, 59, 42, 0.22);
+    border-color: rgba(178, 59, 42, 0.55);
+}
+
+.room-banner-win {
+    background: rgba(209, 139, 44, 0.22);
+    border-color: rgba(209, 139, 44, 0.55);
+}
+
+.table-wrap {
+    overflow: auto;
+}
+
+.state-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-ui);
+}
+
+.state-table th,
+.state-table td {
+    text-align: left;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.hand-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s2);
+}
+
+.hand-card {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 12px;
+    background: rgba(34, 22, 15, 0.60);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.hand-card.selected {
+    border-color: rgba(209, 139, 44, 0.8);
+    background: rgba(209, 139, 44, 0.22);
+}
+
+.room-actions {
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.claim-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s1);
+    font-family: var(--font-ui);
+}
+
+.claim-input {
+    width: 64px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(34, 22, 15, 0.60);
+    color: var(--text);
+    padding: 8px;
+}
+
+.muted {
+    color: var(--muted);
 }
