@@ -13,9 +13,9 @@ services:
     build:
       context: ../apps/server
     environment:
-      - DB_URL=jdbc:postgresql://db:5432/bodegadk
-      - DB_USER=bodegadk
-      - DB_PASS=bodegadk
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/bodegadk
+      - SPRING_DATASOURCE_USERNAME=bodegadk
+      - SPRING_DATASOURCE_PASSWORD=bodegadk
     depends_on:
       - db
 
