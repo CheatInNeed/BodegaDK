@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/bodegadk}
+    username: ${SPRING_DATASOURCE_USERNAME:bodegadk}
+    password: ${SPRING_DATASOURCE_PASSWORD:bodegadk}
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
