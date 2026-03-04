@@ -1,18 +1,14 @@
 {
   "name": "bodegadk",
-  "version": "1.0.0",
   "private": true,
-  "type": "module",
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc -w",
-    "serve": "python3 -m http.server 5173",
-    "dev": "npm run build && npm run serve"
-  },
-  "devDependencies": {
-    "typescript": "^5.4.0"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.98.0"
+    "web:dev": "npm run dev -w apps/web",
+    "web:build": "npm run build -w apps/web",
+    "deploy:update": "npm install && npm run web:build && cd infra && docker-compose up -d --build",
+    "deploy:main": "git fetch && git checkout main && git pull && npm run deploy:update",
+    "deploy:dev": "git fetch && git checkout dev && git pull && npm run deploy:update"
   }
 }
