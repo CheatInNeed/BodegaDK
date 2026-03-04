@@ -336,3 +336,38 @@ button { font: inherit; }
     align-items: center;
     justify-content: space-between;
 }
+.hidden{
+    display: none;
+}
+.auth-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-card {
+
+    text-align: center;
+    margin-bottom: 24px;
+    width: 380px;
+    padding: 40px;
+    border-radius: 18px;
+    background: #0b0b0b;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.input {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 16px;
+    background: #111;
+    border: 1px solid #333;
+    color: white;
+    border-radius: 8px;
+    font-family: inherit;
+}
+
+.full {
+    width: 100%;
+}
