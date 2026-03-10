@@ -4,6 +4,7 @@ import { createGameRoomSession } from './game-room/session.js';
 import { renderRoomError, renderRoomFrame } from './game-room/view.js';
 import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
+import { renderLogin } from './login.js';
 import { renderSingleCardHighestWinsRoom } from './games/single-card-highest-wins/view.js';
 
 const adapters = [snydAdapter];
@@ -39,6 +40,11 @@ function iconSvg(pathD: string) {
 }
 
 function renderApp() {
+    if (window.location.pathname === '/login') {
+        renderLogin();
+        return;
+    }
+
     const app = document.getElementById('app');
     if (!app) throw new Error('Missing #app');
 
@@ -308,7 +314,10 @@ function wireEvents() {
         });
     });
 
-    document.getElementById('loginBtn')?.addEventListener('click', () => alert('(Placeholder) Login'));
+    document.getElementById('loginBtn')?.addEventListener('click', () => {
+        window.history.pushState({}, '', '/login');
+        renderApp();
+    });
     document.getElementById('signupBtn')?.addEventListener('click', () => alert('(Placeholder) Opret konto'));
     document.getElementById('profileBtn')?.addEventListener('click', () => alert('(Placeholder) Profil'));
 }
