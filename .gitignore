@@ -20,6 +20,7 @@ apps/web/public/dist/
 # Java build
 apps/server/target/
 apps/server/build/
+*.class
 
 # OS/IDE
 .DS_Store
