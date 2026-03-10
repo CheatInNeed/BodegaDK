@@ -21,12 +21,15 @@ services:
 
   db:
     image: postgres:16
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: bodegadk
       POSTGRES_USER: bodegadk
       POSTGRES_PASSWORD: bodegadk
     volumes:
       - dbdata:/var/lib/postgresql/data
+
 
 volumes:
   dbdata:
