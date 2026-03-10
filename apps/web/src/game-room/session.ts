@@ -3,6 +3,7 @@ import type { GameAdapter, RoomBootstrap, RoomSessionState, RoomTransport, UiInt
 import { createWebSocketTransport } from './transport/ws-client.js';
 import { createMockServerTransport } from '../net/mock-server.js';
 import { parseServerMessage } from '../net/protocol.js';
+import { resolveWsUrl } from '../api/backend.js';
 
 type SessionOptions<TPublic extends Record<string, unknown>, TPrivate extends Record<string, unknown>, TViewModel> = {
     bootstrap: RoomBootstrap;
@@ -43,7 +44,7 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
 
         transport = options.bootstrap.useMock
             ? createMockServerTransport()
-            : createWebSocketTransport(resolveWsUrl(options.wsUrl));
+            : createWebSocketTransport(resolveWsUrlForSession(options.wsUrl));
 
         store.dispatch({ type: 'SET_CONNECTION', connection: 'connecting' });
 
@@ -119,9 +120,7 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
 /**
  * Resolve default WS endpoint from current browser origin.
  */
-function resolveWsUrl(explicitUrl?: string): string {
+function resolveWsUrlForSession(explicitUrl?: string): string {
     if (explicitUrl) return explicitUrl;
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}/ws`;
+    return resolveWsUrl();
 }

@@ -2,26 +2,46 @@ import { applyI18n, getInitialLang, setLang, type Lang } from './i18n.js';
 import { readRoute, writeRoute, type AppRoute, type View } from './app/router.js';
 import { createGameRoomSession } from './game-room/session.js';
 import { renderRoomError, renderRoomFrame } from './game-room/view.js';
+import { renderLobbyView } from './game-room/lobby-view.js';
 import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
 import { renderLogin } from './login.js';
 import { renderSingleCardHighestWinsRoom } from './games/single-card-highest-wins/view.js';
+import { createLobby, getLobby, joinLobby, listGames, listPublicLobbies, startLobby, updateLobby, type GameSummary, type LobbyRoom, type LobbySummary } from './api/lobbies.js';
+import { renderLobbyBrowser } from './lobby-browser.js';
+import { supabase } from './supabase.js';
 
 const adapters = [snydAdapter];
+const SINGLE_CARD_HIGHEST_WINS = 'single-card-highest-wins';
+const LOBBY_POLL_MS = 5000;
+
+type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, ReturnType<typeof snydAdapter.toViewModel>>>;
+type AuthUser = {
+    playerId: string;
+    displayName: string;
+    email: string | null;
+};
 
 const state = {
     lang: getInitialLang() as Lang,
     view: 'play' as View,
     sidebarCollapsed: false,
     route: readRoute() as AppRoute,
+    authLoading: true,
+    authUser: null as AuthUser | null,
+    lobbyRoom: null as LobbyRoom | null,
+    lobbyBrowser: [] as LobbySummary[],
+    lobbyGames: [] as GameSummary[],
+    lobbyLoading: false,
+    browserLoading: false,
+    lobbyBusy: false,
+    lobbyError: null as string | null,
 };
-
-type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, ReturnType<typeof snydAdapter.toViewModel>>>;
-const SINGLE_CARD_HIGHEST_WINS = 'single-card-highest-wins';
 
 let roomSession: ActiveSession | null = null;
 let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
+let pollingHandle: number | null = null;
 const singleCardUiState = {
     roomCode: 'ABC123',
     dealerLabel: 'Dealer',
@@ -30,6 +50,10 @@ const singleCardUiState = {
     hand: ['S3', 'D8', 'CK', 'H4', 'SA', 'D10', 'C8'],
     selectedCard: null as string | null,
 };
+
+void refreshAuthUser();
+void ensureGameCatalog();
+void refreshDataForRoute();
 
 function iconSvg(pathD: string) {
     return `
@@ -57,6 +81,7 @@ function renderApp() {
         </a>
 
         <div class="topbar-right">
+          <span class="pill">${state.authUser ? escapeHtml(state.authUser.displayName) : state.authLoading ? 'Checking login...' : 'Guest'}</span>
           <select class="select" id="langSelect" aria-label="Sprog">
             <option value="da">DA</option>
             <option value="en">EN</option>
@@ -76,6 +101,7 @@ function renderApp() {
 
         <nav class="nav" aria-label="Hovedmenu">
           ${navItem('play', 'nav.play', iconSvg('M8 5v14l11-7z'))}
+          ${navItem('lobby-browser', 'nav.play', iconSvg('M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z'))}
           ${navItem('settings', 'nav.settings', iconSvg('M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.1 7.1 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.48a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.65.22l2.39-.96c.5.4 1.05.71 1.63.94l.36 2.54c.04.24.25.42.49.42h3.8c.24 0 .45-.18.49-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.25.1.52.01.65-.22l1.92-3.32a.5.5 0 0 0-.12-.64zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z'))}
           ${navItem('help', 'nav.help', iconSvg('M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14a4 4 0 0 0-4 4h2a2 2 0 1 1 2 2c-1.1 0-2 .9-2 2v1h2v-1c0-.55.45-1 1-1a4 4 0 0 0 0-8z'))}
         </nav>
@@ -91,14 +117,16 @@ function renderApp() {
     applyI18n(app, state.lang);
     renderView();
     wireEvents();
+    syncPolling();
 }
 
 function navItem(view: View, key: string, icon: string) {
     const active = state.view === view ? 'active' : '';
+    const label = view === 'lobby-browser' ? 'Lobby Browser' : '';
     return `
     <div class="nav-item ${active}" role="button" tabindex="0" data-view="${view}">
       ${icon}
-      <span class="nav-label" data-i18n="${key}"></span>
+      <span class="nav-label" ${label ? '' : `data-i18n="${key}"`}>${label}</span>
     </div>
   `;
 }
@@ -107,18 +135,11 @@ function renderView() {
     const main = document.getElementById('main');
     if (!main) return;
 
-    if (state.view === 'home') {
+    if (state.view === 'home' || state.view === 'play') {
         cleanupRoomSession();
         main.innerHTML = `
-      <h1 class="h1" data-i18n="home.title"></h1>
-      <p class="sub" data-i18n="home.subtitle"></p>
-      ${playCards()}
-    `;
-    } else if (state.view === 'play') {
-        cleanupRoomSession();
-        main.innerHTML = `
-      <h1 class="h1" data-i18n="play.title"></h1>
-      <p class="sub" data-i18n="play.subtitle"></p>
+      <h1 class="h1" data-i18n="${state.view === 'home' ? 'home.title' : 'play.title'}"></h1>
+      <p class="sub">${state.authUser ? `Logged in as ${escapeHtml(state.authUser.displayName)}.` : 'Log in with Supabase to create or join lobbies.'}</p>
       ${playCards()}
     `;
     } else if (state.view === 'settings') {
@@ -126,13 +147,7 @@ function renderView() {
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.settings"></h1>
       <div class="card">
-        <p class="card-desc">
-          (Placeholder) Her kan I senere have lyd, tema, sprog, kontoindstillinger osv.
-        </p>
-        <div class="card-row">
-          <span class="pill">Tema: Default</span>
-          <button class="btn" id="fakeThemeBtn">Skift tema (senere)</button>
-        </div>
+        <p class="card-desc">(Placeholder) Her kan I senere have lyd, tema, sprog, kontoindstillinger osv.</p>
       </div>
     `;
     } else if (state.view === 'help') {
@@ -140,21 +155,36 @@ function renderView() {
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.help"></h1>
       <div class="card">
-        <p class="card-desc">
-          (Placeholder) FAQ, regler for spil, kontakt, rapportér fejl osv.
-        </p>
+        <p class="card-desc">Use a private lobby for invite-only games, or the public browser to find open tables.</p>
       </div>
     `;
+    } else if (state.view === 'lobby') {
+        cleanupRoomSession();
+        main.innerHTML = renderLobbyView({
+            room: state.lobbyRoom,
+            selfPlayerId: state.authUser?.playerId ?? null,
+            error: state.lobbyError,
+            busy: state.lobbyBusy,
+        });
+    } else if (state.view === 'lobby-browser') {
+        cleanupRoomSession();
+        main.innerHTML = renderLobbyBrowser({
+            rooms: state.lobbyBrowser,
+            games: state.lobbyGames,
+            selectedGame: state.route.game,
+            error: state.lobbyError,
+            loading: state.browserLoading,
+        });
     } else if (state.view === 'room') {
         main.innerHTML = renderRoomContent();
     }
 
     applyI18n(document, state.lang);
-    wireRoomEvents();
 }
 
 function renderRoomContent(): string {
     const route = state.route;
+    const token = route.token ?? state.authUser?.playerId ?? null;
 
     if (route.game === SINGLE_CARD_HIGHEST_WINS) {
         cleanupRoomSession();
@@ -179,9 +209,9 @@ function renderRoomContent(): string {
         });
     }
 
-    if (!route.room || !route.token || !route.game) {
+    if (!route.room || !token || !route.game) {
         cleanupRoomSession();
-        return renderRoomError('Missing query params. Required: view=room&game=snyd&room=ABC123&token=yourToken');
+        return renderRoomError('Missing query params. Required: view=room&game=snyd&room=ABC123 and a logged-in Supabase user.');
     }
 
     const adapter = adapters.find((candidate) => candidate.canHandle(route.game ?? ''));
@@ -190,7 +220,7 @@ function renderRoomContent(): string {
         return renderRoomError(`Unsupported game mode: ${route.game}`);
     }
 
-    const key = `${route.game}|${route.room}|${route.token}|${route.mock ? 'mock' : 'ws'}`;
+    const key = `${route.game}|${route.room}|${token}|${route.mock ? 'mock' : 'ws'}`;
     if (!roomSession || roomSessionKey !== key) {
         cleanupRoomSession();
         roomSessionKey = key;
@@ -198,7 +228,7 @@ function renderRoomContent(): string {
             bootstrap: {
                 game: route.game,
                 roomCode: route.room,
-                token: route.token,
+                token,
                 useMock: route.mock,
             },
             adapter,
@@ -239,13 +269,27 @@ function cleanupRoomSession() {
 }
 
 function playCards() {
+    const disabled = !state.authUser ? 'disabled' : '';
     return `
     <div class="grid">
-      ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.open')}
+      <div class="card">
+        <div class="card-title">Snyd</div>
+        <div class="card-desc">Create a pre-game lobby, switch it public or private, invite friends, then let the host start when enough players are seated.</div>
+        <div class="card-row lobby-launch-row">
+          <button class="btn primary" data-action="create-lobby" data-game="snyd" data-public="0" ${disabled}>Create Private Lobby</button>
+          <button class="btn" data-action="create-lobby" data-game="snyd" data-public="1" ${disabled}>Create Public Lobby</button>
+          <button class="btn" data-action="browse-lobbies" data-game="snyd">Find Public Game</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Join By Code</div>
+        <div class="card-desc">Paste a six-character invite code from the party leader.</div>
+        <div class="card-row lobby-join-row">
+          <input class="input" id="joinCodeInput" maxlength="6" placeholder="ABC123" />
+          <button class="btn primary" data-action="join-by-code" ${disabled}>Join Lobby</button>
+        </div>
+      </div>
       ${gameCard('single.card.highest.wins', 'UI prototype: dealer vs player with 7 cards in hand.', 'action.open')}
-      ${gameCard('game.500', 'Kortspil med stik og meldinger (placeholder).', 'action.open')}
-      ${gameCard('game.dice', 'Terningebaseret spil (placeholder).', 'action.open')}
-      ${gameCard('game.more', 'Flere spil bliver tilføjet løbende.', 'action.play')}
     </div>
   `;
 }
@@ -256,7 +300,7 @@ function gameCard(titleKey: string, desc: string, actionKey: string) {
       <div class="card-title" data-i18n="${titleKey}"></div>
       <div class="card-desc">${desc}</div>
       <div class="card-row">
-        <span class="pill">Status: Placeholder</span>
+        <span class="pill">Status: Prototype</span>
         <button class="btn primary" data-i18n="${actionKey}" data-action="open-game" data-game="${titleKey}"></button>
       </div>
     </div>
@@ -264,8 +308,7 @@ function gameCard(titleKey: string, desc: string, actionKey: string) {
 }
 
 function wireEvents() {
-    const burgerBtn = document.getElementById('burgerBtn');
-    burgerBtn?.addEventListener('click', () => {
+    document.getElementById('burgerBtn')?.addEventListener('click', () => {
         state.sidebarCollapsed = !state.sidebarCollapsed;
         renderApp();
     });
@@ -275,22 +318,21 @@ function wireEvents() {
         if (!view) return;
 
         const go = () => {
-            navigate({ view });
+            navigate({ view, ...(view !== 'lobby' ? { room: null } : {}) });
         };
 
         el.addEventListener('click', go);
-        el.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
+        el.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
                 go();
             }
         });
     });
 
-    const goHome = document.getElementById('goHome');
-    goHome?.addEventListener('click', (e) => {
-        e.preventDefault();
-        navigate({ view: 'home' });
+    document.getElementById('goHome')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        navigate({ view: 'home', room: null, game: null });
     });
 
     const langSelect = document.getElementById('langSelect') as HTMLSelectElement | null;
@@ -308,21 +350,108 @@ function wireEvents() {
                 view: 'room',
                 game,
                 room: state.route.room ?? 'ABC123',
-                token: state.route.token ?? randomToken(),
+                token: state.authUser?.playerId ?? randomToken(),
                 mock: true,
             });
         });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="create-lobby"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            void handleCreateLobby(btn.dataset.game ?? 'snyd', btn.dataset.public === '1');
+        });
+    });
+
+    document.querySelector('button[data-action="browse-lobbies"]')?.addEventListener('click', () => {
+        navigate({ view: 'lobby-browser', game: 'snyd', room: null, token: state.authUser?.playerId ?? null, mock: false });
+    });
+
+    document.querySelector('button[data-action="join-by-code"]')?.addEventListener('click', () => {
+        const joinCodeInput = document.getElementById('joinCodeInput') as HTMLInputElement | null;
+        void handleJoinByCode(joinCodeInput?.value ?? '');
     });
 
     document.getElementById('loginBtn')?.addEventListener('click', () => {
         window.history.pushState({}, '', '/login');
         renderApp();
     });
+
     document.getElementById('signupBtn')?.addEventListener('click', () => alert('(Placeholder) Opret konto'));
-    document.getElementById('profileBtn')?.addEventListener('click', () => alert('(Placeholder) Profil'));
+    document.getElementById('profileBtn')?.addEventListener('click', () => alert(state.authUser ? `${state.authUser.displayName}\n${state.authUser.email ?? ''}` : 'Not logged in'));
+
+    wireLobbyEvents();
 }
 
-function wireRoomEvents() {
+function wireLobbyEvents() {
+    if (state.view === 'lobby') {
+        document.querySelector('button[data-action="copy-invite"]')?.addEventListener('click', async () => {
+            const button = document.querySelector<HTMLButtonElement>('button[data-action="copy-invite"]');
+            const link = button?.dataset.link;
+            if (!link) return;
+            await navigator.clipboard.writeText(link);
+        });
+
+        document.querySelector('button[data-action="join-lobby"]')?.addEventListener('click', () => {
+            if (!state.lobbyRoom) return;
+            void handleJoinByCode(state.lobbyRoom.roomCode);
+        });
+
+        document.querySelector('button[data-action="toggle-visibility"]')?.addEventListener('click', () => {
+            void mutateLobby(async () => {
+                if (!state.authUser || !state.lobbyRoom) return null;
+                return updateLobby(state.lobbyRoom.roomCode, {
+                    actorPlayerId: state.authUser.playerId,
+                    isPublic: !state.lobbyRoom.isPublic,
+                });
+            });
+        });
+
+        document.querySelector('button[data-action="start-game"]')?.addEventListener('click', () => {
+            void handleStartGame();
+        });
+
+        document.querySelector('button[data-action="enter-game"]')?.addEventListener('click', () => {
+            enterGameBoard();
+        });
+
+        document.querySelectorAll<HTMLButtonElement>('button[data-action="kick-player"]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const playerId = button.dataset.playerId;
+                if (!playerId) return;
+                void mutateLobby(async () => {
+                    if (!state.authUser || !state.lobbyRoom) return null;
+                    return updateLobby(state.lobbyRoom.roomCode, {
+                        actorPlayerId: state.authUser.playerId,
+                        kickPlayerId: playerId,
+                    });
+                });
+            });
+        });
+    }
+
+    if (state.view === 'lobby-browser') {
+        document.getElementById('browserGameFilter')?.addEventListener('change', (event) => {
+            const target = event.target as HTMLSelectElement;
+            navigate({ view: 'lobby-browser', game: target.value || null, room: null });
+        });
+
+        document.querySelector('button[data-action="refresh-browser"]')?.addEventListener('click', () => {
+            void loadLobbyBrowser();
+        });
+
+        document.querySelectorAll<HTMLButtonElement>('button[data-action="open-public-lobby"]').forEach((button) => {
+            button.addEventListener('click', () => {
+                navigate({
+                    view: 'lobby',
+                    room: button.dataset.room ?? null,
+                    game: button.dataset.game ?? null,
+                    token: state.authUser?.playerId ?? null,
+                    mock: false,
+                });
+            });
+        });
+    }
+
     if (state.view !== 'room') return;
 
     if (state.route.game === SINGLE_CARD_HIGHEST_WINS) {
@@ -336,8 +465,7 @@ function wireRoomEvents() {
             });
         });
 
-        const playButton = document.querySelector<HTMLButtonElement>('button[data-action="single-card-play"]');
-        playButton?.addEventListener('click', () => {
+        document.querySelector<HTMLButtonElement>('button[data-action="single-card-play"]')?.addEventListener('click', () => {
             if (!singleCardUiState.selectedCard) return;
             alert(`(UI only) Played: ${singleCardUiState.selectedCard}`);
             singleCardUiState.selectedCard = null;
@@ -357,22 +485,203 @@ function wireRoomEvents() {
         });
     });
 
-    const playButton = document.querySelector<HTMLButtonElement>('button[data-action="play-selected"]');
-    playButton?.addEventListener('click', () => {
+    document.querySelector<HTMLButtonElement>('button[data-action="play-selected"]')?.addEventListener('click', () => {
         const claimRankInput = document.getElementById('claimRankInput') as HTMLInputElement | null;
         const claimRank = claimRankInput?.value.trim().toUpperCase() || 'A';
         roomSession?.sendIntent({ type: 'PLAY_SELECTED', claimRank });
     });
 
-    const callSnydButton = document.querySelector<HTMLButtonElement>('button[data-action="call-snyd"]');
-    callSnydButton?.addEventListener('click', () => {
+    document.querySelector<HTMLButtonElement>('button[data-action="call-snyd"]')?.addEventListener('click', () => {
         roomSession?.sendIntent({ type: 'CALL_SNYD' });
     });
+}
+
+async function handleCreateLobby(gameId: string, isPublic: boolean) {
+    const user = await ensureAuthenticatedUser();
+    if (!user) return;
+
+    await mutateLobby(async () => {
+        const room = await createLobby({
+            playerId: user.playerId,
+            displayName: user.displayName,
+            gameId,
+            isPublic,
+        });
+        navigate({
+            view: 'lobby',
+            room: room.roomCode,
+            game: room.gameId,
+            token: user.playerId,
+            mock: false,
+        });
+        return room;
+    });
+}
+
+async function handleJoinByCode(roomCode: string) {
+    const user = await ensureAuthenticatedUser();
+    if (!user) return;
+
+    const normalizedCode = roomCode.trim().toUpperCase();
+    if (!normalizedCode) {
+        state.lobbyError = 'Enter a room code first.';
+        renderApp();
+        return;
+    }
+
+    await mutateLobby(async () => {
+        const room = await joinLobby(normalizedCode, {
+            playerId: user.playerId,
+            displayName: user.displayName,
+        });
+        navigate({
+            view: 'lobby',
+            room: room.roomCode,
+            game: room.gameId,
+            token: user.playerId,
+            mock: false,
+        });
+        return room;
+    });
+}
+
+async function handleStartGame() {
+    const user = await ensureAuthenticatedUser();
+    if (!user || !state.lobbyRoom) return;
+
+    await mutateLobby(async () => {
+        const room = await startLobby(state.lobbyRoom?.roomCode ?? '', user.playerId);
+        state.lobbyRoom = room;
+        enterGameBoard();
+        return room;
+    });
+}
+
+function enterGameBoard() {
+    if (!state.lobbyRoom) return;
+    navigate({
+        view: 'room',
+        room: state.lobbyRoom.roomCode,
+        game: state.lobbyRoom.gameId,
+        token: state.authUser?.playerId ?? null,
+        mock: false,
+    });
+}
+
+async function mutateLobby(run: () => Promise<LobbyRoom | null>) {
+    state.lobbyBusy = true;
+    state.lobbyError = null;
+    renderApp();
+
+    try {
+        const room = await run();
+        if (room) {
+            state.lobbyRoom = room;
+        }
+    } catch (error) {
+        state.lobbyError = toMessage(error);
+    } finally {
+        state.lobbyBusy = false;
+        renderApp();
+    }
+}
+
+async function refreshAuthUser() {
+    state.authLoading = true;
+    renderApp();
+
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+
+    if (!user) {
+        state.authUser = null;
+        state.authLoading = false;
+        renderApp();
+        return;
+    }
+
+    const displayName = readDisplayName(user);
+    state.authUser = {
+        playerId: user.id,
+        displayName,
+        email: user.email ?? null,
+    };
+    state.authLoading = false;
+    renderApp();
+}
+
+async function ensureAuthenticatedUser(): Promise<AuthUser | null> {
+    if (state.authLoading) {
+        await refreshAuthUser();
+    }
+    if (state.authUser) {
+        return state.authUser;
+    }
+
+    window.history.pushState({}, '', '/login');
+    renderApp();
+    return null;
+}
+
+async function ensureGameCatalog() {
+    if (state.lobbyGames.length > 0) return;
+    try {
+        state.lobbyGames = await listGames();
+        renderApp();
+    } catch (error) {
+        state.lobbyError = toMessage(error);
+        renderApp();
+    }
+}
+
+async function refreshDataForRoute() {
+    await ensureGameCatalog();
+
+    if (state.view === 'lobby' && state.route.room) {
+        await loadLobby(state.route.room);
+        return;
+    }
+
+    if (state.view === 'lobby-browser') {
+        await loadLobbyBrowser();
+    }
+}
+
+async function loadLobby(roomCode: string) {
+    state.lobbyLoading = true;
+    state.lobbyError = null;
+    renderApp();
+
+    try {
+        state.lobbyRoom = await getLobby(roomCode);
+    } catch (error) {
+        state.lobbyRoom = null;
+        state.lobbyError = toMessage(error);
+    } finally {
+        state.lobbyLoading = false;
+        renderApp();
+    }
+}
+
+async function loadLobbyBrowser() {
+    state.browserLoading = true;
+    state.lobbyError = null;
+    renderApp();
+
+    try {
+        state.lobbyBrowser = await listPublicLobbies();
+    } catch (error) {
+        state.lobbyError = toMessage(error);
+    } finally {
+        state.browserLoading = false;
+        renderApp();
+    }
 }
 
 function navigate(patch: Partial<AppRoute>) {
     writeRoute(patch);
     syncStateFromRoute();
+    void refreshDataForRoute();
     renderApp();
 }
 
@@ -381,8 +690,24 @@ function syncStateFromRoute() {
     state.view = state.route.view;
 }
 
+function syncPolling() {
+    if (pollingHandle !== null) {
+        window.clearInterval(pollingHandle);
+        pollingHandle = null;
+    }
+
+    if (state.view === 'lobby' && state.route.room) {
+        pollingHandle = window.setInterval(() => {
+            void loadLobby(state.route.room ?? '');
+        }, LOBBY_POLL_MS);
+    } else if (state.view === 'lobby-browser') {
+        pollingHandle = window.setInterval(() => {
+            void loadLobbyBrowser();
+        }, LOBBY_POLL_MS);
+    }
+}
+
 function normalizeGameKey(game: string): string {
-    if (game === 'game.cheat') return 'snyd';
     if (game === 'single.card.highest.wins') return SINGLE_CARD_HIGHEST_WINS;
     return game;
 }
@@ -391,8 +716,35 @@ function randomToken(): string {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function readDisplayName(user: { email?: string | null; user_metadata?: { [key: string]: unknown } }): string {
+    const meta = user.user_metadata ?? {};
+    const fromMeta = meta.full_name ?? meta.name ?? meta.username;
+    if (typeof fromMeta === 'string' && fromMeta.trim().length > 0) {
+        return fromMeta.trim();
+    }
+    if (typeof user.email === 'string' && user.email.length > 0) {
+        return user.email;
+    }
+    return 'Anonymous Player';
+}
+
+function toMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    return 'Something went wrong.';
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
 window.addEventListener('popstate', () => {
     syncStateFromRoute();
+    void refreshDataForRoute();
     renderApp();
 });
 

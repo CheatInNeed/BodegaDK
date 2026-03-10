@@ -32,29 +32,141 @@ Base path (dev): http://localhost:8080/
 
 ------------------------------------------------------------------------
 
+## GET /rooms/games
+
+Returnerer spil-kataloget med server-authoritative player limits.
+
+### Response
+
+``` json
+[
+  {
+    "gameId": "snyd",
+    "minPlayers": 2,
+    "maxPlayers": 8
+  }
+]
+```
+
+------------------------------------------------------------------------
+
 ## POST /rooms
 
-Opretter et nyt room.
+Opretter et nyt lobby-room. Opretteren bliver automatisk host.
+
+### Request
+
+``` json
+{
+  "playerId": "supabase-user-id",
+  "displayName": "peter@example.com",
+  "gameId": "snyd",
+  "isPublic": false
+}
+```
 
 ### Response
 
 ``` json
 {
-  "roomCode": "ABC123"
+  "roomCode": "ABC123",
+  "hostPlayerId": "supabase-user-id",
+  "gameId": "snyd",
+  "isPublic": false,
+  "status": "WAITING",
+  "minPlayers": 2,
+  "maxPlayers": 8,
+  "currentPlayers": 1,
+  "players": [
+    {
+      "playerId": "supabase-user-id",
+      "displayName": "peter@example.com",
+      "host": true
+    }
+  ]
 }
 ```
 
 ------------------------------------------------------------------------
 
-## POST /rooms/{roomCode}/join
+## GET /rooms
 
-Joiner et eksisterende room.
+Returnerer kun public rooms hvor `status == WAITING`.
 
 ### Response
 
 ``` json
+[
+  {
+    "roomCode": "ABC123",
+    "gameId": "snyd",
+    "isPublic": true,
+    "status": "WAITING",
+    "hostPlayerId": "supabase-user-id",
+    "minPlayers": 2,
+    "maxPlayers": 8,
+    "currentPlayers": 3
+  }
+]
+```
+
+------------------------------------------------------------------------
+
+## GET /rooms/{roomCode}
+
+Henter detaljer for et specifikt room.
+
+------------------------------------------------------------------------
+
+## POST /rooms/{roomCode}/join
+
+Joiner et eksisterende WAITING-room som aktiv spiller.
+
+Hvis room allerede har `status == PLAYING`, returnerer serveren conflict.
+
+### Request
+
+``` json
 {
-  "ok": true
+  "playerId": "supabase-user-id",
+  "displayName": "peter@example.com"
+}
+```
+
+### Response
+
+Samme shape som `POST /rooms`.
+
+------------------------------------------------------------------------
+
+## PATCH /rooms/{roomCode}
+
+Host-only mutation af lobby state.
+
+### Request
+
+``` json
+{
+  "actorPlayerId": "supabase-user-id",
+  "isPublic": true,
+  "kickPlayerId": "other-player-id"
+}
+```
+
+`isPublic` og `kickPlayerId` er begge valgfrie.
+
+------------------------------------------------------------------------
+
+## POST /rooms/{roomCode}/start
+
+Host-only start af spillet. Serveren validerer minimum player count, sætter
+room til `PLAYING`, og initialiserer game state før WebSocket connect.
+
+### Request
+
+``` json
+{
+  "actorPlayerId": "supabase-user-id"
 }
 ```
 
@@ -86,10 +198,13 @@ Alle WebSocket messages har format:
   "type": "CONNECT",
   "payload": {
     "roomCode": "ABC123",
-    "token": "jwt-or-session-token"
+    "token": "supabase-user-id"
   }
 }
 ```
+
+Den nuværende implementation bruger Supabase user id direkte som `playerId`
+på client og server. En senere JWT-validering kan genbruge samme envelope.
 
 ------------------------------------------------------------------------
 

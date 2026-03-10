@@ -153,21 +153,25 @@ Responsibilities:
 
 Client game-room flow (implemented):
 
-1.  URL bootstrap: `?view=room&game=...&room=...&token=...`
-2.  Session opens transport (`/ws` or mock transport)
-3.  Session sends `CONNECT`
-4.  Store receives:
+1.  URL bootstrap til lobby: `?view=lobby&game=snyd&room=ABC123`
+2.  Client fetcher lobby metadata via `/api/rooms/{roomCode}`
+3.  Host kan toggle public/private, kicke spillere og starte spillet
+4.  Ved start transitionerer client til
+    `?view=room&game=...&room=...&token=<supabase-user-id>`
+5.  Session opens transport (`/ws` or mock transport)
+6.  Session sends `CONNECT`
+7.  Store receives:
     -   `STATE_SNAPSHOT`
     -   `PUBLIC_UPDATE`
     -   `PRIVATE_UPDATE`
     -   `ERROR`
     -   `GAME_FINISHED`
-5.  Adapter maps protocol state → UI view model
-6.  UI renders:
+8.  Adapter maps protocol state → UI view model
+9.  UI renders:
     -   room header + connection status
     -   public table (players, turn, pile, claim)
     -   private hand (selectable cards)
-7.  UI intents map to protocol messages (`PLAY_CARDS`, `CALL_SNYD`)
+10. UI intents map to protocol messages (`PLAY_CARDS`, `CALL_SNYD`)
 
 Key principle remains unchanged:
 
@@ -206,7 +210,8 @@ Key principle remains unchanged:
 
 Layer responsibilities:
 
-REST Layer: - Authentication - Room creation/join - Metadata endpoints
+REST Layer: - Authentication - Room creation/join - Lobby browser
+            - Visibility toggles - Kick/start actions - Metadata endpoints
 
 WebSocket Layer: - Authenticated connection - Routing game messages -
 Broadcasting updates
@@ -214,9 +219,22 @@ Broadcasting updates
 Domain Layer: - GameEngine interface - SnydEngine implementation - Full
 rule enforcement
 
-Persistence Layer: - Users - Rooms metadata - Game history - Statistics
+Persistence Layer: - Users - Rooms metadata - Lobby membership
+                   - Game history - Statistics
 
 Live room/game state stored in memory.
+
+### 5.1 Current Lobby Implementation
+
+Current room/lobby flow in this repo:
+
+- `rooms` stores `room_code`, `host_player_id`, `game_id`, `is_public`,
+  `status`, `min_players`, `max_players`
+- `room_players` stores lobby membership and display names
+- `GameCatalog` is the authoritative source for per-game min/max limits
+- `RoomService` owns create/join/list/update/start validation
+- `ActiveGameRegistry` owns in-memory game state after the host starts
+- `/ws` only becomes actionable after a room has been started
 
 ------------------------------------------------------------------------
 

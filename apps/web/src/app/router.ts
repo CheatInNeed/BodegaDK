@@ -1,4 +1,4 @@
-export type View = 'home' | 'play' | 'settings' | 'help' | 'room';
+export type View = 'home' | 'play' | 'settings' | 'help' | 'room' | 'lobby' | 'lobby-browser';
 
 export type AppRoute = {
     view: View;
@@ -53,7 +53,15 @@ export function writeRoute(patch: Partial<AppRoute>) {
 }
 
 function parseView(value: string | null): View {
-    if (value === 'home' || value === 'play' || value === 'settings' || value === 'help' || value === 'room') {
+    if (
+        value === 'home'
+        || value === 'play'
+        || value === 'settings'
+        || value === 'help'
+        || value === 'room'
+        || value === 'lobby'
+        || value === 'lobby-browser'
+    ) {
         return value;
     }
 
