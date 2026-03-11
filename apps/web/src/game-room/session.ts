@@ -122,6 +122,10 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
 function resolveWsUrl(explicitUrl?: string): string {
     if (explicitUrl) return explicitUrl;
 
+    if (window.location.port === '5173') {
+        return 'ws://localhost:8080/ws';
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${window.location.host}/ws`;
 }

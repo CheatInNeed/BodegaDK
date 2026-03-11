@@ -1,13 +1,17 @@
 import { applyI18n, getInitialLang, setLang, type Lang } from './i18n.js';
 import { readRoute, writeRoute, type AppRoute, type View } from './app/router.js';
 import { createGameRoomSession } from './game-room/session.js';
+import type { GameAdapter } from './game-room/types.js';
 import { renderRoomError, renderRoomFrame } from './game-room/view.js';
 import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
+import { highcardAdapter } from './games/highcard/adapter.js';
 import { renderLogin } from './login.js';
 import { renderSingleCardHighestWinsRoom } from './games/single-card-highest-wins/view.js';
+import { createRoom, joinRoom } from './net/api.js';
 
-const adapters = [snydAdapter];
+type GenericAdapter = GameAdapter<Record<string, unknown>, Record<string, unknown>, unknown>;
+const adapters: GenericAdapter[] = [snydAdapter as GenericAdapter, highcardAdapter as GenericAdapter];
 
 const state = {
     lang: getInitialLang() as Lang,
@@ -16,20 +20,12 @@ const state = {
     route: readRoute() as AppRoute,
 };
 
-type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, ReturnType<typeof snydAdapter.toViewModel>>>;
-const SINGLE_CARD_HIGHEST_WINS = 'single-card-highest-wins';
+type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, unknown>>;
+const HIGHCARD_GAME_ID = 'highcard';
 
 let roomSession: ActiveSession | null = null;
 let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
-const singleCardUiState = {
-    roomCode: 'ABC123',
-    dealerLabel: 'Dealer',
-    playerLabel: 'You',
-    middleCard: 'H8',
-    hand: ['S3', 'D8', 'CK', 'H4', 'SA', 'D10', 'C8'],
-    selectedCard: null as string | null,
-};
 
 function iconSvg(pathD: string) {
     return `
@@ -155,33 +151,9 @@ function renderView() {
 
 function renderRoomContent(): string {
     const route = state.route;
-
-    if (route.game === SINGLE_CARD_HIGHEST_WINS) {
-        cleanupRoomSession();
-        const hand = singleCardUiState.hand.map((card) => ({
-            card,
-            selected: card === singleCardUiState.selectedCard,
-        }));
-
-        return renderRoomFrame({
-            connection: 'connected',
-            gameTitle: 'Single Card Highest Wins',
-            errorMessage: null,
-            winnerPlayerId: null,
-            bodyHtml: renderSingleCardHighestWinsRoom({
-                roomCode: route.room ?? singleCardUiState.roomCode,
-                dealerLabel: singleCardUiState.dealerLabel,
-                playerLabel: singleCardUiState.playerLabel,
-                middleCard: singleCardUiState.middleCard,
-                hand,
-                selectedCard: singleCardUiState.selectedCard,
-            }),
-        });
-    }
-
     if (!route.room || !route.token || !route.game) {
         cleanupRoomSession();
-        return renderRoomError('Missing query params. Required: view=room&game=snyd&room=ABC123&token=yourToken');
+        return renderRoomError('Missing query params. Required: view=room&game=highcard&room=ABC123&token=yourToken');
     }
 
     const adapter = adapters.find((candidate) => candidate.canHandle(route.game ?? ''));
@@ -216,10 +188,14 @@ function renderRoomContent(): string {
     const roomState = roomSession.getState();
     const viewModel = roomSession.toViewModel();
     const disableByConnection = roomState.connection !== 'connected' || !!roomState.winnerPlayerId;
-    const bodyHtml = renderSnydRoom(viewModel, {
-        disablePlay: disableByConnection || !viewModel.isMyTurn || viewModel.selectedCount === 0,
-        disableCallSnyd: disableByConnection || !viewModel.isMyTurn,
-    });
+    const bodyHtml = adapter.id === highcardAdapter.id
+        ? renderSingleCardHighestWinsRoom(viewModel as Parameters<typeof renderSingleCardHighestWinsRoom>[0])
+        : renderSnydRoom(viewModel as Parameters<typeof renderSnydRoom>[0], {
+            disablePlay: disableByConnection
+                || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn
+                || (viewModel as Parameters<typeof renderSnydRoom>[0]).selectedCount === 0,
+            disableCallSnyd: disableByConnection || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn,
+        });
 
     return renderRoomFrame({
         connection: roomState.connection,
@@ -242,7 +218,7 @@ function playCards() {
     return `
     <div class="grid">
       ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.open')}
-      ${gameCard('single.card.highest.wins', 'UI prototype: dealer vs player with 7 cards in hand.', 'action.open')}
+      ${gameCard('single.card.highest.wins', 'Backend-ready: single player vs dealer high-card game.', 'action.open')}
       ${gameCard('game.500', 'Kortspil med stik og meldinger (placeholder).', 'action.open')}
       ${gameCard('game.dice', 'Terningebaseret spil (placeholder).', 'action.open')}
       ${gameCard('game.more', 'Flere spil bliver tilføjet løbende.', 'action.play')}
@@ -304,6 +280,11 @@ function wireEvents() {
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-game"]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const game = normalizeGameKey(btn.dataset.game ?? '');
+            if (game === HIGHCARD_GAME_ID) {
+                void startHighCardQuickplay();
+                return;
+            }
+
             navigate({
                 view: 'room',
                 game,
@@ -324,28 +305,6 @@ function wireEvents() {
 
 function wireRoomEvents() {
     if (state.view !== 'room') return;
-
-    if (state.route.game === SINGLE_CARD_HIGHEST_WINS) {
-        document.querySelectorAll<HTMLButtonElement>('button[data-action="single-card-select"]').forEach((button) => {
-            button.addEventListener('click', () => {
-                const card = button.dataset.card;
-                if (!card) return;
-
-                singleCardUiState.selectedCard = singleCardUiState.selectedCard === card ? null : card;
-                renderView();
-            });
-        });
-
-        const playButton = document.querySelector<HTMLButtonElement>('button[data-action="single-card-play"]');
-        playButton?.addEventListener('click', () => {
-            if (!singleCardUiState.selectedCard) return;
-            alert(`(UI only) Played: ${singleCardUiState.selectedCard}`);
-            singleCardUiState.selectedCard = null;
-            renderView();
-        });
-
-        return;
-    }
 
     if (!roomSession) return;
 
@@ -383,8 +342,33 @@ function syncStateFromRoute() {
 
 function normalizeGameKey(game: string): string {
     if (game === 'game.cheat') return 'snyd';
-    if (game === 'single.card.highest.wins') return SINGLE_CARD_HIGHEST_WINS;
+    if (game === 'single.card.highest.wins') return HIGHCARD_GAME_ID;
+    if (game === 'single-card-highest-wins') return HIGHCARD_GAME_ID;
     return game;
+}
+
+async function startHighCardQuickplay() {
+    try {
+        const token = randomToken();
+        const playerId = token;
+
+        const { roomCode } = await createRoom({ gameType: HIGHCARD_GAME_ID });
+        const joined = await joinRoom({ roomCode, playerId, token });
+        if (!joined.ok) {
+            throw new Error('Join room returned not ok');
+        }
+
+        navigate({
+            view: 'room',
+            game: HIGHCARD_GAME_ID,
+            room: roomCode,
+            token,
+            mock: false,
+        });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        alert(`Failed to start HighCard quickplay: ${message}`);
+    }
 }
 
 function randomToken(): string {
