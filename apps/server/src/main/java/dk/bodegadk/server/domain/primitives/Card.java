@@ -20,6 +20,17 @@ public final class Card {
     public String suit() { return suit; }
     public String rank() { return rank; }
 
+    /** Numeric value for comparison: 2=2, 3=3, ..., 10=10, J=11, Q=12, K=13, A=14. */
+    public int value() {
+        return switch (rank) {
+            case "J" -> 11;
+            case "Q" -> 12;
+            case "K" -> 13;
+            case "A" -> 14;
+            default -> Integer.parseInt(rank);
+        };
+    }
+
     /**
      * Parse a protocol card code ("H7", "DA", "S10") into a Card.
      */
