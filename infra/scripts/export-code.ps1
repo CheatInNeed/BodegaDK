@@ -14,67 +14,127 @@ if (Test-Path $outputFile) {
 
 Write-Host "Creating project dump..."
 
-# Helper: exclude noisy folders
+# Helper: exclude noisy folders and generated/binary files
 function IsExcludedPath($fullName) {
-    return ($fullName -match "node_modules|dist|\.git|\.idea|\.vscode|target|build|out")
+    return ($fullName -match "(^|[\\/])(node_modules|dist|\.git|\.idea|\.vscode|target|build|out|coverage|tmp|\.next)([\\/]|$)")
+}
+
+function IsExcludedFile($file) {
+    $name = $file.Name
+    $extension = $file.Extension.ToLowerInvariant()
+
+    if ($name -eq "project_dump.txt") { return $true }
+
+    $excludedExtensions = @(
+        ".class", ".jar", ".war", ".ear",
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf",
+        ".zip", ".tar", ".gz", ".7z",
+        ".exe", ".dll", ".so", ".dylib",
+        ".db", ".sqlite", ".sqlite3",
+        ".lock"
+    )
+
+    return $excludedExtensions -contains $extension
+}
+
+function GetProjectFiles($basePath, $extensions) {
+    if (-not (Test-Path $basePath)) {
+        return @()
+    }
+
+    return Get-ChildItem -Path $basePath -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { -not (IsExcludedPath $_.FullName) } |
+        Where-Object { -not (IsExcludedFile $_) } |
+        Where-Object { $extensions -contains $_.Extension.ToLowerInvariant() }
+}
+
+function GetNamedFiles($basePath, $names) {
+    if (-not (Test-Path $basePath)) {
+        return @()
+    }
+
+    return Get-ChildItem -Path $basePath -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { -not (IsExcludedPath $_.FullName) } |
+        Where-Object { -not (IsExcludedFile $_) } |
+        Where-Object { $names -contains $_.Name }
 }
 
 $files = @()
+
+$codeExtensions = @(
+    ".md",
+    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+    ".java", ".kt", ".kts",
+    ".html", ".css", ".scss",
+    ".json",
+    ".xml",
+    ".yml", ".yaml",
+    ".properties",
+    ".sql",
+    ".sh", ".ps1", ".bat",
+    ".env", ".example"
+)
+
+$importantFileNames = @(
+    "package.json",
+    "package-lock.json",
+    "pom.xml",
+    "tsconfig.json",
+    "vite.config.ts",
+    "vite.config.js",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "Dockerfile",
+    ".dockerignore",
+    ".gitignore",
+    ".env",
+    ".env.example",
+    "README.md"
+)
 
 # ------------------------------------------------------------
 # 1) Web client files (apps/web)
 # ------------------------------------------------------------
 if (Test-Path "$root/apps/web") {
-    $files += Get-ChildItem -Path "$root/apps/web/src" -Recurse -File -Filter "*.ts" -ErrorAction SilentlyContinue
-    $files += Get-ChildItem -Path "$root/apps/web/public" -Recurse -File -Include "*.html","*.css","*.js","*.json","*.svg","*.png","*.jpg","*.jpeg","*.webp" -ErrorAction SilentlyContinue
-    $files += Get-ChildItem -Path "$root/apps/web" -File -Include "package.json","tsconfig.json","vite.config.ts","Dockerfile" -ErrorAction SilentlyContinue
+    $files += GetProjectFiles "$root/apps/web/src" $codeExtensions
+    $files += GetProjectFiles "$root/apps/web/public" $codeExtensions
+    $files += GetNamedFiles "$root/apps/web" $importantFileNames
 }
 
 # ------------------------------------------------------------
 # 2) Server files (apps/server) - Java + Maven + config
 # ------------------------------------------------------------
 if (Test-Path "$root/apps/server") {
-    $files += Get-ChildItem -Path "$root/apps/server/src" -Recurse -File -Include `
-        "*.java","*.kt","*.xml","*.yml","*.yaml","*.properties","*.sql" -ErrorAction SilentlyContinue
-
-    $files += Get-ChildItem -Path "$root/apps/server" -File -Include `
-        "pom.xml","Dockerfile",".dockerignore" -ErrorAction SilentlyContinue
+    $files += GetProjectFiles "$root/apps/server/src" $codeExtensions
+    $files += GetNamedFiles "$root/apps/server" $importantFileNames
 }
 
 # ------------------------------------------------------------
 # 3) Infra (docker/nginx/etc.)
 # ------------------------------------------------------------
 if (Test-Path "$root/infra") {
-    $files += Get-ChildItem -Path "$root/infra" -Recurse -File -Include `
-        "*.yml","*.yaml","*.conf","*.sh","*.ps1","*.sql",".env","Dockerfile" -ErrorAction SilentlyContinue
+    $files += GetProjectFiles "$root/infra" ($codeExtensions + @(".conf"))
+    $files += GetNamedFiles "$root/infra" $importantFileNames
 }
 
 # ------------------------------------------------------------
 # 4) Protocol / packages
 # ------------------------------------------------------------
 if (Test-Path "$root/packages") {
-    $files += Get-ChildItem -Path "$root/packages" -Recurse -File -Include `
-        "*.md","*.json","*.yaml","*.yml","*.ts","*.js" -ErrorAction SilentlyContinue
+    $files += GetProjectFiles "$root/packages" $codeExtensions
 }
 
 # ------------------------------------------------------------
-# 5) Docs (*.md) (already useful)
+# 5) Docs + root files
 # ------------------------------------------------------------
 if (Test-Path "$root/docs") {
-    $files += Get-ChildItem -Path "$root/docs" -Recurse -File -Filter "*.md" -ErrorAction SilentlyContinue
+    $files += GetProjectFiles "$root/docs" $codeExtensions
 }
 
 # ------------------------------------------------------------
 # 6) Important root configuration files
 # ------------------------------------------------------------
-$importantFiles = @(
-    "package.json",
-    "package-lock.json",
-    ".gitignore",
-    "docker-compose.yml"
-)
-
-foreach ($name in $importantFiles) {
+foreach ($name in $importantFileNames) {
     $path = Join-Path $root $name
     if (Test-Path -LiteralPath $path) {
         $item = Get-Item -LiteralPath $path -ErrorAction SilentlyContinue
@@ -88,6 +148,7 @@ foreach ($name in $importantFiles) {
 $files = $files |
     Where-Object { $_ -ne $null } |
     Where-Object { -not (IsExcludedPath $_.FullName) } |
+    Where-Object { -not (IsExcludedFile $_) } |
     Sort-Object FullName -Unique
 
 # ------------------------------------------------------------
