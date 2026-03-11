@@ -48,6 +48,14 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
     }
 
     if (action.type === 'TOGGLE_CARD') {
+        if (state.game.toLowerCase() === 'highcard') {
+            const isSelected = state.selectedHandCards.includes(action.card);
+            return {
+                ...state,
+                selectedHandCards: isSelected ? [] : [action.card],
+            };
+        }
+
         const selected = new Set(state.selectedHandCards);
         if (selected.has(action.card)) {
             selected.delete(action.card);

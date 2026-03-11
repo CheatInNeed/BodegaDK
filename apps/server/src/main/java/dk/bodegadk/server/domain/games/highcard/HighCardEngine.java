@@ -78,8 +78,25 @@ public class HighCardEngine implements GameEngine<HighCardState, HighCardAction>
         Card computer = next.computerCard();
 
         next.playerHand().remove(played);
+        next.setLastPlayerCard(played);
+        next.setLastComputerCard(computer);
 
+        String comparison;
+        boolean winRound;
         if (played.value() > computer.value()) {
+            comparison = "HIGHER";
+            winRound = true;
+        } else if (played.value() < computer.value()) {
+            comparison = "LOWER";
+            winRound = false;
+        } else {
+            comparison = "EQUAL";
+            winRound = false;
+        }
+        next.setLastComparison(comparison);
+        next.setLastResult(winRound ? "WIN" : "LOSS");
+
+        if (winRound) {
             next.setWins(next.wins() + 1);
         } else {
             next.setLosses(next.losses() + 1);
@@ -116,4 +133,3 @@ public class HighCardEngine implements GameEngine<HighCardState, HighCardAction>
         state.setComputerCard(revealed);
     }
 }
-

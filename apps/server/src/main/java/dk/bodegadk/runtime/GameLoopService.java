@@ -53,6 +53,21 @@ public class GameLoopService {
         return result.withNextState(persisted);
     }
 
+    public RoomState prepareSnapshot(String roomCode, String playerId) {
+        RoomState refreshed = runtimeStore.refreshPlayers(roomCode);
+        if (enginePort == null) {
+            return refreshed;
+        }
+
+        RoomState prepared = enginePort.prepareSnapshot(refreshed, playerId);
+        if (prepared == null) {
+            return refreshed;
+        }
+
+        runtimeStore.saveState(roomCode, prepared);
+        return prepared;
+    }
+
     private Map<String, ObjectNode> copyPrivateState(Map<String, ObjectNode> original) {
         Map<String, ObjectNode> copy = new HashMap<>();
         for (Map.Entry<String, ObjectNode> entry : original.entrySet()) {
@@ -63,6 +78,10 @@ public class GameLoopService {
 
     public interface EnginePort {
         LoopResult apply(RoomState state, ActionCommand command);
+
+        default RoomState prepareSnapshot(RoomState state, String playerId) {
+            return state;
+        }
     }
 
     public record ActionCommand(

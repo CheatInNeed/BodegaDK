@@ -101,7 +101,7 @@ public class GameWsHandler extends TextWebSocketHandler {
         InMemoryRuntimeStore.PlayerSession playerSession = resolved.get();
         bindingsById.put(session.getId(), ConnectionBinding.connected(roomCode, playerSession.playerId()));
 
-        GameLoopService.RoomState state = runtimeStore.refreshPlayers(roomCode);
+        GameLoopService.RoomState state = gameLoopService.prepareSnapshot(roomCode, playerSession.playerId());
         ObjectNode payload = objectMapper.createObjectNode();
 
         // TEAM-UI-INTEGRATION: these snapshot fields are the server contract consumed by game-board UI.

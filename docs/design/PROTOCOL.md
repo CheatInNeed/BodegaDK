@@ -105,6 +105,23 @@ Alle WebSocket messages har format:
 }
 ```
 
+For `highcard`, `PLAY_CARDS` is also used with game-specific validation:
+
+- `cards` must contain exactly one card code.
+- `claimRank` is accepted but ignored.
+
+Example (`highcard`):
+
+``` json
+{
+  "type": "PLAY_CARDS",
+  "payload": {
+    "cards": ["HA"],
+    "claimRank": "A"
+  }
+}
+```
+
 ------------------------------------------------------------------------
 
 ## CALL_SNYD

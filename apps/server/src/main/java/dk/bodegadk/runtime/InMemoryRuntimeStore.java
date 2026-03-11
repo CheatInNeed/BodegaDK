@@ -5,6 +5,7 @@ package dk.bodegadk.runtime;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dk.bodegadk.server.domain.games.highcard.HighCardState;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
 
@@ -18,19 +19,22 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 @Component
 public class InMemoryRuntimeStore {
-    private static final String DEFAULT_GAME_TYPE = "SNYD";
+    private static final String DEFAULT_GAME_TYPE = "snyd";
 
     private final SecureRandom random = new SecureRandom();
     private final ConcurrentMap<String, RoomRecord> rooms = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, SessionRecord> sessionsByToken = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, GameLoopService.RoomState> statesByRoom = new ConcurrentHashMap<>();
+    // TEAM-DB-INTEGRATION: replace in-memory domain state map with durable game-state persistence.
+    private final ConcurrentMap<String, HighCardState> highCardStatesByRoom = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ExecutorService> roomExecutors = new ConcurrentHashMap<>();
 
     public String createRoom(String gameType) {
-        String normalizedGameType = gameType == null || gameType.isBlank() ? DEFAULT_GAME_TYPE : gameType;
+        String normalizedGameType = normalizeGameType(gameType);
         String roomCode;
         do {
             roomCode = randomCode();
@@ -49,6 +53,24 @@ public class InMemoryRuntimeStore {
         }
         synchronized (room) {
             return List.copyOf(room.participants);
+        }
+    }
+
+    public Optional<String> roomGameType(String roomCode) {
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return Optional.empty();
+        }
+        return Optional.of(room.gameType);
+    }
+
+    public boolean isParticipant(String roomCode, String playerId) {
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return false;
+        }
+        synchronized (room) {
+            return room.participants.contains(playerId);
         }
     }
 
@@ -83,6 +105,14 @@ public class InMemoryRuntimeStore {
         statesByRoom.put(roomCode, state);
     }
 
+    public HighCardState loadOrCreateHighCardState(String roomCode, Supplier<HighCardState> initializer) {
+        return highCardStatesByRoom.computeIfAbsent(roomCode, key -> initializer.get());
+    }
+
+    public void saveHighCardState(String roomCode, HighCardState state) {
+        highCardStatesByRoom.put(roomCode, state);
+    }
+
     public void submit(String roomCode, Runnable command) {
         ExecutorService executor = roomExecutors.computeIfAbsent(roomCode, key -> Executors.newSingleThreadExecutor());
         executor.submit(command);
@@ -106,6 +136,13 @@ public class InMemoryRuntimeStore {
         GameLoopService.RoomState updated = state.withPublicState(publicState);
         saveState(roomCode, updated);
         return updated;
+    }
+
+    private String normalizeGameType(String gameType) {
+        if (gameType == null || gameType.isBlank()) {
+            return DEFAULT_GAME_TYPE;
+        }
+        return gameType.trim().toLowerCase(Locale.ROOT);
     }
 
     private String randomCode() {

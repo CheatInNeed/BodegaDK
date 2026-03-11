@@ -34,6 +34,8 @@ class HighCardEngineTest {
         HighCardState next = engine.apply(new HighCardAction("p1", "HA"), state);
         assertEquals(1, next.wins());
         assertEquals(0, next.losses());
+        assertEquals("HIGHER", next.lastComparison());
+        assertEquals("WIN", next.lastResult());
     }
 
     @Test
@@ -42,6 +44,8 @@ class HighCardEngineTest {
         HighCardState next = engine.apply(new HighCardAction("p1", "H2"), state);
         assertEquals(0, next.wins());
         assertEquals(1, next.losses());
+        assertEquals("LOWER", next.lastComparison());
+        assertEquals("LOSS", next.lastResult());
     }
 
     @Test
@@ -50,6 +54,8 @@ class HighCardEngineTest {
         HighCardState next = engine.apply(new HighCardAction("p1", "H7"), state);
         assertEquals(0, next.wins());
         assertEquals(1, next.losses());
+        assertEquals("EQUAL", next.lastComparison());
+        assertEquals("LOSS", next.lastResult());
     }
 
     @Test
@@ -125,4 +131,3 @@ class HighCardEngineTest {
         return state;
     }
 }
-

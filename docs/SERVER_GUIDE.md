@@ -1,23 +1,25 @@
 # BodegaDK Server Guide (Debian)
 
-This guide sets up and deploys BodegaDK on a Debian server (example IP: `130.225.170.77`) using `main` or `dev`.
+Last updated: 2026-03-11
+
+This guide deploys BodegaDK on a Debian host with Docker, nginx, server, and postgres.
 
 ## 1) Connect to server
 
 ```bash
-ssh <user>@130.225.170.77
+ssh <user>@<server-ip>
 ```
 
 ## 2) Install prerequisites
 
 ```bash
 sudo apt update
-sudo apt install -y ca-certificates curl gnupg lsb-release git nodejs npm docker.io docker-compose
+sudo apt install -y ca-certificates curl gnupg lsb-release git nodejs npm docker.io docker-compose-plugin
 sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
+sudo usermod -aG docker "$USER"
 ```
 
-Log out and back in (or run `newgrp docker`) so Docker group membership is active.
+Log out/in again (or run `newgrp docker`) so Docker group membership applies.
 
 ## 3) Verify tooling
 
@@ -25,7 +27,7 @@ Log out and back in (or run `newgrp docker`) so Docker group membership is activ
 git --version
 npm --version
 docker --version
-docker-compose --version
+docker compose version
 ```
 
 ## 4) Clone repository
@@ -33,39 +35,99 @@ docker-compose --version
 ```bash
 git clone https://github.com/CheatInNeed/BodegaDK.git
 cd BodegaDK
-git fetch
+git fetch --all --prune
 ```
 
-## 5) Install dependencies and build web
+## 5) Choose branch to deploy
 
-If lockfile is missing, use `npm install` (not `npm ci`):
+Do this before deploying. HighCard availability depends on branch content.
 
 ```bash
-npm install
-npm run web:build
+git checkout <branch>
+git pull --ff-only
+git rev-parse --abbrev-ref HEAD
+git rev-parse HEAD
 ```
 
-## 6) Start full stack (nginx + server + postgres)
+If you need HighCard from current integration work, deploy the branch that contains it (for example `server-v0.1` if that is where it lives), not automatically `main` or `dev`.
+
+## 6) Deploy full stack
+
+From repo root:
 
 ```bash
-cd infra
-docker-compose up -d --build
+npm run deploy:update
 ```
+
+`deploy:update` performs:
+1. `npm install`
+2. `npm run web:build`
+3. `cd infra && (docker compose up -d --build || docker-compose up -d --build)`
 
 ## 7) Verify deployment
 
 ```bash
-docker-compose ps
+cd infra
+docker compose ps
 curl -i http://localhost/api/health
 ```
 
-Open in browser:
+Expected health response:
+- HTTP `200`
+- body includes `{"status":"ok"}`.
 
-- `http://130.225.170.77`
+## 8) Verify HighCard API readiness
 
-## Update/Deploy flow
+Create a room:
 
-From repo root:
+```bash
+curl -sS -X POST http://localhost/api/rooms \
+  -H 'Content-Type: application/json' \
+  -d '{"gameType":"highcard"}'
+```
+
+Expected:
+
+```json
+{"roomCode":"ABC123"}
+```
+
+Join a room:
+
+```bash
+curl -sS -X POST http://localhost/api/rooms/<ROOM_CODE>/join \
+  -H 'Content-Type: application/json' \
+  -d '{"playerId":"p1","token":"p1-token"}'
+```
+
+Expected:
+
+```json
+{"ok":true}
+```
+
+## 9) Open browser and test gameplay
+
+Open:
+- `http://<server-ip>`
+
+Then:
+1. Go to Play.
+2. Open `Single Card Highest Wins`.
+3. Verify room starts and gameplay proceeds (score + higher/lower feedback updates).
+
+## Update flows
+
+### Deploy current checked-out branch
+
+```bash
+git fetch --all --prune
+git checkout <branch>
+git pull --ff-only
+npm run deploy:update
+```
+
+### Deploy main or dev using scripts
 
 ```bash
 npm run deploy:main
@@ -73,85 +135,43 @@ npm run deploy:main
 npm run deploy:dev
 ```
 
-`deploy:main` performs:
-
-1. `git fetch`
-2. `git checkout main`
-3. `git pull`
-4. `npm run deploy:update`
-
-`deploy:dev` performs:
-
-1. `git fetch`
-2. `git checkout dev`
-3. `git pull`
-4. `npm run deploy:update`
-
-`deploy:update` performs:
-
-1. `npm install`
-2. `npm run web:build`
-3. `docker-compose up -d --build` (from `infra/`)
+Note: these scripts switch branches before deploy, so they can deploy code that differs from your current integration branch.
 
 ## Troubleshooting
 
-### `git: command not found` or `npm: command not found`
+### `docker: command not found`
 
-Install missing packages from step 2.
+Install Docker (`docker.io`) and relogin.
 
-### `docker-compose` permission denied (`/var/run/docker.sock`)
+### `docker compose` not found
+
+Install `docker-compose-plugin`.
+
+### `permission denied /var/run/docker.sock`
 
 ```bash
-sudo usermod -aG docker $USER
+sudo usermod -aG docker "$USER"
 newgrp docker
 docker ps
 ```
 
-Then retry:
+### HighCard not available after deploy
 
-```bash
-cd ~/BodegaDK/infra
-docker-compose up -d --build
-```
-
-### `npm ci` fails with lockfile error
-
-Use:
-
-```bash
-npm install
-```
-
-### `Missing script: web:build`
-
-Check available scripts:
-
-```bash
-npm run
-```
-
-If needed, build web directly:
-
-```bash
-cd apps/web
-npm install
-npx tsc
-```
-
-### Spring build error: `Unable to find main class`
-
-Usually branch mismatch or stale state. Check:
+Check deployed branch and commit:
 
 ```bash
 git rev-parse --abbrev-ref HEAD
 git rev-parse HEAD
-find apps/server/src -type f | head
 ```
 
-Then rebuild server image without cache:
+Then redeploy from the branch that contains HighCard integration.
+
+### Build error during server image build
+
+Rebuild without cache:
 
 ```bash
 cd infra
-docker-compose build --no-cache server
-docker-compose up -d --build
+docker compose build --no-cache server
+docker compose up -d --build
 ```

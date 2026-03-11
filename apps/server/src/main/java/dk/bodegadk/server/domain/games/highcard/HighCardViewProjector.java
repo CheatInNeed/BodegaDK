@@ -21,6 +21,16 @@ public class HighCardViewProjector implements ViewProjector<HighCardState> {
         view.put("losses", state.losses());
         view.put("computerCard", state.computerCard() != null ? state.computerCard().toString() : null);
         view.put("computerDeckRemaining", state.computerDeck().size());
+        if (state.lastPlayerCard() != null && state.lastComputerCard() != null) {
+            Map<String, Object> lastRound = new LinkedHashMap<>();
+            lastRound.put("playerCard", state.lastPlayerCard().toString());
+            lastRound.put("dealerCard", state.lastComputerCard().toString());
+            lastRound.put("comparison", state.lastComparison());
+            lastRound.put("result", state.lastResult());
+            view.put("lastRound", lastRound);
+        } else {
+            view.put("lastRound", null);
+        }
         view.put("finished", state.isFinished());
         view.put("winner", state.winnerPlayerId());
         return view;
@@ -36,4 +46,3 @@ public class HighCardViewProjector implements ViewProjector<HighCardState> {
         return view;
     }
 }
-
