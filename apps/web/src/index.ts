@@ -5,6 +5,7 @@ import { renderRoomError, renderRoomFrame } from './game-room/view.js';
 import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
 import { renderLogin } from './login.js';
+import { renderSingleCardHighestWinsRoom } from './games/single-card-highest-wins/view.js';
 
 const adapters = [snydAdapter];
 
@@ -16,10 +17,19 @@ const state = {
 };
 
 type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, ReturnType<typeof snydAdapter.toViewModel>>>;
+const SINGLE_CARD_HIGHEST_WINS = 'single-card-highest-wins';
 
 let roomSession: ActiveSession | null = null;
 let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
+const singleCardUiState = {
+    roomCode: 'ABC123',
+    dealerLabel: 'Dealer',
+    playerLabel: 'You',
+    middleCard: 'H8',
+    hand: ['S3', 'D8', 'CK', 'H4', 'SA', 'D10', 'C8'],
+    selectedCard: null as string | null,
+};
 
 function iconSvg(pathD: string) {
     return `
@@ -146,6 +156,29 @@ function renderView() {
 function renderRoomContent(): string {
     const route = state.route;
 
+    if (route.game === SINGLE_CARD_HIGHEST_WINS) {
+        cleanupRoomSession();
+        const hand = singleCardUiState.hand.map((card) => ({
+            card,
+            selected: card === singleCardUiState.selectedCard,
+        }));
+
+        return renderRoomFrame({
+            connection: 'connected',
+            gameTitle: 'Single Card Highest Wins',
+            errorMessage: null,
+            winnerPlayerId: null,
+            bodyHtml: renderSingleCardHighestWinsRoom({
+                roomCode: route.room ?? singleCardUiState.roomCode,
+                dealerLabel: singleCardUiState.dealerLabel,
+                playerLabel: singleCardUiState.playerLabel,
+                middleCard: singleCardUiState.middleCard,
+                hand,
+                selectedCard: singleCardUiState.selectedCard,
+            }),
+        });
+    }
+
     if (!route.room || !route.token || !route.game) {
         cleanupRoomSession();
         return renderRoomError('Missing query params. Required: view=room&game=snyd&room=ABC123&token=yourToken');
@@ -209,6 +242,7 @@ function playCards() {
     return `
     <div class="grid">
       ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.open')}
+      ${gameCard('single.card.highest.wins', 'UI prototype: dealer vs player with 7 cards in hand.', 'action.open')}
       ${gameCard('game.500', 'Kortspil med stik og meldinger (placeholder).', 'action.open')}
       ${gameCard('game.dice', 'Terningebaseret spil (placeholder).', 'action.open')}
       ${gameCard('game.more', 'Flere spil bliver tilføjet løbende.', 'action.play')}
@@ -289,7 +323,31 @@ function wireEvents() {
 }
 
 function wireRoomEvents() {
-    if (state.view !== 'room' || !roomSession) return;
+    if (state.view !== 'room') return;
+
+    if (state.route.game === SINGLE_CARD_HIGHEST_WINS) {
+        document.querySelectorAll<HTMLButtonElement>('button[data-action="single-card-select"]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const card = button.dataset.card;
+                if (!card) return;
+
+                singleCardUiState.selectedCard = singleCardUiState.selectedCard === card ? null : card;
+                renderView();
+            });
+        });
+
+        const playButton = document.querySelector<HTMLButtonElement>('button[data-action="single-card-play"]');
+        playButton?.addEventListener('click', () => {
+            if (!singleCardUiState.selectedCard) return;
+            alert(`(UI only) Played: ${singleCardUiState.selectedCard}`);
+            singleCardUiState.selectedCard = null;
+            renderView();
+        });
+
+        return;
+    }
+
+    if (!roomSession) return;
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="toggle-card"]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -325,6 +383,7 @@ function syncStateFromRoute() {
 
 function normalizeGameKey(game: string): string {
     if (game === 'game.cheat') return 'snyd';
+    if (game === 'single.card.highest.wins') return SINGLE_CARD_HIGHEST_WINS;
     return game;
 }
 
