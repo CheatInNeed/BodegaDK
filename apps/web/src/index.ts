@@ -22,6 +22,15 @@ type AuthUser = {
     email: string | null;
 };
 
+type PlayerIdentity = {
+    playerId: string;
+    displayName: string;
+    email: string | null;
+    isGuest: boolean;
+};
+
+const GUEST_STORAGE_KEY = 'bodegadk.guestProfile';
+
 const state = {
     lang: getInitialLang() as Lang,
     view: 'play' as View,
@@ -72,6 +81,8 @@ function renderApp() {
     const app = document.getElementById('app');
     if (!app) throw new Error('Missing #app');
 
+    const activePlayer = getActivePlayer();
+
     app.innerHTML = `
     <div class="shell ${state.sidebarCollapsed ? 'collapsed' : ''}" id="shell">
       <header class="topbar">
@@ -81,7 +92,7 @@ function renderApp() {
         </a>
 
         <div class="topbar-right">
-          <span class="pill">${state.authUser ? escapeHtml(state.authUser.displayName) : state.authLoading ? 'Checking login...' : 'Guest'}</span>
+          <span class="pill">${activePlayer ? escapeHtml(activePlayer.displayName) : state.authLoading ? 'Checking login...' : 'Guest'}</span>
           <select class="select" id="langSelect" aria-label="Sprog">
             <option value="da">DA</option>
             <option value="en">EN</option>
@@ -101,7 +112,7 @@ function renderApp() {
 
         <nav class="nav" aria-label="Hovedmenu">
           ${navItem('play', 'nav.play', iconSvg('M8 5v14l11-7z'))}
-          ${navItem('lobby-browser', 'nav.play', iconSvg('M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z'))}
+          ${activePlayer?.isGuest ? '' : navItem('lobby-browser', 'nav.play', iconSvg('M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z'))}
           ${navItem('settings', 'nav.settings', iconSvg('M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.1 7.1 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.48a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.65.22l2.39-.96c.5.4 1.05.71 1.63.94l.36 2.54c.04.24.25.42.49.42h3.8c.24 0 .45-.18.49-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.25.1.52.01.65-.22l1.92-3.32a.5.5 0 0 0-.12-.64zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z'))}
           ${navItem('help', 'nav.help', iconSvg('M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14a4 4 0 0 0-4 4h2a2 2 0 1 1 2 2c-1.1 0-2 .9-2 2v1h2v-1c0-.55.45-1 1-1a4 4 0 0 0 0-8z'))}
         </nav>
@@ -134,12 +145,14 @@ function navItem(view: View, key: string, icon: string) {
 function renderView() {
     const main = document.getElementById('main');
     if (!main) return;
+    const activePlayer = getActivePlayer();
 
     if (state.view === 'home' || state.view === 'play') {
         cleanupRoomSession();
         main.innerHTML = `
       <h1 class="h1" data-i18n="${state.view === 'home' ? 'home.title' : 'play.title'}"></h1>
-      <p class="sub">${state.authUser ? `Logged in as ${escapeHtml(state.authUser.displayName)}.` : 'Log in with Supabase to create or join lobbies.'}</p>
+      <p class="sub">${activePlayer ? `${activePlayer.isGuest ? 'Playing as' : 'Logged in as'} ${escapeHtml(activePlayer.displayName)}.` : 'Continue as guest or log in with Supabase to access all lobby features.'}</p>
+      ${state.lobbyError ? `<div class="room-banner room-banner-error">${escapeHtml(state.lobbyError)}</div>` : ''}
       ${playCards()}
     `;
     } else if (state.view === 'settings') {
@@ -162,9 +175,10 @@ function renderView() {
         cleanupRoomSession();
         main.innerHTML = renderLobbyView({
             room: state.lobbyRoom,
-            selfPlayerId: state.authUser?.playerId ?? null,
+            selfPlayerId: activePlayer?.playerId ?? null,
             error: state.lobbyError,
             busy: state.lobbyBusy,
+            isGuest: activePlayer?.isGuest ?? false,
         });
     } else if (state.view === 'lobby-browser') {
         cleanupRoomSession();
@@ -184,7 +198,8 @@ function renderView() {
 
 function renderRoomContent(): string {
     const route = state.route;
-    const token = route.token ?? state.authUser?.playerId ?? null;
+    const activePlayer = getActivePlayer();
+    const token = route.token ?? activePlayer?.playerId ?? null;
 
     if (route.game === SINGLE_CARD_HIGHEST_WINS) {
         cleanupRoomSession();
@@ -211,7 +226,7 @@ function renderRoomContent(): string {
 
     if (!route.room || !token || !route.game) {
         cleanupRoomSession();
-        return renderRoomError('Missing query params. Required: view=room&game=snyd&room=ABC123 and a logged-in Supabase user.');
+        return renderRoomError('Missing query params. Required: view=room&game=snyd&room=ABC123 and a valid player token.');
     }
 
     const adapter = adapters.find((candidate) => candidate.canHandle(route.game ?? ''));
@@ -269,24 +284,27 @@ function cleanupRoomSession() {
 }
 
 function playCards() {
-    const disabled = !state.authUser ? 'disabled' : '';
+    const activePlayer = getActivePlayer();
+    const guestRestricted = activePlayer?.isGuest ?? !state.authUser;
+    const publicDisabled = guestRestricted ? 'disabled' : '';
     return `
     <div class="grid">
       <div class="card">
         <div class="card-title">Snyd</div>
-        <div class="card-desc">Create a pre-game lobby, switch it public or private, invite friends, then let the host start when enough players are seated.</div>
+        <div class="card-desc">Create a pre-game lobby, invite friends with a room code, then let the host start when enough players are seated.</div>
         <div class="card-row lobby-launch-row">
-          <button class="btn primary" data-action="create-lobby" data-game="snyd" data-public="0" ${disabled}>Create Private Lobby</button>
-          <button class="btn" data-action="create-lobby" data-game="snyd" data-public="1" ${disabled}>Create Public Lobby</button>
-          <button class="btn" data-action="browse-lobbies" data-game="snyd">Find Public Game</button>
+          <button class="btn primary" data-action="create-lobby" data-game="snyd" data-public="0">Create Private Lobby</button>
+          <button class="btn" data-action="create-lobby" data-game="snyd" data-public="1" ${publicDisabled}>Create Public Lobby</button>
+          <button class="btn" data-action="browse-lobbies" data-game="snyd" ${publicDisabled}>Find Public Game</button>
         </div>
+        ${guestRestricted ? '<div class="card-desc">Guest players can create and join private lobbies with room codes. Public lobby discovery requires login.</div>' : ''}
       </div>
       <div class="card">
         <div class="card-title">Join By Code</div>
         <div class="card-desc">Paste a six-character invite code from the party leader.</div>
         <div class="card-row lobby-join-row">
           <input class="input" id="joinCodeInput" maxlength="6" placeholder="ABC123" />
-          <button class="btn primary" data-action="join-by-code" ${disabled}>Join Lobby</button>
+          <button class="btn primary" data-action="join-by-code">Join Lobby</button>
         </div>
       </div>
       ${gameCard('single.card.highest.wins', 'UI prototype: dealer vs player with 7 cards in hand.', 'action.open')}
@@ -350,7 +368,7 @@ function wireEvents() {
                 view: 'room',
                 game,
                 room: state.route.room ?? 'ABC123',
-                token: state.authUser?.playerId ?? randomToken(),
+                token: getOrCreateGuestPlayer().playerId,
                 mock: true,
             });
         });
@@ -363,7 +381,13 @@ function wireEvents() {
     });
 
     document.querySelector('button[data-action="browse-lobbies"]')?.addEventListener('click', () => {
-        navigate({ view: 'lobby-browser', game: 'snyd', room: null, token: state.authUser?.playerId ?? null, mock: false });
+        const player = getActivePlayer();
+        if (player?.isGuest) {
+            state.lobbyError = 'Guests can only join private lobbies by room code.';
+            renderApp();
+            return;
+        }
+        navigate({ view: 'lobby-browser', game: 'snyd', room: null, token: player?.playerId ?? null, mock: false });
     });
 
     document.querySelector('button[data-action="join-by-code"]')?.addEventListener('click', () => {
@@ -377,7 +401,10 @@ function wireEvents() {
     });
 
     document.getElementById('signupBtn')?.addEventListener('click', () => alert('(Placeholder) Opret konto'));
-    document.getElementById('profileBtn')?.addEventListener('click', () => alert(state.authUser ? `${state.authUser.displayName}\n${state.authUser.email ?? ''}` : 'Not logged in'));
+    document.getElementById('profileBtn')?.addEventListener('click', () => {
+        const player = getActivePlayer();
+        alert(player ? `${player.displayName}\n${player.email ?? (player.isGuest ? 'Guest account' : '')}` : 'Not logged in');
+    });
 
     wireLobbyEvents();
 }
@@ -398,9 +425,10 @@ function wireLobbyEvents() {
 
         document.querySelector('button[data-action="toggle-visibility"]')?.addEventListener('click', () => {
             void mutateLobby(async () => {
-                if (!state.authUser || !state.lobbyRoom) return null;
+                const player = getActivePlayer();
+                if (!player || !state.lobbyRoom || player.isGuest) return null;
                 return updateLobby(state.lobbyRoom.roomCode, {
-                    actorPlayerId: state.authUser.playerId,
+                    actorPlayerId: player.playerId,
                     isPublic: !state.lobbyRoom.isPublic,
                 });
             });
@@ -419,9 +447,10 @@ function wireLobbyEvents() {
                 const playerId = button.dataset.playerId;
                 if (!playerId) return;
                 void mutateLobby(async () => {
-                    if (!state.authUser || !state.lobbyRoom) return null;
+                    const player = getActivePlayer();
+                    if (!player || !state.lobbyRoom) return null;
                     return updateLobby(state.lobbyRoom.roomCode, {
-                        actorPlayerId: state.authUser.playerId,
+                        actorPlayerId: player.playerId,
                         kickPlayerId: playerId,
                     });
                 });
@@ -445,7 +474,7 @@ function wireLobbyEvents() {
                     view: 'lobby',
                     room: button.dataset.room ?? null,
                     game: button.dataset.game ?? null,
-                    token: state.authUser?.playerId ?? null,
+                    token: getActivePlayer()?.playerId ?? null,
                     mock: false,
                 });
             });
@@ -497,7 +526,7 @@ function wireLobbyEvents() {
 }
 
 async function handleCreateLobby(gameId: string, isPublic: boolean) {
-    const user = await ensureAuthenticatedUser();
+    const user = await ensurePlayerIdentity();
     if (!user) return;
 
     await mutateLobby(async () => {
@@ -505,21 +534,21 @@ async function handleCreateLobby(gameId: string, isPublic: boolean) {
             playerId: user.playerId,
             displayName: user.displayName,
             gameId,
-            isPublic,
+            isPublic: user.isGuest ? false : isPublic,
         });
         navigate({
             view: 'lobby',
             room: room.roomCode,
             game: room.gameId,
             token: user.playerId,
-            mock: false,
+            mock: room.mock ?? false,
         });
         return room;
     });
 }
 
 async function handleJoinByCode(roomCode: string) {
-    const user = await ensureAuthenticatedUser();
+    const user = await ensurePlayerIdentity();
     if (!user) return;
 
     const normalizedCode = roomCode.trim().toUpperCase();
@@ -539,14 +568,14 @@ async function handleJoinByCode(roomCode: string) {
             room: room.roomCode,
             game: room.gameId,
             token: user.playerId,
-            mock: false,
+            mock: room.mock ?? false,
         });
         return room;
     });
 }
 
 async function handleStartGame() {
-    const user = await ensureAuthenticatedUser();
+    const user = await ensurePlayerIdentity();
     if (!user || !state.lobbyRoom) return;
 
     await mutateLobby(async () => {
@@ -563,8 +592,8 @@ function enterGameBoard() {
         view: 'room',
         room: state.lobbyRoom.roomCode,
         game: state.lobbyRoom.gameId,
-        token: state.authUser?.playerId ?? null,
-        mock: false,
+        token: getActivePlayer()?.playerId ?? null,
+        mock: state.lobbyRoom.mock ?? false,
     });
 }
 
@@ -610,17 +639,11 @@ async function refreshAuthUser() {
     renderApp();
 }
 
-async function ensureAuthenticatedUser(): Promise<AuthUser | null> {
+async function ensurePlayerIdentity(): Promise<PlayerIdentity | null> {
     if (state.authLoading) {
         await refreshAuthUser();
     }
-    if (state.authUser) {
-        return state.authUser;
-    }
-
-    window.history.pushState({}, '', '/login');
-    renderApp();
-    return null;
+    return getOrCreateGuestPlayer();
 }
 
 async function ensureGameCatalog() {
@@ -714,6 +737,59 @@ function normalizeGameKey(game: string): string {
 
 function randomToken(): string {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getActivePlayer(): PlayerIdentity | null {
+    if (state.authUser) {
+        return {
+            ...state.authUser,
+            isGuest: false,
+        };
+    }
+
+    return readGuestPlayer();
+}
+
+function getOrCreateGuestPlayer(): PlayerIdentity {
+    const existing = getActivePlayer();
+    if (existing) {
+        return existing;
+    }
+
+    const guestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? `guest-${crypto.randomUUID()}`
+        : `guest-${randomToken()}`;
+    const suffix = guestId.slice(-4).toUpperCase();
+    const guest: PlayerIdentity = {
+        playerId: guestId,
+        displayName: `Guest ${suffix}`,
+        email: null,
+        isGuest: true,
+    };
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guest));
+    return guest;
+}
+
+function readGuestPlayer(): PlayerIdentity | null {
+    const raw = localStorage.getItem(GUEST_STORAGE_KEY);
+    if (!raw) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(raw) as Partial<PlayerIdentity>;
+        if (typeof parsed.playerId !== 'string' || typeof parsed.displayName !== 'string') {
+            return null;
+        }
+        return {
+            playerId: parsed.playerId,
+            displayName: parsed.displayName,
+            email: null,
+            isGuest: true,
+        };
+    } catch {
+        return null;
+    }
 }
 
 function readDisplayName(user: { email?: string | null; user_metadata?: { [key: string]: unknown } }): string {

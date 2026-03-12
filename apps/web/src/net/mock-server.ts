@@ -30,6 +30,22 @@ type BroadcastPayload = {
 
 const STORAGE_PREFIX = 'bodegadk.mock.room.';
 
+export function seedMockRoom(roomCode: string, playerIds: string[]) {
+    const players = playerIds.length >= 2 ? [...playerIds] : [...playerIds, 'mock-bot'];
+    const room: MockRoomData = {
+        roomCode,
+        players,
+        tokens: Object.fromEntries(players.map((playerId) => [playerId, playerId])),
+        hands: dealHands(players),
+        turnPlayerId: players[0],
+        nextPlayerId: players[1] ?? players[0],
+        pileCount: 0,
+        winnerPlayerId: null,
+    };
+
+    saveRoom(room);
+}
+
 /**
  * Dev-only in-browser transport that simulates a server-authoritative room.
  * It shares room state across tabs and emits protocol-compatible messages.
@@ -226,6 +242,36 @@ function readOrCreateRoom(roomCode: string): MockRoomData {
 
     saveRoom(room);
     return room;
+}
+
+function dealHands(players: string[]): Record<string, string[]> {
+    const deck = createDeck();
+    const hands: Record<string, string[]> = {};
+    players.forEach((playerId) => {
+        hands[playerId] = [];
+    });
+
+    deck.forEach((card, index) => {
+        const playerId = players[index % players.length];
+        hands[playerId].push(card);
+    });
+
+    return hands;
+}
+
+function createDeck(): string[] {
+    const suits = ['H', 'D', 'C', 'S'];
+    const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+    const deck = suits.flatMap((suit) => ranks.map((rank) => `${suit}${rank}`));
+
+    for (let i = deck.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = deck[i];
+        deck[i] = deck[j];
+        deck[j] = tmp;
+    }
+
+    return deck;
 }
 
 /**

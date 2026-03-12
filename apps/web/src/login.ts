@@ -17,6 +17,10 @@ export function renderLogin() {
           <button id="loginSubmit" class="btn primary full">
             Log ind
           </button>
+
+          <button id="guestSubmit" class="btn full">
+            Fortsaet som Guest
+          </button>
         </div>
       </div>
     `;
@@ -32,5 +36,9 @@ export function renderLogin() {
         } else {
             window.location.href = '/';
         }
+    });
+
+    document.getElementById('guestSubmit')?.addEventListener('click', () => {
+        window.location.href = '/';
     });
 }
