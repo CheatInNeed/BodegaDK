@@ -58,7 +58,7 @@ class HighCardEnginePortAdapterTest {
     void appliesValidHighCardActionAndProducesPrivateUpdate() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
-        GameLoopService service = new GameLoopService(store, adapter);
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
 
         String roomCode = store.createRoom("highcard");
         store.joinRoom(roomCode, "p1", "token-p1");
