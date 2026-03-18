@@ -4,85 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="login and customize avatar">
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/pom.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/BodegaServerApplication.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/RoomController.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/GameLoopService.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/HighCardEnginePortAdapter.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/InMemoryRuntimeStore.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/HealthController.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/GameAction.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/GameEngine.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/GameState.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/TurnManager.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/ViewProjector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/highcard/HighCardAction.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/highcard/HighCardEngine.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/highcard/HighCardState.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/highcard/HighCardViewProjector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/snyd/SnydAction.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/snyd/SnydEngine.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/snyd/SnydState.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/snyd/SnydViewProjector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/primitives/Card.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/primitives/Deck.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/primitives/Dice.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/primitives/DiceSet.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/WsConfig.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/resources/application-local.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/resources/application.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/HighCardEnginePortAdapterTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/engine/TurnManagerTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/games/highcard/HighCardEngineTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/games/snyd/SnydEngineTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/primitives/CardTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/primitives/DeckTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/primitives/DiceTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/ws/ServerLoopCoreTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/package.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/public/index.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/public/styles.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/app/router.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/custom.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/session.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/store.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/transport/ws-client.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/types.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/view.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/highcard/adapter.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/single-card-highest-wins/view.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/snyd/actions.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/snyd/adapter.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/snyd/view.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/i18n.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/login.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/net/api.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/net/mock-server.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/net/protocol.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/signUp.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/supabase.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/tsconfig.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/dist/i18n.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/DESIGN_GUIDE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/SERVER_ENGINE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/web-game-architecture-gdd.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/security/security.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/infra/docker-compose.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/infra/nginx/nginx.conf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/infra/scripts/export-code.ps1" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="added AGENTS.md">
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -90,7 +13,16 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="dev" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
@@ -106,7 +38,7 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "git-widget-placeholder": "Merging auth__database",
+    "git-widget-placeholder": "gitignore-update",
     "javascript.preferred.runtime.type.id": "node",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",

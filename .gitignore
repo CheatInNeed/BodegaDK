@@ -26,3 +26,9 @@ apps/server/build/
 .DS_Store
 .idea/
 *.iml
+
+# Build artifacts
+/dist/*.js
+
+# Local IDE state
+.idea/copilot.data.migration.ask2agent.xml
