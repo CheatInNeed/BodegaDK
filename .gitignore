@@ -9,3 +9,11 @@ yarn-error.log*
 .pnp.js
 project_dump.txt
 .vscode/*
+
+# Build artifacts
+/apps/web/public/dist/
+/apps/server/target/
+/dist/*.js
+
+# Local IDE state
+.idea/copilot.data.migration.ask2agent.xml
