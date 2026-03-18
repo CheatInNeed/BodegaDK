@@ -329,7 +329,7 @@ function wireRoomEvents() {
     });
 }
 
-function navigate(patch: Partial<AppRoute>) {
+export function navigate(patch: Partial<AppRoute>) {
     writeRoute(patch);
     syncStateFromRoute();
     renderApp();
