@@ -2,6 +2,9 @@
   "name": "bodegadk",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
   "type": "module",
   "scripts": {
     "build": "tsc",
