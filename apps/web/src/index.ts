@@ -60,6 +60,7 @@ const FALLBACK_LOBBY_GAME_ID = HIGHCARD_GAME_ID;
 let roomSession: ActiveSession | null = null;
 let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
+let highCardAutoStartKey: string | null = null;
 
 function iconSvg(pathD: string) {
     return `
@@ -279,6 +280,28 @@ function renderRoomContent(): string {
         return renderRoomError('Unable to initialize room session');
     }
 
+    const roomPublicState = toRecord(roomState.publicState);
+    const status = typeof roomPublicState.status === 'string' ? roomPublicState.status : null;
+    const hostPlayerId = typeof roomPublicState.hostPlayerId === 'string' ? roomPublicState.hostPlayerId : null;
+    const autoStartKey = `${route.room}|${route.token}|${route.game}`;
+
+    if (
+        route.game === HIGHCARD_GAME_ID
+        && status === 'LOBBY'
+        && roomState.connection === 'connected'
+        && roomState.playerId
+        && roomState.playerId === hostPlayerId
+        && highCardAutoStartKey !== autoStartKey
+    ) {
+        highCardAutoStartKey = autoStartKey;
+        queueMicrotask(() => {
+            roomSession?.sendMessage({
+                type: 'START_GAME',
+                payload: {},
+            });
+        });
+    }
+
     const disableByConnection = roomState.connection !== 'connected' || !!roomState.winnerPlayerId;
     let bodyHtml = '';
 
@@ -345,6 +368,7 @@ function cleanupRoomSession() {
     roomSession?.stop();
     roomSession = null;
     roomSessionKey = null;
+    highCardAutoStartKey = null;
 }
 
 function resolveAdapter(game: string): GenericAdapter | undefined {
