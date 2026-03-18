@@ -7,6 +7,9 @@ import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
 import { highcardAdapter } from './games/highcard/adapter.js';
 import { renderLogin } from './login.js';
+import { renderSignup } from './signUp.js';
+import { renderCustom } from './custom.js';
+import { supabase } from './supabase.js';
 import { renderSingleCardHighestWinsRoom } from './games/single-card-highest-wins/view.js';
 import { createRoom, joinRoom } from './net/api.js';
 
@@ -36,8 +39,18 @@ function iconSvg(pathD: string) {
 }
 
 function renderApp() {
-    if (window.location.pathname === '/login') {
+    const path = window.location.pathname;
+
+    if (path === '/login') {
         renderLogin();
+        return;
+    }
+    if (path === '/signup') {
+        renderSignup();
+        return;
+    }
+    if (path === '/custom') {
+        renderCustom();
         return;
     }
 
@@ -58,6 +71,7 @@ function renderApp() {
             <option value="en">EN</option>
           </select>
 
+          <div id="avatarDisplay" class="avatar hidden" aria-hidden="true"></div>
           <button class="btn" id="loginBtn" data-i18n="top.login"></button>
           <button class="btn primary" id="signupBtn" data-i18n="top.signup"></button>
           <button class="btn" id="profileBtn" data-i18n="top.profile"></button>
@@ -87,6 +101,7 @@ function renderApp() {
     applyI18n(app, state.lang);
     renderView();
     wireEvents();
+    void updateAuthUI();
 }
 
 function navItem(view: View, key: string, icon: string) {
@@ -295,12 +310,20 @@ function wireEvents() {
         });
     });
 
-    document.getElementById('loginBtn')?.addEventListener('click', () => {
-        window.history.pushState({}, '', '/login');
-        renderApp();
-    });
-    document.getElementById('signupBtn')?.addEventListener('click', () => alert('(Placeholder) Opret konto'));
-    document.getElementById('profileBtn')?.addEventListener('click', () => alert('(Placeholder) Profil'));
+    const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null;
+    if (loginBtn) {
+        loginBtn.onclick = () => navigate('/login');
+    }
+
+    const signupBtn = document.getElementById('signupBtn') as HTMLButtonElement | null;
+    if (signupBtn) {
+        signupBtn.onclick = () => navigate('/signup');
+    }
+
+    const profileBtn = document.getElementById('profileBtn') as HTMLButtonElement | null;
+    if (profileBtn) {
+        profileBtn.onclick = () => alert('You are not logged in.');
+    }
 }
 
 function wireRoomEvents() {
@@ -329,8 +352,75 @@ function wireRoomEvents() {
     });
 }
 
-export function navigate(patch: Partial<AppRoute>) {
-    writeRoute(patch);
+async function updateAuthUI() {
+    const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null;
+    const signupBtn = document.getElementById('signupBtn') as HTMLButtonElement | null;
+    const profileBtn = document.getElementById('profileBtn') as HTMLButtonElement | null;
+    const avatarDisplay = document.getElementById('avatarDisplay') as HTMLDivElement | null;
+
+    if (!loginBtn || !signupBtn || !profileBtn) return;
+
+    try {
+        const { data } = await supabase.auth.getUser();
+        const user = data.user;
+
+        if (!user) {
+            loginBtn.classList.remove('hidden');
+            signupBtn.textContent = state.lang === 'en' ? 'Create account' : 'Opret konto';
+            signupBtn.onclick = () => navigate('/signup');
+            profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
+            profileBtn.onclick = () => alert('You are not logged in.');
+
+            if (avatarDisplay) {
+                avatarDisplay.classList.add('hidden');
+                avatarDisplay.style.background = '';
+            }
+            return;
+        }
+
+        loginBtn.classList.add('hidden');
+        signupBtn.textContent = 'Customize player';
+        signupBtn.onclick = () => navigate('/custom');
+        profileBtn.textContent = 'Logout';
+        profileBtn.onclick = async () => {
+            await supabase.auth.signOut();
+            navigate('/');
+        };
+
+        await loadAvatar(user.id, avatarDisplay);
+    } catch (error) {
+        console.error('Failed to sync auth UI', error);
+    }
+}
+
+async function loadAvatar(userId: string, avatarDisplay: HTMLDivElement | null) {
+    if (!avatarDisplay) return;
+
+    const { data: avatar } = await supabase
+        .from('avatars')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+    if (!avatar) {
+        avatarDisplay.classList.add('hidden');
+        avatarDisplay.style.background = '';
+        return;
+    }
+
+    avatarDisplay.classList.remove('hidden');
+    avatarDisplay.style.background = avatar.avatar_color ?? '';
+    avatarDisplay.style.borderRadius = avatar.avatar_shape === 'circle' ? '50%' : '8px';
+    avatarDisplay.style.cursor = 'default';
+}
+
+export function navigate(target: Partial<AppRoute> | string) {
+    if (typeof target === 'string') {
+        window.history.pushState({}, '', target);
+    } else {
+        writeRoute(target);
+    }
+
     syncStateFromRoute();
     renderApp();
 }

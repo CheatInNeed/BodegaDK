@@ -110,14 +110,7 @@ export function renderSignup() {
                     return;
                 }
 
-                setTimeout(() => navigate({
-                    view: 'play',
-                    game: null,
-                    room: null,
-                    token: null,
-                    mock: false,
-                }), 800);
+                setTimeout(() => navigate('/'), 800);
             }
         }
     }
-
