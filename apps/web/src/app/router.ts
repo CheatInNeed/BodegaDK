@@ -1,4 +1,4 @@
-export type View = 'home' | 'play' | 'settings' | 'help' | 'room';
+export type View = 'home' | 'play' | 'settings' | 'help' | 'room' | 'lobby-browser' | 'lobby';
 
 export type AppRoute = {
     view: View;
@@ -29,10 +29,32 @@ export function readRoute(): AppRoute {
  */
 export function writeRoute(patch: Partial<AppRoute>) {
     const current = readRoute();
-    const next: AppRoute = {
+    const requestedView = patch.view ?? current.view;
+
+    let next: AppRoute = {
         ...current,
         ...patch,
     };
+
+    if (requestedView === 'home' || requestedView === 'play' || requestedView === 'settings' || requestedView === 'help' || requestedView === 'lobby-browser') {
+        next = {
+            ...next,
+            game: patch.game ?? null,
+            room: patch.room ?? null,
+            token: patch.token ?? null,
+            mock: patch.mock ?? false,
+        };
+    }
+
+    if (requestedView === 'lobby' && patch.view === 'lobby') {
+        next = {
+            ...next,
+            game: patch.game ?? next.game,
+            room: patch.room ?? next.room,
+            token: patch.token ?? next.token,
+            mock: patch.mock ?? next.mock,
+        };
+    }
 
     const params = new URLSearchParams(window.location.search);
     params.set('view', next.view);
@@ -53,7 +75,15 @@ export function writeRoute(patch: Partial<AppRoute>) {
 }
 
 function parseView(value: string | null): View {
-    if (value === 'home' || value === 'play' || value === 'settings' || value === 'help' || value === 'room') {
+    if (
+        value === 'home'
+        || value === 'play'
+        || value === 'settings'
+        || value === 'help'
+        || value === 'room'
+        || value === 'lobby-browser'
+        || value === 'lobby'
+    ) {
         return value;
     }
 

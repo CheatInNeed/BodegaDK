@@ -397,6 +397,11 @@ select.input {
 /* full width button */
 .full {
     width: 100%;
+}
+
+.full-width {
+    width: 100%;
+}
 
 .room-layout {
     display: grid;
@@ -769,6 +774,103 @@ select.input {
     height: 128px;
 }
 
+.lobby-entry-banner,
+.lobby-hero,
+.lobby-room-summary,
+.lobby-player-card,
+.lobby-list-card,
+.lobby-panel {
+    display: grid;
+    gap: var(--s3);
+}
+
+.lobby-entry-banner,
+.lobby-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    margin-bottom: var(--s4);
+}
+
+.lobby-browser,
+.lobby-room {
+    display: grid;
+    gap: var(--s4);
+}
+
+.lobby-browser-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.9fr);
+    gap: var(--s4);
+    align-items: start;
+}
+
+.lobby-primary-column,
+.lobby-side-column,
+.lobby-room-list,
+.lobby-player-list {
+    display: grid;
+    gap: var(--s3);
+}
+
+.lobby-hero-actions,
+.lobby-badges,
+.lobby-player-strip,
+.lobby-summary-grid {
+    display: flex;
+    gap: var(--s2);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.lobby-section-heading,
+.lobby-list-header {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--s2);
+    align-items: flex-start;
+}
+
+.lobby-panel .card-desc,
+.lobby-list-card .card-desc,
+.lobby-player-card .card-desc,
+.lobby-room-summary .card-desc {
+    margin-bottom: 0;
+}
+
+.lobby-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    color: var(--muted);
+    font-family: var(--font-ui);
+}
+
+.lobby-toggle input {
+    accent-color: var(--primary);
+}
+
+.lobby-code {
+    font-family: var(--font);
+    font-size: 28px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: var(--s3);
+    border-radius: var(--radius);
+    border: 1px dashed rgba(209, 139, 44, 0.5);
+    background: rgba(209, 139, 44, 0.12);
+}
+
+.lobby-empty {
+    text-align: center;
+}
+
+@media (max-width: 980px) {
+    .lobby-browser-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 980px) {
     .table-stage {
         min-height: 420px;
@@ -821,6 +923,14 @@ select.input {
         grid-template-columns: 1fr;
         justify-items: center;
         gap: var(--s2);
+    }
+
+    .lobby-entry-banner,
+    .lobby-hero,
+    .lobby-list-header,
+    .lobby-section-heading {
+        grid-template-columns: 1fr;
+        display: grid;
     }
 }
 
