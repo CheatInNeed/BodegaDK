@@ -1,17 +1,70 @@
 # BodegaDK
 
-## Deploy Scripts
+Browser-based card game platform with:
+- `apps/web` (TypeScript web client)
+- `apps/server` (Spring Boot backend)
+- `infra` (nginx + postgres + compose)
 
-From repo root on the server:
+## Quick Start (Fast Local Dev)
+
+From repo root:
+
+```bash
+npm install
+npm run local:dev
+```
+
+This starts:
+- server on `http://localhost:8080` (local profile, no DB required)
+- web on `http://localhost:5173`
+- TypeScript watch + rebuild
+
+## Run Server + DB on localhost (Docker)
+
+If you want postgres-backed stack pieces locally:
+
+```bash
+cd infra
+docker compose up -d db server
+```
+
+Health check:
+
+```bash
+curl -i http://localhost:8080/health
+```
+
+## Full Stack (nginx + server + db)
+
+```bash
+npm run deploy:update
+```
+
+Open:
+- `http://localhost`
+
+## Useful Commands
+
+```bash
+npm run web:build
+npm run server:local
+npm run web:watch
+npm run web:dev
+npm run local:health
+```
+
+## Branch Deploy Helpers
 
 ```bash
 npm run deploy:main
-# or
 npm run deploy:dev
 ```
 
-What these do:
+These commands switch branch before deploying.
 
-- `deploy:main`: fetch, checkout `main`, pull, then deploy.
-- `deploy:dev`: fetch, checkout `dev`, pull, then deploy.
-- `deploy:update`: install deps, build web, then run `docker-compose up -d --build` from `infra/`.
+## Documentation
+
+- Local development guide: [docs/DEVELOPMENT.md](/Users/alex/WebstormProjects/BodegaDK/docs/DEVELOPMENT.md)
+- Debian/server deploy guide: [docs/SERVER_GUIDE.md](/Users/alex/WebstormProjects/BodegaDK/docs/SERVER_GUIDE.md)
+- Protocol contract: [docs/PROTOCOL.md](/Users/alex/WebstormProjects/BodegaDK/docs/PROTOCOL.md)
+- Engine integration contract: [docs/enginge_intergration_contract.md](/Users/alex/WebstormProjects/BodegaDK/docs/enginge_intergration_contract.md)

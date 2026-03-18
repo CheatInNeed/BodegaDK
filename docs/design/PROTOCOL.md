@@ -86,10 +86,23 @@ Alle WebSocket messages har format:
   "type": "CONNECT",
   "payload": {
     "roomCode": "ABC123",
-    "token": "jwt-or-session-token"
+    "token": "jwt-or-session-token",
+    "game": "casino",
+    "setup": {
+      "casinoRules": {
+        "valueMap": {
+          "HA": [1, 14]
+        }
+      }
+    }
   }
 }
 ```
+
+For non-Casino games, `game` and `setup` are optional.
+
+For `casino`, `setup.casinoRules.valueMap` must define all 52 cards or the
+server rejects connect/start.
 
 ------------------------------------------------------------------------
 
@@ -105,6 +118,23 @@ Alle WebSocket messages har format:
 }
 ```
 
+For `highcard`, `PLAY_CARDS` is also used with game-specific validation:
+
+- `cards` must contain exactly one card code.
+- `claimRank` is accepted but ignored.
+
+Example (`highcard`):
+
+``` json
+{
+  "type": "PLAY_CARDS",
+  "payload": {
+    "cards": ["HA"],
+    "claimRank": "A"
+  }
+}
+```
+
 ------------------------------------------------------------------------
 
 ## CALL_SNYD
@@ -113,6 +143,51 @@ Alle WebSocket messages har format:
 {
   "type": "CALL_SNYD",
   "payload": {}
+}
+```
+
+------------------------------------------------------------------------
+
+## CASINO_PLAY_MOVE
+
+``` json
+{
+  "type": "CASINO_PLAY_MOVE",
+  "payload": {
+    "handCard": "HA",
+    "captureStackIds": ["s1", "s2"],
+    "playedValue": 14
+  }
+}
+```
+
+`captureStackIds` empty means trail card to table.
+
+------------------------------------------------------------------------
+
+## CASINO_BUILD_STACK
+
+``` json
+{
+  "type": "CASINO_BUILD_STACK",
+  "payload": {
+    "handCard": "H4",
+    "targetStackId": "s1",
+    "playedValue": 4
+  }
+}
+```
+
+------------------------------------------------------------------------
+
+## CASINO_MERGE_STACKS
+
+``` json
+{
+  "type": "CASINO_MERGE_STACKS",
+  "payload": {
+    "stackIds": ["s1", "s2", "s3"]
+  }
 }
 ```
 
@@ -146,6 +221,10 @@ Sendes ved connect eller re-sync.
   }
 }
 ```
+
+For `casino`, `publicState` includes `dealerPlayerId`, `tableStacks`,
+`deckCount`, `capturedCounts`, `lastCapturePlayerId`, `started`,
+`rules.valueMap`, and `privateState` includes `capturedCards`.
 
 ------------------------------------------------------------------------
 
@@ -204,6 +283,8 @@ Sendes kun til én spiller.
   }
 }
 ```
+
+For Casino draws, `winnerPlayerId` may be `null`.
 
 ------------------------------------------------------------------------
 

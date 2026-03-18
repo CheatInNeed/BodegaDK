@@ -48,6 +48,14 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
     }
 
     if (action.type === 'TOGGLE_CARD') {
+        if (state.game.toLowerCase() === 'highcard' || state.game.toLowerCase() === 'casino') {
+            const isSelected = state.selectedHandCards.includes(action.card);
+            return {
+                ...state,
+                selectedHandCards: isSelected ? [] : [action.card],
+            };
+        }
+
         const selected = new Set(state.selectedHandCards);
         if (selected.has(action.card)) {
             selected.delete(action.card);
@@ -66,7 +74,7 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
         const hand = readHand(msg.payload.privateState);
         return {
             ...state,
-            playerId: msg.payload.privateState.playerId,
+            playerId: readPlayerId(msg.payload.privateState),
             publicState: msg.payload.publicState,
             privateState: msg.payload.privateState,
             selectedHandCards: state.selectedHandCards.filter((card) => hand.includes(card)),
@@ -89,15 +97,16 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
     }
 
     if (msg.type === 'PRIVATE_UPDATE') {
-        if (state.playerId && msg.payload.playerId !== state.playerId) {
-            console.warn('[game-room] ignoring PRIVATE_UPDATE for another player', msg.payload.playerId);
+        const incomingPlayerId = readPlayerId(msg.payload);
+        if (state.playerId && incomingPlayerId && incomingPlayerId !== state.playerId) {
+            console.warn('[game-room] ignoring PRIVATE_UPDATE for another player', incomingPlayerId);
             return state;
         }
 
         const hand = readHand(msg.payload);
         return {
             ...state,
-            playerId: state.playerId ?? msg.payload.playerId,
+            playerId: state.playerId ?? incomingPlayerId,
             privateState: {
                 ...(state.privateState ?? {}),
                 ...msg.payload,
@@ -132,4 +141,8 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
 function readHand(privateState: SnydPrivateState | Record<string, unknown>): string[] {
     const hand = privateState.hand;
     return Array.isArray(hand) ? hand.filter((card) => typeof card === 'string') : [];
+}
+
+function readPlayerId(privateState: Record<string, unknown>): string | null {
+    return typeof privateState.playerId === 'string' ? privateState.playerId : null;
 }

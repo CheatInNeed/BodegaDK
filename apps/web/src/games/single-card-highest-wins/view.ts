@@ -3,13 +3,18 @@ export type SingleCardHighestWinsViewModel = {
     dealerLabel: string;
     playerLabel: string;
     middleCard: string;
+    scoreYou: number;
+    scoreDealer: number;
+    feedbackText: string;
+    lastPlayerCard: string | null;
+    lastDealerCard: string | null;
     hand: Array<{ card: string; selected: boolean }>;
     selectedCard: string | null;
 };
 
 export function renderSingleCardHighestWinsRoom(viewModel: SingleCardHighestWinsViewModel): string {
     const handHtml = viewModel.hand.map((item, index) => `
-      <button class="play-card ${item.selected ? 'selected' : ''}" data-action="single-card-select" data-card="${item.card}" style="--card-offset:${index * 16}px">
+      <button class="play-card ${item.selected ? 'selected' : ''}" data-action="toggle-card" data-card="${item.card}" style="--card-offset:${index * 16}px">
         ${renderFaceCard(item.card)}
       </button>
     `).join('');
@@ -19,6 +24,7 @@ export function renderSingleCardHighestWinsRoom(viewModel: SingleCardHighestWins
       <div class="room-header-row">
         <div class="pill">Room: ${viewModel.roomCode}</div>
         <div class="pill">Game: Single Card Highest Wins</div>
+        <div class="pill">Score: You ${viewModel.scoreYou} - ${viewModel.scoreDealer} Dealer</div>
       </div>
 
       <div class="single-card-board">
@@ -28,7 +34,9 @@ export function renderSingleCardHighestWinsRoom(viewModel: SingleCardHighestWins
         <div class="single-card-center">
           <div class="card-title">Middle card</div>
           <div class="single-card-center-card">${renderFaceCard(viewModel.middleCard)}</div>
-          <p class="card-desc">Play a card with the same value or higher.</p>
+          <p class="card-desc">Play a card with a higher value.</p>
+          <p class="card-desc">${viewModel.feedbackText}</p>
+          <p class="card-desc">Last round: ${viewModel.lastPlayerCard ?? '-'} vs ${viewModel.lastDealerCard ?? '-'}</p>
         </div>
         <div class="single-card-seat">
           <span class="pill">${viewModel.playerLabel}</span>
@@ -43,7 +51,7 @@ export function renderSingleCardHighestWinsRoom(viewModel: SingleCardHighestWins
 
         <div class="card-row room-actions">
           <span class="pill">Selected: ${viewModel.selectedCard ?? '-'}</span>
-          <button class="btn primary" data-action="single-card-play" ${!viewModel.selectedCard ? 'disabled' : ''}>Play selected card</button>
+          <button class="btn primary" data-action="play-selected" ${!viewModel.selectedCard ? 'disabled' : ''}>Play selected card</button>
         </div>
       </div>
     </section>

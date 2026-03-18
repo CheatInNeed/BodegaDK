@@ -2,7 +2,7 @@ import { createRoomStore } from './store.js';
 import type { GameAdapter, RoomBootstrap, RoomSessionState, RoomTransport, UiIntent } from './types.js';
 import { createWebSocketTransport } from './transport/ws-client.js';
 import { createMockServerTransport } from '../net/mock-server.js';
-import { parseServerMessage } from '../net/protocol.js';
+import { createDefaultCasinoValueMap, parseServerMessage } from '../net/protocol.js';
 
 type SessionOptions<TPublic extends Record<string, unknown>, TPrivate extends Record<string, unknown>, TViewModel> = {
     bootstrap: RoomBootstrap;
@@ -55,6 +55,14 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
                     payload: {
                         roomCode: options.bootstrap.roomCode,
                         token: options.bootstrap.token,
+                        game: options.bootstrap.game,
+                        setup: options.bootstrap.game.toLowerCase() === 'casino'
+                            ? {
+                                casinoRules: {
+                                    valueMap: createDefaultCasinoValueMap(),
+                                },
+                            }
+                            : undefined,
                     },
                 });
             },
@@ -121,6 +129,10 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
  */
 function resolveWsUrl(explicitUrl?: string): string {
     if (explicitUrl) return explicitUrl;
+
+    if (window.location.port === '5173') {
+        return 'ws://localhost:8080/ws';
+    }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${window.location.host}/ws`;
