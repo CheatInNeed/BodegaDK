@@ -1,6 +1,8 @@
 import { applyI18n, getInitialLang, setLang, type Lang } from './i18n.js';
 import { supabase } from './supabase.js';
 import { renderLogin } from './login.js';
+import { renderSignup } from './signUp.js';
+import { renderCustom } from './custom.js';
 
 type View = 'home' | 'play' | 'settings' | 'help';
 
@@ -10,8 +12,9 @@ const state = {
     sidebarCollapsed: false,
 };
 
-function navigate(path: string) {
-    window.history.pushState({}, '', path);
+export function navigate(path: string) {
+    window.location.hash = path;
+
     renderApp();
 }
 
@@ -20,15 +23,26 @@ function navigate(path: string) {
 ========================= */
 
 function renderApp() {
-    const path = window.location.pathname;
+    const path = window.location.hash.replace('#', '') || '/';
 
     if (path === '/login') {
         renderLogin();
         return;
     }
 
+    if (path === '/signup') {
+        renderSignup();
+        return;
+    }
+
+    if (path === '/custom') {
+        renderCustom();
+        return;
+    }
+
     renderShell();
 }
+window.addEventListener('hashchange', renderApp);
 
 /* =========================
    SHELL (header + sidebar)
@@ -51,6 +65,8 @@ async function renderShell() {
             <option value="da">DA</option>
             <option value="en">EN</option>
           </select>
+          
+          <div id="avatarDisplay" class="avatar small"></div>
 
           <button class="btn" id="loginBtn">Log ind</button>
           <button class="btn primary" id="signupBtn">Opret konto</button>
@@ -132,33 +148,64 @@ async function updateAuthUI() {
     if (!loginBtn || !signupBtn || !profileBtn) return;
 
     if (user) {
+        // 🔥 LOGGED IN
+
         loginBtn.classList.add('hidden');
-        signupBtn.classList.add('hidden');
+
+        signupBtn.textContent = 'Customize player';
+        signupBtn.onclick = () => navigate('/custom');
 
         profileBtn.textContent = 'Logout';
         profileBtn.onclick = async () => {
             await supabase.auth.signOut();
             navigate('/');
         };
-    } else {
-        loginBtn.classList.remove('hidden');
-        signupBtn.classList.remove('hidden');
 
+        // 🔥 LOAD AVATAR
+        loadAvatar();
+
+    } else {
+        // 🔥 LOGGED OUT
+
+        loginBtn.classList.remove('hidden');
         loginBtn.onclick = () => navigate('/login');
 
-        signupBtn.onclick = async () => {
-            const email = prompt("Email:");
-            const password = prompt("Password:");
-            if (!email || !password) return;
+        signupBtn.textContent = 'Opret konto';
+        signupBtn.onclick = () => navigate('/signup');
 
-            const { error } = await supabase.auth.signUp({ email, password });
-            if (error) alert(error.message);
-            else alert("Account created.");
-        };
-
+        profileBtn.textContent = 'Profile';
         profileBtn.onclick = () => {
             alert('You are not logged in.');
         };
+    }
+}
+
+/* =========================
+   LOAD AVATAR
+========================= */
+
+async function loadAvatar() {
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+    if (!user) return;
+
+    const { data: avatar } = await supabase
+        .from('avatars')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+    if (!avatar) return;
+
+    const el = document.getElementById('avatarDisplay');
+    if (!el) return;
+
+    el.style.background = avatar.avatar_color;
+
+    if (avatar.avatar_shape === 'circle') {
+        el.style.borderRadius = '50%';
+    } else {
+        el.style.borderRadius = '6px';
     }
 }
 
@@ -182,6 +229,6 @@ function navItem(view: string, label: string) {
     return `<div class="nav-item">${label}</div>`;
 }
 
-window.addEventListener('popstate', renderApp);
+
 
 renderApp();
