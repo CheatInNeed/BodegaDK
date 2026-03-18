@@ -64,6 +64,12 @@ function wireCustomEvents() {
             avatar_shape: selectedShape
         });
 
-        navigate('/');
+        navigate({
+            view: 'play',
+            game: null,
+            room: null,
+            token: null,
+            mock: false,
+        });
     });
 }

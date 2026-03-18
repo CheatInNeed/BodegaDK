@@ -669,7 +669,6 @@ export function navigate(patch: Partial<AppRoute> | string) {
         renderApp();
         return;
     }
-
     writeRoute(patch);
     syncStateFromRoute();
     void refreshDataForRoute();

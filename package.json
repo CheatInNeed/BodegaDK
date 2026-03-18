@@ -7,12 +7,12 @@
     "apps/*"
   ],
   "scripts": {
+    "build": "npm run web:build",
+    "watch": "npm run web:watch",
+    "serve": "npm run web:serve",
+    "dev": "npm run web:dev",
     "web:dev": "npm run dev -w apps/web",
     "web:build": "npm run build -w apps/web",
-    "build": "tsc",
-    "watch": "tsc -w",
-    "serve": "python3 -m http.server 5173",
-    "dev": "npm run build && npm run serve",
     "db:up": "docker compose -f infra/docker-compose.yml up -d db",
     "db:down": "docker compose -f infra/docker-compose.yml stop db",
     "server:dev": "cd apps/server && mvn spring-boot:run",
