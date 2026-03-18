@@ -58,6 +58,22 @@ Det betyder at `apps/web/public/index.html` loader: - `/dist/index.js`
 Hvis `/dist/index.js` giver 404, så check: - `apps/web/tsconfig.json`
 har `"outDir": "public/dist"`
 
+### Fast iteration (anbefalet uden Docker)
+
+Kør i to terminaler fra repo root:
+
+``` bash
+# terminal A: compile TypeScript on changes
+npm run web:watch
+
+# terminal B: serve web on 5173
+npm run web:dev
+```
+
+Web URL:
+
+- http://localhost:5173
+
 ------------------------------------------------------------------------
 
 ## 2) Kør Server (dev)
@@ -73,6 +89,70 @@ mvn spring-boot:run
 Server kører på: - http://localhost:8080
 
 Test endpoint (når tilføjet): - http://localhost:8080/health
+
+### Server local profile (ingen DB, hurtig debug)
+
+Fra repo root:
+
+``` bash
+npm run server:local
+```
+
+Det kører Spring med profile `local`:
+
+- disable Flyway
+- disable datasource auto-config
+- port 8080
+
+Brug denne når du vil teste HighCard hurtigt uden Postgres.
+
+------------------------------------------------------------------------
+
+## 2.1 Pure local mode (web 5173 + server 8080)
+
+Mål: hurtig iteration på gameplay uden Docker.
+
+### One command (anbefalet)
+
+``` bash
+npm run local:dev
+```
+
+Dette starter i samme terminal:
+
+- server (`8080`) med `local` profile
+- web TypeScript watch
+- web static server (`5173`)
+- `Ctrl+C` stopper alle processer
+
+### Manuel (3 terminaler)
+
+1. Start server:
+
+``` bash
+npm run server:local
+```
+
+2. Start web watch:
+
+``` bash
+npm run web:watch
+```
+
+3. Start web static server:
+
+``` bash
+npm run web:dev
+```
+
+4. Åbn:
+
+- http://localhost:5173
+
+I denne mode:
+
+- REST kaldes mod `http://localhost:8080/rooms`
+- WS kaldes mod `ws://localhost:8080/ws`
 
 ------------------------------------------------------------------------
 
