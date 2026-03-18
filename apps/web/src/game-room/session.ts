@@ -2,7 +2,7 @@ import { createRoomStore } from './store.js';
 import type { GameAdapter, RoomBootstrap, RoomSessionState, RoomTransport, UiIntent } from './types.js';
 import { createWebSocketTransport } from './transport/ws-client.js';
 import { createMockServerTransport } from '../net/mock-server.js';
-import { parseServerMessage } from '../net/protocol.js';
+import { parseServerMessage, type ClientToServerMessage } from '../net/protocol.js';
 
 type SessionOptions<TPublic extends Record<string, unknown>, TPrivate extends Record<string, unknown>, TViewModel> = {
     bootstrap: RoomBootstrap;
@@ -95,6 +95,12 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         transport?.send(message);
     };
 
+    const sendMessage = (message: ClientToServerMessage) => {
+        const state = store.getState();
+        if (state.connection !== 'connected') return;
+        transport?.send(message);
+    };
+
     const toViewModel = () => {
         const state = store.getState();
         return options.adapter.toViewModel({
@@ -112,6 +118,7 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         stop,
         toggleCard,
         sendIntent,
+        sendMessage,
         toViewModel,
     };
 }
