@@ -1,19 +1,18 @@
 {
   "name": "bodegadk",
+  "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "apps/web"
-  ],
+  "type": "module",
   "scripts": {
-    "web:dev": "npm run dev -w apps/web",
-    "web:serve": "npm run serve -w apps/web",
-    "web:watch": "npm run watch -w apps/web",
-    "web:build": "npm run build -w apps/web",
-    "server:local": "cd apps/server && mvn spring-boot:run -Dspring-boot.run.profiles=local",
-    "local:dev": "npm run web:build && bash -lc 'trap \"kill 0\" INT TERM EXIT; npm run server:local & npm run web:watch & npm run web:serve & wait'",
-    "local:health": "curl -i http://localhost:8080/health",
-    "deploy:update": "npm install && npm run web:build && cd infra && (docker compose up -d --build || docker-compose up -d --build)",
-    "deploy:main": "git fetch && git checkout main && git pull && npm run deploy:update",
-    "deploy:dev": "git fetch && git checkout dev && git pull && npm run deploy:update"
+    "build": "tsc",
+    "watch": "tsc -w",
+    "serve": "python3 -m http.server 5173",
+    "dev": "npm run build && npm run serve"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.98.0"
   }
 }
