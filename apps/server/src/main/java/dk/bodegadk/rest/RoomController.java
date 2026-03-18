@@ -13,7 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
-@RestController
+@RestController("runtimeRoomController")
 @RequestMapping("/rooms")
 public class RoomController {
     private final InMemoryRuntimeStore runtimeStore;

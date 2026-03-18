@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-@RestController
+@RestController("lobbyRoomController")
 @RequestMapping("/api/rooms")
 public class RoomController {
     private final RoomService roomService;
