@@ -7,17 +7,19 @@ import { renderLobbyView } from './game-room/lobby-view.js';
 import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
 import { highcardAdapter } from './games/highcard/adapter.js';
+import { krigAdapter } from './games/krig/adapter.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
 import { supabase } from './supabase.js';
 import { renderSingleCardHighestWinsRoom } from './games/single-card-highest-wins/view.js';
-import { createLobby, getLobby, joinLobby, listGames, listPublicLobbies, startLobby, updateLobby, type GameSummary, type LobbyRoom, type LobbySummary } from './api/lobbies.js';
+import { createLobby, deleteLobby, getActiveLobbyForPlayer, getLobby, joinLobby, listGames, listPublicLobbies, startLobby, updateLobby, type GameSummary, type LobbyRoom, type LobbySummary } from './api/lobbies.js';
 import { renderLobbyBrowser } from './lobby-browser.js';
 import { createRoom, joinRoom } from './net/api.js';
+import { renderKrigRoom } from './games/krig/view.js';
 
 type GenericAdapter = GameAdapter<Record<string, unknown>, Record<string, unknown>, unknown>;
-const adapters: GenericAdapter[] = [snydAdapter as GenericAdapter, highcardAdapter as GenericAdapter];
+const adapters: GenericAdapter[] = [krigAdapter as GenericAdapter, snydAdapter as GenericAdapter, highcardAdapter as GenericAdapter];
 const HIGHCARD_GAME_ID = 'highcard';
 const LOBBY_POLL_MS = 5000;
 
@@ -51,12 +53,17 @@ const state = {
     browserLoading: false,
     lobbyBusy: false,
     lobbyError: null as string | null,
+    activeRoom: null as LobbyRoom | null,
 };
 
 let roomSession: ActiveSession | null = null;
 let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
 let pollingHandle: number | null = null;
+
+supabase.auth.onAuthStateChange(() => {
+    void refreshAuthUser();
+});
 
 void refreshAuthUser();
 void ensureGameCatalog();
@@ -162,6 +169,7 @@ function renderView() {
         main.innerHTML = `
       <h1 class="h1" data-i18n="${state.view === 'home' ? 'home.title' : 'play.title'}"></h1>
       <p class="sub">${activePlayer ? `${activePlayer.isGuest ? 'Playing as' : 'Logged in as'} ${escapeHtml(activePlayer.displayName)}.` : 'Continue as guest or log in with Supabase to access all lobby features.'}</p>
+      ${renderActiveRoomBanner()}
       ${state.lobbyError ? `<div class="room-banner room-banner-error">${escapeHtml(state.lobbyError)}</div>` : ''}
       ${playCards()}
     `;
@@ -185,6 +193,7 @@ function renderView() {
         cleanupRoomSession();
         main.innerHTML = renderLobbyView({
             room: state.lobbyRoom,
+            games: state.lobbyGames,
             selfPlayerId: activePlayer?.playerId ?? null,
             error: state.lobbyError,
             busy: state.lobbyBusy,
@@ -249,6 +258,8 @@ function renderRoomContent(): string {
     const disableByConnection = roomState.connection !== 'connected' || !!roomState.winnerPlayerId;
     const bodyHtml = adapter.id === highcardAdapter.id
         ? renderSingleCardHighestWinsRoom(viewModel as Parameters<typeof renderSingleCardHighestWinsRoom>[0])
+        : adapter.id === krigAdapter.id
+            ? renderKrigRoom(viewModel as Parameters<typeof renderKrigRoom>[0])
         : renderSnydRoom(viewModel as Parameters<typeof renderSnydRoom>[0], {
             disablePlay: disableByConnection
                 || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn
@@ -265,6 +276,25 @@ function renderRoomContent(): string {
     });
 }
 
+function renderActiveRoomBanner(): string {
+    if (!state.activeRoom) {
+        return '';
+    }
+
+    const actionLabel = state.activeRoom.status === 'PLAYING' ? 'Resume Game' : 'Resume Lobby';
+    const statusLabel = state.activeRoom.status === 'PLAYING' ? 'Active game' : 'Active lobby';
+    return `
+      <div class="card">
+        <div class="card-title">${statusLabel}</div>
+        <div class="card-desc">${escapeHtml(state.activeRoom.gameId)} in room ${escapeHtml(state.activeRoom.roomCode)} with ${state.activeRoom.currentPlayers}/${state.activeRoom.maxPlayers} players.</div>
+        <div class="card-row">
+          <span class="pill">Status: ${escapeHtml(state.activeRoom.status)}</span>
+          <button class="btn primary" data-action="resume-active-room">${actionLabel}</button>
+        </div>
+      </div>
+    `;
+}
+
 function cleanupRoomSession() {
     unsubscribeRoomSession?.();
     unsubscribeRoomSession = null;
@@ -277,24 +307,29 @@ function playCards() {
     const activePlayer = getActivePlayer();
     const guestRestricted = activePlayer?.isGuest ?? !state.authUser;
     const publicDisabled = guestRestricted ? 'disabled' : '';
+    const defaultLobbyGame = state.lobbyGames[0];
     return `
     <div class="grid">
       <div class="card">
-        <div class="card-title">Snyd</div>
-        <div class="card-desc">Create a pre-game lobby, invite friends with a room code, then let the host start when enough players are seated.</div>
+        <div class="card-title">Lobby Hub</div>
+        <div class="card-desc">Create a shared lobby, pick the game from inside the room, invite friends, or jump into the public browser.</div>
         <div class="card-row lobby-launch-row">
-          <button class="btn primary" data-action="create-lobby" data-game="snyd" data-public="0">Create Private Lobby</button>
+          <button class="btn primary" data-action="create-lobby" data-public="0">Create Private Lobby</button>
           <button class="btn" data-action="create-lobby" data-game="snyd" data-public="1" ${publicDisabled}>Create Public Lobby</button>
           <button class="btn" data-action="browse-lobbies" data-game="snyd" ${publicDisabled}>Find Public Game</button>
         </div>
+        <div class="card-row lobby-join-row">
+          <input class="input" id="joinCodeInput" maxlength="6" placeholder="ABC123" />
+          <button class="btn primary" data-action="join-by-code">Join By Code</button>
+        </div>
+        ${defaultLobbyGame ? `<div class="card-desc">New lobbies start on ${escapeHtml(defaultLobbyGame.gameId)} by default, but the host can switch game before starting.</div>` : ''}
         ${guestRestricted ? '<div class="card-desc">Guest players can create and join private lobbies with room codes. Public lobby discovery requires login.</div>' : ''}
       </div>
       <div class="card">
-        <div class="card-title">Join By Code</div>
-        <div class="card-desc">Paste a six-character invite code from the party leader.</div>
-        <div class="card-row lobby-join-row">
-          <input class="input" id="joinCodeInput" maxlength="6" placeholder="ABC123" />
-          <button class="btn primary" data-action="join-by-code">Join Lobby</button>
+        <div class="card-title">Snyd</div>
+        <div class="card-desc">Multiplayer table game played through the shared lobby system. Pick it in the lobby before you start.</div>
+        <div class="card-row">
+          <span class="pill">Lobby Game</span>
         </div>
       </div>
       ${gameCard('single.card.highest.wins', 'Backend-ready quickplay for the High Card prototype.', 'action.open')}
@@ -371,7 +406,7 @@ function wireEvents() {
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="create-lobby"]').forEach((btn) => {
         btn.addEventListener('click', () => {
-            void handleCreateLobby(btn.dataset.game ?? 'snyd', btn.dataset.public === '1');
+            void handleCreateLobby(btn.dataset.public === '1');
         });
     });
 
@@ -388,6 +423,10 @@ function wireEvents() {
     document.querySelector('button[data-action="join-by-code"]')?.addEventListener('click', () => {
         const joinCodeInput = document.getElementById('joinCodeInput') as HTMLInputElement | null;
         void handleJoinByCode(joinCodeInput?.value ?? '');
+    });
+
+    document.querySelector('button[data-action="resume-active-room"]')?.addEventListener('click', () => {
+        resumeActiveRoom();
     });
     wireLobbyEvents();
 }
@@ -415,6 +454,22 @@ function wireLobbyEvents() {
                     isPublic: !state.lobbyRoom.isPublic,
                 });
             });
+        });
+
+        document.getElementById('lobbyGameSelect')?.addEventListener('change', (event) => {
+            const target = event.target as HTMLSelectElement;
+            void mutateLobby(async () => {
+                const player = getActivePlayer();
+                if (!player || !state.lobbyRoom) return null;
+                return updateLobby(state.lobbyRoom.roomCode, {
+                    actorPlayerId: player.playerId,
+                    gameId: target.value,
+                });
+            });
+        });
+
+        document.querySelector('button[data-action="close-lobby"]')?.addEventListener('click', () => {
+            void handleCloseLobby();
         });
 
         document.querySelector('button[data-action="start-game"]')?.addEventListener('click', () => {
@@ -487,15 +542,16 @@ function wireLobbyEvents() {
     });
 }
 
-async function handleCreateLobby(gameId: string, isPublic: boolean) {
+async function handleCreateLobby(isPublic: boolean) {
     const user = await ensurePlayerIdentity();
     if (!user) return;
+    const defaultGameId = state.lobbyGames[0]?.gameId ?? 'snyd';
 
     await mutateLobby(async () => {
         const room = await createLobby({
             playerId: user.playerId,
             displayName: user.displayName,
-            gameId,
+            gameId: defaultGameId,
             isPublic: user.isGuest ? false : isPublic,
         });
         navigate({
@@ -543,9 +599,32 @@ async function handleStartGame() {
     await mutateLobby(async () => {
         const room = await startLobby(state.lobbyRoom?.roomCode ?? '', user.playerId);
         state.lobbyRoom = room;
+        state.activeRoom = room;
         enterGameBoard();
         return room;
     });
+}
+
+async function handleCloseLobby() {
+    const user = await ensurePlayerIdentity();
+    if (!user || !state.lobbyRoom) return;
+
+    const roomCode = state.lobbyRoom.roomCode;
+
+    state.lobbyBusy = true;
+    state.lobbyError = null;
+    renderApp();
+
+    try {
+        await deleteLobby(roomCode, user.playerId);
+        state.lobbyRoom = null;
+        state.lobbyBusy = false;
+        navigate({ view: 'play', room: null, game: null, token: user.playerId, mock: false });
+    } catch (error) {
+        state.lobbyError = toMessage(error);
+        state.lobbyBusy = false;
+        renderApp();
+    }
 }
 
 function enterGameBoard() {
@@ -568,11 +647,13 @@ async function mutateLobby(run: () => Promise<LobbyRoom | null>) {
         const room = await run();
         if (room) {
             state.lobbyRoom = room;
+            state.activeRoom = room.status === 'FINISHED' ? null : room;
         }
     } catch (error) {
         state.lobbyError = toMessage(error);
     } finally {
         state.lobbyBusy = false;
+        void refreshActiveRoom();
         renderApp();
     }
 }
@@ -587,6 +668,7 @@ async function refreshAuthUser() {
     if (!user) {
         state.authUser = null;
         state.authLoading = false;
+        void refreshActiveRoom();
         renderApp();
         return;
     }
@@ -598,6 +680,7 @@ async function refreshAuthUser() {
         email: user.email ?? null,
     };
     state.authLoading = false;
+    void refreshActiveRoom();
     renderApp();
 }
 
@@ -639,6 +722,8 @@ async function loadLobby(roomCode: string) {
 
     try {
         state.lobbyRoom = await getLobby(roomCode);
+        state.activeRoom = state.lobbyRoom.status === 'FINISHED' ? null : state.lobbyRoom;
+        maybeEnterStartedGame(state.lobbyRoom);
     } catch (error) {
         state.lobbyRoom = null;
         state.lobbyError = toMessage(error);
@@ -663,6 +748,57 @@ async function loadLobbyBrowser() {
     }
 }
 
+async function refreshActiveRoom() {
+    const player = getActivePlayer();
+    if (!player) {
+        state.activeRoom = null;
+        renderApp();
+        return;
+    }
+
+    try {
+        state.activeRoom = await getActiveLobbyForPlayer(player.playerId);
+    } catch {
+        state.activeRoom = null;
+    }
+    renderApp();
+}
+
+function maybeEnterStartedGame(room: LobbyRoom) {
+    const player = getActivePlayer();
+    const isMember = !!player && room.players.some((candidate) => candidate.playerId === player.playerId);
+    if (!isMember || room.status !== 'PLAYING' || state.view !== 'lobby') {
+        return;
+    }
+
+    const sameRoom = state.route.room === room.roomCode;
+    if (!sameRoom) {
+        return;
+    }
+
+    navigate({
+        view: 'room',
+        room: room.roomCode,
+        game: room.gameId,
+        token: player?.playerId ?? null,
+        mock: room.mock ?? false,
+    });
+}
+
+function resumeActiveRoom() {
+    if (!state.activeRoom) {
+        return;
+    }
+    const player = getActivePlayer();
+    navigate({
+        view: state.activeRoom.status === 'PLAYING' ? 'room' : 'lobby',
+        room: state.activeRoom.roomCode,
+        game: state.activeRoom.gameId,
+        token: player?.playerId ?? null,
+        mock: state.activeRoom.mock ?? false,
+    });
+}
+
 async function updateAuthUI() {
     const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null;
     const signupBtn = document.getElementById('signupBtn') as HTMLButtonElement | null;
@@ -672,11 +808,12 @@ async function updateAuthUI() {
     if (!loginBtn || !signupBtn || !profileBtn) return;
 
     try {
-        const { data } = await supabase.auth.getUser();
-        const user = data.user;
+        const user = state.authUser;
 
         if (!user) {
             loginBtn.classList.remove('hidden');
+            loginBtn.textContent = state.lang === 'en' ? 'Log in' : 'Log ind';
+            loginBtn.onclick = () => navigate('/login');
             signupBtn.textContent = state.lang === 'en' ? 'Create account' : 'Opret konto';
             signupBtn.onclick = () => navigate('/signup');
             profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
@@ -690,15 +827,17 @@ async function updateAuthUI() {
         }
 
         loginBtn.classList.add('hidden');
+        loginBtn.onclick = null;
         signupBtn.textContent = 'Customize player';
         signupBtn.onclick = () => navigate('/custom');
         profileBtn.textContent = 'Logout';
         profileBtn.onclick = async () => {
             await supabase.auth.signOut();
+            await refreshAuthUser();
             navigate('/');
         };
 
-        await loadAvatar(user.id, avatarDisplay);
+        await loadAvatar(user.playerId, avatarDisplay);
     } catch (error) {
         console.error('Failed to sync auth UI', error);
     }

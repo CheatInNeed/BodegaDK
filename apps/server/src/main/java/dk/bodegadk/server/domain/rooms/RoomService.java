@@ -54,6 +54,12 @@ public class RoomService {
                 .orElseThrow(() -> new RoomNotFoundException("Room not found: " + roomCode));
     }
 
+    public LobbyRoom getActiveRoomForPlayer(String playerId) {
+        String normalizedPlayerId = requireText(playerId, "playerId");
+        return roomRepository.findLatestActiveRoomForPlayer(normalizedPlayerId)
+                .orElseThrow(() -> new RoomNotFoundException("No active lobby found for player: " + normalizedPlayerId));
+    }
+
     @Transactional
     public LobbyRoom joinRoom(String roomCode, JoinRoomCommand command) {
         LobbyRoom room = getRoom(roomCode);
@@ -82,6 +88,17 @@ public class RoomService {
         LobbyRoom room = getRoom(roomCode);
         String actorPlayerId = requireText(command.actorPlayerId(), "actorPlayerId");
         assertHost(room, actorPlayerId);
+
+        if (command.gameId() != null && !command.gameId().isBlank()) {
+            if (room.status() != RoomStatus.WAITING) {
+                throw new RoomConflictException("Game selection can only be changed before the game starts.");
+            }
+            GameCatalog.GameSummary game = gameCatalog.requireSummary(command.gameId());
+            if (room.currentPlayers() > game.maxPlayers()) {
+                throw new RoomConflictException("Current lobby has too many players for " + game.gameId() + ".");
+            }
+            roomRepository.updateGame(room.roomCode(), game.gameId(), game.minPlayers(), game.maxPlayers());
+        }
 
         if (command.isPublic() != null) {
             roomRepository.updateVisibility(room.roomCode(), command.isPublic());
@@ -116,6 +133,18 @@ public class RoomService {
         LobbyRoom started = getRoom(room.roomCode());
         activeGameRegistry.start(started);
         return started;
+    }
+
+    @Transactional
+    public void closeRoom(String roomCode, String actorPlayerId) {
+        LobbyRoom room = getRoom(roomCode);
+        assertHost(room, requireText(actorPlayerId, "actorPlayerId"));
+
+        if (room.status() == RoomStatus.PLAYING) {
+            throw new RoomConflictException("Cannot close a lobby after the game has started.");
+        }
+
+        roomRepository.deleteRoom(room.roomCode());
     }
 
     @Transactional
@@ -199,7 +228,7 @@ public class RoomService {
 
     public record CreateRoomCommand(String playerId, String displayName, String gameId, boolean isPublic) {}
     public record JoinRoomCommand(String playerId, String displayName) {}
-    public record UpdateRoomCommand(String actorPlayerId, Boolean isPublic, String kickPlayerId) {}
+    public record UpdateRoomCommand(String actorPlayerId, Boolean isPublic, String kickPlayerId, String gameId) {}
 
     public static class RoomNotFoundException extends RuntimeException {
         public RoomNotFoundException(String message) {

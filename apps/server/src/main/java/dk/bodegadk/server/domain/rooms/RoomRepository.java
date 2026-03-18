@@ -84,6 +84,30 @@ public class RoomRepository {
         return rooms.stream().map(this::withPlayers).toList();
     }
 
+    public Optional<LobbyRoom> findLatestActiveRoomForPlayer(String playerId) {
+        List<LobbyRoom> rooms = jdbcTemplate.query(
+                """
+                SELECT r.room_code, r.host_player_id, r.game_id, r.is_public, r.status, r.min_players, r.max_players,
+                       r.created_at, r.updated_at, r.started_at
+                FROM rooms r
+                JOIN room_players rp ON rp.room_code = r.room_code
+                WHERE rp.player_id = ? AND r.status IN (?, ?)
+                ORDER BY r.updated_at DESC, r.created_at DESC
+                LIMIT 1
+                """,
+                this::mapRoom,
+                playerId,
+                RoomStatus.WAITING.name(),
+                RoomStatus.PLAYING.name()
+        );
+
+        if (rooms.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(withPlayers(rooms.getFirst()));
+    }
+
     public List<RoomPlayer> findPlayers(String roomCode) {
         return jdbcTemplate.query(
                 """
@@ -139,6 +163,16 @@ public class RoomRepository {
         );
     }
 
+    public void updateGame(String roomCode, String gameId, int minPlayers, int maxPlayers) {
+        jdbcTemplate.update(
+                "UPDATE rooms SET game_id = ?, min_players = ?, max_players = ?, updated_at = NOW() WHERE room_code = ?",
+                gameId,
+                minPlayers,
+                maxPlayers,
+                roomCode
+        );
+    }
+
     public void updateStatus(String roomCode, RoomStatus status, Instant startedAt) {
         jdbcTemplate.update(
                 "UPDATE rooms SET status = ?, started_at = ?, updated_at = NOW() WHERE room_code = ?",
@@ -146,6 +180,10 @@ public class RoomRepository {
                 startedAt == null ? null : Timestamp.from(startedAt),
                 roomCode
         );
+    }
+
+    public void deleteRoom(String roomCode) {
+        jdbcTemplate.update("DELETE FROM rooms WHERE room_code = ?", roomCode);
     }
 
     private void touchRoom(String roomCode) {

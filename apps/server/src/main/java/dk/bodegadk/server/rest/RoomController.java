@@ -4,12 +4,14 @@ import dk.bodegadk.server.domain.rooms.GameCatalog;
 import dk.bodegadk.server.domain.rooms.LobbyRoom;
 import dk.bodegadk.server.domain.rooms.RoomPlayer;
 import dk.bodegadk.server.domain.rooms.RoomService;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -50,6 +52,11 @@ public class RoomController {
         return RoomResponse.from(roomService.getRoom(roomCode));
     }
 
+    @GetMapping("/active/{playerId}")
+    public RoomResponse getActiveRoomForPlayer(@PathVariable String playerId) {
+        return RoomResponse.from(roomService.getActiveRoomForPlayer(playerId));
+    }
+
     @PostMapping("/{roomCode}/join")
     public RoomResponse joinRoom(@PathVariable String roomCode, @RequestBody JoinRoomRequest request) {
         LobbyRoom room = roomService.joinRoom(
@@ -63,9 +70,14 @@ public class RoomController {
     public RoomResponse updateRoom(@PathVariable String roomCode, @RequestBody UpdateRoomRequest request) {
         LobbyRoom room = roomService.updateRoom(
                 roomCode,
-                new RoomService.UpdateRoomCommand(request.actorPlayerId(), request.isPublic(), request.kickPlayerId())
+                new RoomService.UpdateRoomCommand(request.actorPlayerId(), request.isPublic(), request.kickPlayerId(), request.gameId())
         );
         return RoomResponse.from(room);
+    }
+
+    @DeleteMapping("/{roomCode}")
+    public void deleteRoom(@PathVariable String roomCode, @RequestParam String actorPlayerId) {
+        roomService.closeRoom(roomCode, actorPlayerId);
     }
 
     @PostMapping("/{roomCode}/start")
@@ -75,7 +87,7 @@ public class RoomController {
 
     public record CreateRoomRequest(String playerId, String displayName, String gameId, boolean isPublic) {}
     public record JoinRoomRequest(String playerId, String displayName) {}
-    public record UpdateRoomRequest(String actorPlayerId, Boolean isPublic, String kickPlayerId) {}
+    public record UpdateRoomRequest(String actorPlayerId, Boolean isPublic, String kickPlayerId, String gameId) {}
     public record StartRoomRequest(String actorPlayerId) {}
 
     public record RoomPlayerResponse(String playerId, String displayName, boolean host) {

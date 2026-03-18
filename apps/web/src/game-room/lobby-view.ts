@@ -1,7 +1,8 @@
-import type { LobbyRoom } from '../api/lobbies.js';
+import type { GameSummary, LobbyRoom } from '../api/lobbies.js';
 
 export type LobbyScreenModel = {
     room: LobbyRoom | null;
+    games: GameSummary[];
     selfPlayerId: string | null;
     error: string | null;
     busy: boolean;
@@ -25,6 +26,8 @@ export function renderLobbyView(model: LobbyScreenModel): string {
     const inviteUrl = `${window.location.origin}${window.location.pathname}?view=lobby&game=${encodeURIComponent(room.gameId)}&room=${encodeURIComponent(room.roomCode)}`;
     const actionLabel = room.status === 'PLAYING' ? 'Enter Game Board' : self ? 'Stay In Lobby' : 'Join Lobby';
     const canManageVisibility = isHost && !model.isGuest;
+    const canCloseLobby = isHost && room.status !== 'PLAYING';
+    const canChangeGame = isHost && room.status === 'WAITING';
 
     return `
       <section class="lobby-hero card room-card">
@@ -37,6 +40,7 @@ export function renderLobbyView(model: LobbyScreenModel): string {
           <span class="pill">Status: ${room.status}</span>
           ${model.isGuest ? '' : `<button class="btn" data-action="copy-invite" data-link="${escapeHtml(inviteUrl)}">Copy Invite Link</button>`}
           ${canManageVisibility ? `<button class="btn" data-action="toggle-visibility">${room.isPublic ? 'Make Private' : 'Make Public'}</button>` : ''}
+          ${canCloseLobby ? `<button class="btn danger" data-action="close-lobby">${model.busy ? 'Working...' : 'Close Lobby'}</button>` : ''}
           ${room.status === 'PLAYING' && self ? `<button class="btn primary" data-action="enter-game">Enter Game</button>` : ''}
         </div>
       </section>
@@ -66,6 +70,16 @@ export function renderLobbyView(model: LobbyScreenModel): string {
         <article class="card room-card">
           <div class="card-title">Controls</div>
           <div class="card-desc">${model.isGuest ? 'Guest lobbies stay private and can only be shared with the six-character room code.' : 'Public rooms show up in the browser immediately. Private rooms are invite-only via room code or share link.'}</div>
+          <label class="lobby-filter">
+            <span>Game</span>
+            <select class="select" id="lobbyGameSelect" ${canChangeGame ? '' : 'disabled'}>
+              ${model.games.map((game) => `
+                <option value="${escapeHtml(game.gameId)}" ${room.gameId === game.gameId ? 'selected' : ''}>
+                  ${escapeHtml(capitalize(game.gameId))} (${game.minPlayers}-${game.maxPlayers})
+                </option>
+              `).join('')}
+            </select>
+          </label>
           <div class="lobby-code-row">
             <span class="pill">Invite code: ${room.roomCode}</span>
             <span class="pill">${room.currentPlayers}/${room.maxPlayers} seats taken</span>

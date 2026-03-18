@@ -3,6 +3,7 @@ package dk.bodegadk.server.domain.rooms;
 import dk.bodegadk.server.domain.engine.GameAction;
 import dk.bodegadk.server.domain.engine.GameState;
 import dk.bodegadk.server.domain.engine.ViewProjector;
+import dk.bodegadk.server.domain.games.krig.KrigAction;
 import dk.bodegadk.server.domain.games.snyd.SnydAction;
 import dk.bodegadk.server.domain.games.snyd.SnydState;
 import org.springframework.stereotype.Component;
@@ -114,6 +115,19 @@ public class ActiveGameRegistry {
                 }
                 if ("CALL_SNYD".equals(type)) {
                     return (A) new SnydAction.CallSnyd(playerId);
+                }
+            }
+
+            if (engine.gameId().equals("krig")) {
+                if ("PLAY_CARDS".equals(type)) {
+                    Object rawCards = payload.get("cards");
+                    List<String> cards = rawCards instanceof List<?> list
+                            ? list.stream().filter(String.class::isInstance).map(String.class::cast).toList()
+                            : List.of();
+                    if (cards.size() != 1) {
+                        throw new RoomService.RoomConflictException("Krig requires exactly one selected card.");
+                    }
+                    return (A) new KrigAction(playerId, cards.getFirst());
                 }
             }
 

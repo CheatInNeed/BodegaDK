@@ -48,6 +48,7 @@ type StoredLobbyRoom = Omit<LobbyRoom, 'players'> & {
 };
 
 const MOCK_GAMES: GameSummary[] = [
+    { gameId: 'krig', minPlayers: 2, maxPlayers: 2 },
     { gameId: 'snyd', minPlayers: 2, maxPlayers: 8 },
 ];
 
@@ -75,6 +76,10 @@ export async function getLobby(roomCode: string): Promise<LobbyRoom> {
     return apiFetch<LobbyRoom>(`/rooms/${encodeURIComponent(roomCode)}`, undefined, () => getMockLobby(roomCode));
 }
 
+export async function getActiveLobbyForPlayer(playerId: string): Promise<LobbyRoom> {
+    return apiFetch<LobbyRoom>(`/rooms/active/${encodeURIComponent(playerId)}`, undefined, () => getMockActiveLobbyForPlayer(playerId));
+}
+
 export async function joinLobby(roomCode: string, input: {
     playerId: string;
     displayName: string;
@@ -86,8 +91,17 @@ export async function updateLobby(roomCode: string, input: {
     actorPlayerId: string;
     isPublic?: boolean;
     kickPlayerId?: string;
+    gameId?: string;
 }): Promise<LobbyRoom> {
     return apiFetch<LobbyRoom>(`/rooms/${encodeURIComponent(roomCode)}`, withJson('PATCH', input), () => updateMockLobby(roomCode, input));
+}
+
+export async function deleteLobby(roomCode: string, actorPlayerId: string): Promise<void> {
+    return apiFetch<void>(
+        `/rooms/${encodeURIComponent(roomCode)}?actorPlayerId=${encodeURIComponent(actorPlayerId)}`,
+        { method: 'DELETE' },
+        () => deleteMockLobby(roomCode, actorPlayerId),
+    );
 }
 
 export async function startLobby(roomCode: string, actorPlayerId: string): Promise<LobbyRoom> {
@@ -115,6 +129,15 @@ async function apiFetch<T>(path: string, init?: RequestInit, fallback?: () => T 
                 // Ignore malformed JSON error responses and use the generic message.
             }
             throw new Error(errorMessage);
+        }
+
+        if (response.status === 204) {
+            return undefined as T;
+        }
+
+        const contentLength = response.headers.get('content-length');
+        if (contentLength === '0') {
+            return undefined as T;
         }
 
         return response.json() as Promise<T>;
@@ -185,6 +208,23 @@ function getMockLobby(roomCode: string): LobbyRoom {
     return toLobbyRoom(room);
 }
 
+function getMockActiveLobbyForPlayer(playerId: string): LobbyRoom {
+    const room = readStoredLobbies()
+        .filter((candidate) => candidate.players.some((player) => player.playerId === playerId))
+        .filter((candidate) => candidate.status === 'WAITING' || candidate.status === 'PLAYING')
+        .sort((left, right) => {
+            const leftTime = left.startedAt ?? 0;
+            const rightTime = right.startedAt ?? 0;
+            return rightTime - leftTime;
+        })[0];
+
+    if (!room) {
+        throw new Error(`No active lobby found for player: ${playerId}`);
+    }
+
+    return toLobbyRoom(room);
+}
+
 function joinMockLobby(roomCode: string, input: {
     playerId: string;
     displayName: string;
@@ -221,12 +261,26 @@ function updateMockLobby(roomCode: string, input: {
     actorPlayerId: string;
     isPublic?: boolean;
     kickPlayerId?: string;
+    gameId?: string;
 }): LobbyRoom {
     const room = findStoredLobby(roomCode);
     if (!room) {
         throw new Error(`Room not found: ${roomCode}`);
     }
     assertHost(room, input.actorPlayerId);
+
+    if (typeof input.gameId === 'string' && input.gameId.trim().length > 0) {
+        if (room.status !== 'WAITING') {
+            throw new Error('Game selection can only be changed before the game starts.');
+        }
+        const game = requireMockGame(input.gameId);
+        if (room.currentPlayers > game.maxPlayers) {
+            throw new Error(`Current lobby has too many players for ${game.gameId}.`);
+        }
+        room.gameId = game.gameId;
+        room.minPlayers = game.minPlayers;
+        room.maxPlayers = game.maxPlayers;
+    }
 
     if (typeof input.isPublic === 'boolean') {
         room.isPublic = input.isPublic;
@@ -263,6 +317,20 @@ function startMockLobby(roomCode: string, actorPlayerId: string): LobbyRoom {
     saveStoredLobby(room);
     seedMockRoom(room.roomCode, room.players.map((player) => player.playerId));
     return toLobbyRoom(room);
+}
+
+function deleteMockLobby(roomCode: string, actorPlayerId: string): void {
+    const room = findStoredLobby(roomCode);
+    if (!room) {
+        throw new Error(`Room not found: ${roomCode}`);
+    }
+    assertHost(room, actorPlayerId);
+    if (room.status === 'PLAYING') {
+        throw new Error('Cannot close a lobby after the game has started.');
+    }
+
+    const remaining = readStoredLobbies().filter((candidate) => candidate.roomCode !== room.roomCode);
+    writeStoredLobbies(remaining);
 }
 
 function requireMockGame(gameId: string): GameSummary {

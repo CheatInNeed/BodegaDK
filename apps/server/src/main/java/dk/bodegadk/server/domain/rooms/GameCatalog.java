@@ -4,6 +4,8 @@ import dk.bodegadk.server.domain.engine.GameAction;
 import dk.bodegadk.server.domain.engine.GameEngine;
 import dk.bodegadk.server.domain.engine.GameState;
 import dk.bodegadk.server.domain.engine.ViewProjector;
+import dk.bodegadk.server.domain.games.krig.KrigEngine;
+import dk.bodegadk.server.domain.games.krig.KrigViewProjector;
 import dk.bodegadk.server.domain.games.snyd.SnydEngine;
 import dk.bodegadk.server.domain.games.snyd.SnydState;
 import dk.bodegadk.server.domain.games.snyd.SnydViewProjector;
@@ -19,6 +21,7 @@ public class GameCatalog {
 
     public GameCatalog() {
         Map<String, GameDefinition<?, ?>> definitions = new LinkedHashMap<>();
+        register(definitions, new KrigEngine(), new KrigViewProjector());
         register(definitions, new SnydEngine(), new SnydViewProjector());
         this.games = Map.copyOf(definitions);
     }
