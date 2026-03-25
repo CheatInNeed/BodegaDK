@@ -16,4 +16,5 @@ project_dump.txt
 /dist/*.js
 
 # Local IDE state
-.idea/copilot.data.migration.ask2agent.xml
+.ai/*
+.idea/*
