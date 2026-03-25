@@ -64,6 +64,7 @@ These commands switch branch before deploying.
 
 ## Documentation
 
+- Contributor and agent guidance: [AGENTS.md](/Users/alex/WebstormProjects/BodegaDK/AGENTS.md)
 - Local development guide: [docs/DEVELOPMENT.md](/Users/alex/WebstormProjects/BodegaDK/docs/DEVELOPMENT.md)
 - Debian/server deploy guide: [docs/SERVER_GUIDE.md](/Users/alex/WebstormProjects/BodegaDK/docs/SERVER_GUIDE.md)
 - Protocol contract: [docs/PROTOCOL.md](/Users/alex/WebstormProjects/BodegaDK/docs/PROTOCOL.md)
