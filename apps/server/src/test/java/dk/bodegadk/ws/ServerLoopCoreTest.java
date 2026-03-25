@@ -28,19 +28,27 @@ class ServerLoopCoreTest {
     @Test
     void incrementsVersionWhenEngineReturnsSuccess() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
-        GameLoopService.EnginePort fakeEngine = (state, command) -> {
-            ObjectNode nextPublic = state.publicState().deepCopy();
-            nextPublic.put("turnPlayerId", "p2");
-            GameLoopService.RoomState nextState = new GameLoopService.RoomState(
-                    state.roomCode(),
-                    state.version(),
-                    nextPublic,
-                    Map.of()
-            );
-            return GameLoopService.LoopResult.success(nextState, JsonNodeFactory.instance.objectNode(), Map.of(), false, null);
+        GameLoopService.EnginePort fakeEngine = new GameLoopService.EnginePort() {
+            @Override
+            public boolean supports(String roomCode) {
+                return true;
+            }
+
+            @Override
+            public GameLoopService.LoopResult apply(GameLoopService.RoomState state, GameLoopService.ActionCommand command) {
+                ObjectNode nextPublic = state.publicState().deepCopy();
+                nextPublic.put("turnPlayerId", "p2");
+                GameLoopService.RoomState nextState = new GameLoopService.RoomState(
+                        state.roomCode(),
+                        state.version(),
+                        nextPublic,
+                        Map.of()
+                );
+                return GameLoopService.LoopResult.success(nextState, JsonNodeFactory.instance.objectNode(), Map.of(), false, null);
+            }
         };
 
-        GameLoopService service = new GameLoopService(store, fakeEngine);
+        GameLoopService service = new GameLoopService(store, java.util.List.of(fakeEngine));
         store.createRoom("SNYD");
 
         GameLoopService.LoopResult result = service.handleAction(command(2));

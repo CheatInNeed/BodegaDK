@@ -34,6 +34,11 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
     }
 
     @Override
+    public boolean supports(String roomCode) {
+        return isHighCardRoom(roomCode);
+    }
+
+    @Override
     public GameLoopService.LoopResult apply(GameLoopService.RoomState state, GameLoopService.ActionCommand command) {
         if (!isHighCardRoom(command.roomCode())) {
             return GameLoopService.LoopResult.error("ENGINE_NOT_READY: no engine available for room/game type");

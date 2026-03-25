@@ -1,12 +1,26 @@
 import type {
+    CasinoPrivateState,
+    CasinoPublicState,
+    CasinoValueMap,
     ClientToServerMessage,
     ServerToClientMessage,
     SnydPrivateState,
     SnydPublicState,
 } from './protocol.js';
 import type { RoomTransport, RoomTransportHandlers } from '../game-room/types.js';
+import {
+    applyCasinoBuildMove,
+    applyCasinoMergeMove,
+    applyCasinoMove,
+    finishCasinoGame,
+    initializeCasinoState,
+    startCasinoRound,
+    validateCasinoValueMap,
+    type CasinoState,
+} from '../games/casino/engine.js';
 
 type MockRoomData = {
+    game: 'snyd';
     roomCode: string;
     players: string[];
     tokens: Record<string, string>;
@@ -21,6 +35,15 @@ type MockRoomData = {
     };
     winnerPlayerId: string | null;
 };
+
+type MockCasinoRoomData = {
+    game: 'casino';
+    roomCode: string;
+    tokens: Record<string, string>;
+    engine: CasinoState;
+};
+
+type AnyMockRoomData = MockRoomData | MockCasinoRoomData;
 
 type BroadcastPayload = {
     roomCode: string;
@@ -59,8 +82,33 @@ export function createMockServerTransport(): RoomTransport {
 
             if (message.type === 'CONNECT') {
                 currentRoomCode = message.payload.roomCode;
-                const room = readOrCreateRoom(message.payload.roomCode);
-                myPlayerId = registerToken(room, message.payload.token);
+                const desiredGame = message.payload.game?.toLowerCase() === 'casino' ? 'casino' : 'snyd';
+                let room: AnyMockRoomData;
+                try {
+                    room = readOrCreateRoom(message.payload.roomCode, desiredGame, message.payload.setup?.casinoRules?.valueMap);
+                } catch (error) {
+                    handlers.onMessage({
+                        type: 'ERROR',
+                        payload: { message: error instanceof Error ? error.message : 'Failed to initialize room' },
+                    });
+                    return;
+                }
+                if (room.game !== desiredGame) {
+                    handlers.onMessage({
+                        type: 'ERROR',
+                        payload: { message: `Room already initialized for game ${room.game}` },
+                    });
+                    return;
+                }
+                const registeredPlayer = registerToken(room, message.payload.token);
+                if (!registeredPlayer) {
+                    handlers.onMessage({
+                        type: 'ERROR',
+                        payload: { message: 'Casino room is full (2 players max)' },
+                    });
+                    return;
+                }
+                myPlayerId = registeredPlayer;
                 saveRoom(room);
 
                 if (!channel) {
@@ -68,20 +116,41 @@ export function createMockServerTransport(): RoomTransport {
                     channel.addEventListener('message', listener);
                 }
 
-                const snapshotMessage: ServerToClientMessage = {
-                    type: 'STATE_SNAPSHOT',
-                    payload: {
-                        publicState: makePublicState(room),
-                        privateState: makePrivateState(room, myPlayerId),
-                    },
-                };
+                if (room.game === 'casino') {
+                    maybeStartCasinoGame(room);
+                }
+
+                const snapshotMessage = makeSnapshot(room, myPlayerId);
                 handlers.onMessage(snapshotMessage);
                 return;
             }
 
             if (!currentRoomCode || !myPlayerId) return;
 
-            const room = readOrCreateRoom(currentRoomCode);
+            const room = readOrCreateRoom(currentRoomCode, 'snyd');
+
+            if (room.game === 'casino') {
+                if (
+                    message.type !== 'CASINO_PLAY_MOVE'
+                    && message.type !== 'CASINO_BUILD_STACK'
+                    && message.type !== 'CASINO_MERGE_STACKS'
+                ) {
+                    sendToPlayer(room.roomCode, myPlayerId, {
+                        type: 'ERROR',
+                        payload: { message: 'Unsupported action for casino room' },
+                    });
+                    return;
+                }
+
+                if (message.type === 'CASINO_PLAY_MOVE') {
+                    handleCasinoMove(room, myPlayerId, message.payload);
+                } else if (message.type === 'CASINO_BUILD_STACK') {
+                    handleCasinoBuild(room, myPlayerId, message.payload);
+                } else {
+                    handleCasinoMerge(room, myPlayerId, message.payload);
+                }
+                return;
+            }
 
             if (message.type === 'PLAY_CARDS') {
                 handlePlayCards(room, myPlayerId, message);
@@ -199,18 +268,46 @@ function handlePlayCards(
 /**
  * Loads room state from localStorage or creates a deterministic default room.
  */
-function readOrCreateRoom(roomCode: string): MockRoomData {
+function readOrCreateRoom(
+    roomCode: string,
+    desiredGame: 'snyd' | 'casino',
+    requestedRules?: CasinoValueMap,
+): AnyMockRoomData {
     const key = getStorageKey(roomCode);
     const raw = localStorage.getItem(key);
     if (raw) {
         try {
-            return JSON.parse(raw) as MockRoomData;
+            return JSON.parse(raw) as AnyMockRoomData;
         } catch {
             localStorage.removeItem(key);
         }
     }
 
+    if (desiredGame === 'casino') {
+        if (!requestedRules) {
+            throw new Error('Missing setup.casinoRules for casino room');
+        }
+        const validationError = validateCasinoValueMap(requestedRules);
+        if (validationError) {
+            throw new Error(validationError);
+        }
+        const room: MockCasinoRoomData = {
+            game: 'casino',
+            roomCode,
+            tokens: {},
+            engine: initializeCasinoState({
+                roomCode,
+                players: ['p1', 'p2'],
+                dealerPlayerId: 'p2',
+                rules: { valueMap: requestedRules },
+            }),
+        };
+        saveRoom(room);
+        return room;
+    }
+
     const room: MockRoomData = {
+        game: 'snyd',
         roomCode,
         players: ['p1', 'p2'],
         tokens: {},
@@ -231,14 +328,66 @@ function readOrCreateRoom(roomCode: string): MockRoomData {
 /**
  * Stable token -> player mapping per room for repeatable multi-tab testing.
  */
-function registerToken(room: MockRoomData, token: string): string {
+function registerToken(room: AnyMockRoomData, token: string): string | null {
     if (room.tokens[token]) return room.tokens[token];
 
     const usedPlayerIds = new Set(Object.values(room.tokens));
-    const available = room.players.find((playerId) => !usedPlayerIds.has(playerId));
-    const playerId = available ?? room.players[0];
+    const players = room.game === 'casino' ? ['p1', 'p2'] : room.players;
+    const available = players.find((playerId) => !usedPlayerIds.has(playerId));
+    if (!available && room.game === 'casino') {
+        return null;
+    }
+    const playerId = available ?? players[0];
     room.tokens[token] = playerId;
     return playerId;
+}
+
+function makeSnapshot(room: AnyMockRoomData, playerId: string): ServerToClientMessage {
+    if (room.game === 'casino') {
+        return {
+            type: 'STATE_SNAPSHOT',
+            payload: {
+                publicState: makeCasinoPublicState(room),
+                privateState: makeCasinoPrivateState(room, playerId),
+            },
+        };
+    }
+    return {
+        type: 'STATE_SNAPSHOT',
+        payload: {
+            publicState: makePublicState(room),
+            privateState: makePrivateState(room, playerId),
+        },
+    };
+}
+
+function makeCasinoPublicState(room: MockCasinoRoomData): CasinoPublicState {
+    return {
+        roomCode: room.roomCode,
+        players: room.engine.players,
+        dealerPlayerId: room.engine.dealerPlayerId,
+        turnPlayerId: room.engine.turnPlayerId,
+        tableStacks: room.engine.tableStacks.map((stack) => ({
+            stackId: stack.stackId,
+            cards: stack.cards,
+            total: stack.total,
+            locked: stack.locked,
+            topCard: stack.cards[stack.cards.length - 1] ?? '',
+        })),
+        deckCount: room.engine.deck.length,
+        capturedCounts: room.engine.capturedCounts,
+        lastCapturePlayerId: room.engine.lastCapturePlayerId,
+        started: room.engine.started,
+        rules: room.engine.rules,
+    };
+}
+
+function makeCasinoPrivateState(room: MockCasinoRoomData, playerId: string): CasinoPrivateState {
+    return {
+        playerId,
+        hand: room.engine.hands[playerId] ?? [],
+        capturedCards: room.engine.capturedCards[playerId] ?? [],
+    };
 }
 
 function makePublicState(room: MockRoomData): SnydPublicState {
@@ -283,8 +432,95 @@ function getNextPlayer(room: MockRoomData, playerId: string): string {
     return room.players[(index + 1) % room.players.length];
 }
 
-function saveRoom(room: MockRoomData) {
+function saveRoom(room: AnyMockRoomData) {
     localStorage.setItem(getStorageKey(room.roomCode), JSON.stringify(room));
+}
+
+function handleCasinoMove(
+    room: MockCasinoRoomData,
+    actorPlayerId: string,
+    payload: Extract<ClientToServerMessage, { type: 'CASINO_PLAY_MOVE' }>['payload'],
+) {
+    const error = applyCasinoMove(room.engine, actorPlayerId, payload);
+    if (error) {
+        sendToPlayer(room.roomCode, actorPlayerId, {
+            type: 'ERROR',
+            payload: { message: error },
+        });
+        return;
+    }
+    if (room.engine.finished) {
+        finishCasinoGame(room.engine);
+    }
+    saveRoom(room);
+    broadcastCasinoState(room);
+    if (room.engine.finished) {
+        broadcast(room.roomCode, {
+            type: 'GAME_FINISHED',
+            payload: { winnerPlayerId: room.engine.winnerPlayerId },
+        });
+    }
+}
+
+function handleCasinoBuild(
+    room: MockCasinoRoomData,
+    actorPlayerId: string,
+    payload: Extract<ClientToServerMessage, { type: 'CASINO_BUILD_STACK' }>['payload'],
+) {
+    const error = applyCasinoBuildMove(room.engine, actorPlayerId, payload);
+    if (error) {
+        sendToPlayer(room.roomCode, actorPlayerId, {
+            type: 'ERROR',
+            payload: { message: error },
+        });
+        return;
+    }
+    saveRoom(room);
+    broadcastCasinoState(room);
+}
+
+function handleCasinoMerge(
+    room: MockCasinoRoomData,
+    actorPlayerId: string,
+    payload: Extract<ClientToServerMessage, { type: 'CASINO_MERGE_STACKS' }>['payload'],
+) {
+    const error = applyCasinoMergeMove(room.engine, actorPlayerId, payload);
+    if (error) {
+        sendToPlayer(room.roomCode, actorPlayerId, {
+            type: 'ERROR',
+            payload: { message: error },
+        });
+        return;
+    }
+    saveRoom(room);
+    broadcastCasinoState(room);
+}
+
+function maybeStartCasinoGame(room: MockCasinoRoomData) {
+    const uniquePlayers = [...new Set(Object.values(room.tokens))];
+    if (uniquePlayers.length !== 2 || room.engine.started) return;
+    const players = uniquePlayers.includes('p1') && uniquePlayers.includes('p2') ? ['p1', 'p2'] : uniquePlayers;
+    room.engine.players = players;
+    if (!room.engine.dealerPlayerId || !players.includes(room.engine.dealerPlayerId)) {
+        room.engine.dealerPlayerId = players[1] ?? null;
+    }
+    const error = startCasinoRound(room.engine);
+    if (error) return;
+    saveRoom(room);
+    broadcastCasinoState(room);
+}
+
+function broadcastCasinoState(room: MockCasinoRoomData) {
+    broadcast(room.roomCode, {
+        type: 'PUBLIC_UPDATE',
+        payload: makeCasinoPublicState(room),
+    });
+    for (const playerId of Object.values(room.tokens)) {
+        sendToPlayer(room.roomCode, playerId, {
+            type: 'PRIVATE_UPDATE',
+            payload: makeCasinoPrivateState(room, playerId),
+        });
+    }
 }
 
 /**
