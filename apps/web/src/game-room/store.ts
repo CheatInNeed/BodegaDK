@@ -1,5 +1,5 @@
 import type { ConnectionStatus, RoomSessionState } from './types.js';
-import type { ServerToClientMessage, SnydPrivateState } from '../net/protocol.js';
+import type { ServerToClientMessage } from '../net/protocol.js';
 
 type RoomStoreAction =
     | { type: 'SET_CONNECTION'; connection: ConnectionStatus }
@@ -48,7 +48,7 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
     }
 
     if (action.type === 'TOGGLE_CARD') {
-        if (state.game.toLowerCase() === 'highcard') {
+        if (state.game.toLowerCase() === 'highcard' || state.game.toLowerCase() === 'casino') {
             const isSelected = state.selectedHandCards.includes(action.card);
             return {
                 ...state,
@@ -150,11 +150,11 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
 /**
  * Defensive hand extraction from partial/unknown private payloads.
  */
-function readHand(privateState: SnydPrivateState | Record<string, unknown>): string[] {
+function readHand(privateState: Record<string, unknown>): string[] {
     const hand = privateState.hand;
     return Array.isArray(hand) ? hand.filter((card) => typeof card === 'string') : [];
 }
 
-function readPlayerId(privateState: Partial<SnydPrivateState> | Record<string, unknown>): string | null {
+function readPlayerId(privateState: Record<string, unknown>): string | null {
     return typeof privateState.playerId === 'string' ? privateState.playerId : null;
 }

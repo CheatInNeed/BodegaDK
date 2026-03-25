@@ -38,12 +38,62 @@ export type SnydPrivateState = {
     [key: string]: unknown;
 };
 
-export type ConnectMessage = WsEnvelope<'CONNECT', { roomCode: string; token: string }>;
+export type CasinoValueMap = Record<string, number[]>;
+
+export type CasinoPublicState = LobbyPublicState & {
+    dealerPlayerId?: string | null;
+    turnPlayerId?: string | null;
+    tableStacks?: Array<{
+        stackId: string;
+        cards: string[];
+        total: number;
+        locked: boolean;
+        topCard: string;
+    }>;
+    deckCount?: number;
+    capturedCounts?: Record<string, number>;
+    lastCapturePlayerId?: string | null;
+    started?: boolean;
+    rules?: {
+        valueMap: CasinoValueMap;
+    };
+};
+
+export type CasinoPrivateState = {
+    playerId: string;
+    hand: string[];
+    capturedCards?: string[];
+    [key: string]: unknown;
+};
+
+export type ConnectMessage = WsEnvelope<'CONNECT', {
+    roomCode: string;
+    token: string;
+    game?: string;
+    setup?: {
+        casinoRules?: {
+            valueMap: CasinoValueMap;
+        };
+    };
+}>;
 export type HeartbeatMessage = WsEnvelope<'HEARTBEAT', Record<string, never>>;
 export type SelectGameMessage = WsEnvelope<'SELECT_GAME', { game: string }>;
 export type StartGameMessage = WsEnvelope<'START_GAME', Record<string, never>>;
 export type PlayCardsMessage = WsEnvelope<'PLAY_CARDS', { cards: string[]; claimRank: string }>;
 export type CallSnydMessage = WsEnvelope<'CALL_SNYD', Record<string, never>>;
+export type CasinoPlayMoveMessage = WsEnvelope<'CASINO_PLAY_MOVE', {
+    handCard: string;
+    captureStackIds: string[];
+    playedValue?: number;
+}>;
+export type CasinoBuildStackMessage = WsEnvelope<'CASINO_BUILD_STACK', {
+    handCard: string;
+    targetStackId: string;
+    playedValue?: number;
+}>;
+export type CasinoMergeStacksMessage = WsEnvelope<'CASINO_MERGE_STACKS', {
+    stackIds: string[];
+}>;
 
 export type ClientToServerMessage =
     | ConnectMessage
@@ -51,19 +101,22 @@ export type ClientToServerMessage =
     | SelectGameMessage
     | StartGameMessage
     | PlayCardsMessage
-    | CallSnydMessage;
+    | CallSnydMessage
+    | CasinoPlayMoveMessage
+    | CasinoBuildStackMessage
+    | CasinoMergeStacksMessage;
 
 export type StateSnapshotMessage = WsEnvelope<'STATE_SNAPSHOT', {
-    publicState: SnydPublicState;
-    privateState: Partial<SnydPrivateState> & Record<string, unknown>;
+    publicState: Record<string, unknown>;
+    privateState: Record<string, unknown>;
 }>;
 
-export type PublicUpdateMessage = WsEnvelope<'PUBLIC_UPDATE', Partial<SnydPublicState>>;
-export type PrivateUpdateMessage = WsEnvelope<'PRIVATE_UPDATE', Partial<SnydPrivateState> & Record<string, unknown>>;
+export type PublicUpdateMessage = WsEnvelope<'PUBLIC_UPDATE', Record<string, unknown>>;
+export type PrivateUpdateMessage = WsEnvelope<'PRIVATE_UPDATE', Record<string, unknown>>;
 export type HeartbeatAckMessage = WsEnvelope<'HEARTBEAT_ACK', { at: string }>;
 export type RoomClosedMessage = WsEnvelope<'ROOM_CLOSED', Record<string, never>>;
 export type ErrorMessage = WsEnvelope<'ERROR', { message: string }>;
-export type GameFinishedMessage = WsEnvelope<'GAME_FINISHED', { winnerPlayerId: string }>;
+export type GameFinishedMessage = WsEnvelope<'GAME_FINISHED', { winnerPlayerId: string | null }>;
 
 export type ServerToClientMessage =
     | StateSnapshotMessage
@@ -103,4 +156,29 @@ export function parseServerMessage(raw: unknown): ServerToClientMessage | null {
  */
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
+}
+
+export function createDefaultCasinoValueMap(): CasinoValueMap {
+    const valueMap: CasinoValueMap = {};
+    const suits = ['H', 'D', 'C', 'S'];
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+    for (const suit of suits) {
+        for (const rank of ranks) {
+            const card = `${suit}${rank}`;
+            if (rank === 'A') {
+                valueMap[card] = [1, 14];
+            } else if (rank === 'J') {
+                valueMap[card] = [11];
+            } else if (rank === 'Q') {
+                valueMap[card] = [12];
+            } else if (rank === 'K') {
+                valueMap[card] = [13];
+            } else {
+                valueMap[card] = [Number(rank)];
+            }
+        }
+    }
+
+    return valueMap;
 }

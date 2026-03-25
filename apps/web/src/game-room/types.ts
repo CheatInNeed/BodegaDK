@@ -19,7 +19,10 @@ export type RoomSessionState = {
 
 export type UiIntent =
     | { type: 'PLAY_SELECTED'; claimRank: string }
-    | { type: 'CALL_SNYD' };
+    | { type: 'CALL_SNYD' }
+    | { type: 'CASINO_PLAY_MOVE'; handCard: string; captureStackIds: string[]; playedValue?: number }
+    | { type: 'CASINO_BUILD_STACK'; handCard: string; targetStackId: string; playedValue?: number }
+    | { type: 'CASINO_MERGE_STACKS'; stackIds: string[] };
 
 /**
  * Game-specific bridge that maps generic room state to concrete UI behavior.

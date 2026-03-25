@@ -4,6 +4,8 @@ import { renderLobbyBrowser, renderLobbyRoom, type LobbyRoomViewModel } from './
 import { createGameRoomSession } from './game-room/session.js';
 import type { GameAdapter } from './game-room/types.js';
 import { renderRoomError, renderRoomFrame } from './game-room/view.js';
+import { casinoAdapter } from './games/casino/adapter.js';
+import { renderCasinoRoom } from './games/casino/view.js';
 import { highcardAdapter } from './games/highcard/adapter.js';
 import { krigAdapter } from './games/krig/adapter.js';
 import { renderKrigRoom } from './games/krig/view.js';
@@ -25,6 +27,7 @@ import {
 
 type GenericAdapter = GameAdapter<Record<string, unknown>, Record<string, unknown>, unknown>;
 const adapters: GenericAdapter[] = [
+    casinoAdapter as GenericAdapter,
     snydAdapter as GenericAdapter,
     highcardAdapter as GenericAdapter,
     krigAdapter as GenericAdapter,
@@ -61,6 +64,7 @@ let roomSession: ActiveSession | null = null;
 let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
 let highCardAutoStartKey: string | null = null;
+let casinoSelectedStackIds: string[] = [];
 
 function iconSvg(pathD: string) {
     return `
@@ -301,7 +305,19 @@ function renderRoomContent(): string {
     const disableByConnection = roomState.connection !== 'connected' || !!roomState.winnerPlayerId;
     let bodyHtml = '';
 
-    if (adapter.id === highcardAdapter.id) {
+    if (adapter.id === casinoAdapter.id) {
+        const casinoViewModel = viewModel as Parameters<typeof renderCasinoRoom>[0];
+        bodyHtml = renderCasinoRoom(casinoViewModel, {
+            disablePlay: disableByConnection || !casinoViewModel.isMyTurn || !casinoViewModel.selectedHandCard,
+            disableBuild: disableByConnection || !casinoViewModel.isMyTurn || !casinoViewModel.selectedHandCard || casinoSelectedStackIds.length !== 1,
+            disableMerge: disableByConnection || !casinoViewModel.isMyTurn || casinoSelectedStackIds.length < 2,
+            selectedStackIds: casinoSelectedStackIds,
+            connection: roomState.connection,
+            errorMessage: roomState.lastError,
+            winnerPlayerId: roomState.winnerPlayerId,
+        });
+        return bodyHtml;
+    } else if (adapter.id === highcardAdapter.id) {
         bodyHtml = renderSingleCardHighestWinsRoom(viewModel as Parameters<typeof renderSingleCardHighestWinsRoom>[0]);
     } else if (adapter.id === krigAdapter.id) {
         bodyHtml = renderKrigRoom(viewModel as Parameters<typeof renderKrigRoom>[0]);
@@ -365,6 +381,7 @@ function cleanupRoomSession() {
     roomSession = null;
     roomSessionKey = null;
     highCardAutoStartKey = null;
+    casinoSelectedStackIds = [];
 }
 
 function resolveAdapter(game: string): GenericAdapter | undefined {
@@ -382,6 +399,7 @@ function playCards() {
     </div>
     <div class="grid">
       ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.open')}
+      ${gameCard('game.casino', 'Casino med ny table UI, stack selection og mock multiplayer.', 'action.open')}
       ${gameCard('single.card.highest.wins', 'Backend-ready: single player vs dealer high-card game.', 'action.open')}
       ${gameCard('game.500', 'Kortspil med stik og meldinger (placeholder).', 'action.open')}
       ${gameCard('game.dice', 'Terningebaseret spil (placeholder).', 'action.open')}
@@ -558,7 +576,7 @@ function wireEvents() {
             navigate({
                 view: 'room',
                 game,
-                room: state.route.room ?? 'ABC123',
+                room: state.route.room ?? randomRoomCode(),
                 token: state.route.token ?? randomToken(),
                 mock: true,
             });
@@ -613,6 +631,59 @@ function wireRoomEvents() {
     const callSnydButton = document.querySelector<HTMLButtonElement>('button[data-action="call-snyd"]');
     callSnydButton?.addEventListener('click', () => {
         roomSession?.sendIntent({ type: 'CALL_SNYD' });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="casino-toggle-table"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const stackId = button.dataset.stackId;
+            if (!stackId) return;
+            if (casinoSelectedStackIds.includes(stackId)) {
+                casinoSelectedStackIds = casinoSelectedStackIds.filter((candidate) => candidate !== stackId);
+            } else {
+                casinoSelectedStackIds = [...casinoSelectedStackIds, stackId];
+            }
+            renderView();
+        });
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="casino-play"]')?.addEventListener('click', () => {
+        const selectedCard = roomSession?.getState().selectedHandCards[0];
+        if (!selectedCard) return;
+        roomSession?.sendIntent({
+            type: 'CASINO_PLAY_MOVE',
+            handCard: selectedCard,
+            captureStackIds: casinoSelectedStackIds,
+        });
+        casinoSelectedStackIds = [];
+        renderView();
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="casino-build"]')?.addEventListener('click', () => {
+        const selectedCard = roomSession?.getState().selectedHandCards[0];
+        const targetStackId = casinoSelectedStackIds[0];
+        if (!selectedCard || !targetStackId) return;
+        roomSession?.sendIntent({
+            type: 'CASINO_BUILD_STACK',
+            handCard: selectedCard,
+            targetStackId,
+        });
+        casinoSelectedStackIds = [];
+        renderView();
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="casino-merge"]')?.addEventListener('click', () => {
+        if (casinoSelectedStackIds.length < 2) return;
+        roomSession?.sendIntent({
+            type: 'CASINO_MERGE_STACKS',
+            stackIds: casinoSelectedStackIds,
+        });
+        casinoSelectedStackIds = [];
+        renderView();
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="leave-table"]')?.addEventListener('click', () => {
+        cleanupRoomSession();
+        navigate({ view: 'play', room: null, token: null, game: null, mock: false });
     });
 }
 
@@ -936,6 +1007,7 @@ function syncStateFromRoute() {
 
 function normalizeGameKey(game: string): string {
     if (game === 'game.cheat') return 'snyd';
+    if (game === 'game.casino') return 'casino';
     if (game === 'single.card.highest.wins') return HIGHCARD_GAME_ID;
     if (game === 'single-card-highest-wins') return HIGHCARD_GAME_ID;
     return game;
@@ -966,6 +1038,10 @@ async function startHighCardQuickplay() {
 
 function randomToken(): string {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function randomRoomCode(): string {
+    return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
 function sanitizeRoomCode(value: string): string {
