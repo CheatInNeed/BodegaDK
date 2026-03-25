@@ -90,7 +90,7 @@ function renderApp() {
     if (!app) throw new Error('Missing #app');
 
     app.innerHTML = `
-    <div class="shell ${state.sidebarCollapsed ? 'collapsed' : ''}" id="shell">
+    <div class="shell ${state.sidebarCollapsed ? 'collapsed' : ''} ${state.view === 'room' ? 'shell-room-mode' : ''}" id="shell">
       <header class="topbar">
         <a class="brand" href="#" id="goHome" aria-label="Gå til forsiden">
           <div class="logo" aria-hidden="true"></div>
@@ -591,6 +591,10 @@ function wireRoomEvents() {
     if (state.view !== 'room') return;
     if (!roomSession) return;
 
+    document.querySelector<HTMLButtonElement>('button[data-action="leave-table"]')?.addEventListener('click', () => {
+        void handleLeaveActiveRoom();
+    });
+
     document.querySelectorAll<HTMLButtonElement>('button[data-action="toggle-card"]').forEach((button) => {
         button.addEventListener('click', () => {
             const card = button.dataset.card;
@@ -776,6 +780,26 @@ async function handleLeaveLobby(roomCode: string, token: string) {
         alert(toErrorMessage(error, 'Failed to leave lobby'));
     } finally {
         cleanupRoomSession();
+        lobbyBrowserState.loaded = false;
+        navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+        void refreshLobbyBrowser();
+    }
+}
+
+async function handleLeaveActiveRoom() {
+    const route = state.route;
+    cleanupRoomSession();
+
+    if (!route.room || !route.token || route.mock) {
+        navigate({ view: 'home', room: null, token: null, game: null, mock: false });
+        return;
+    }
+
+    try {
+        await leaveRoom({ roomCode: route.room, token: route.token });
+    } catch (error) {
+        alert(toErrorMessage(error, 'Failed to leave table'));
+    } finally {
         lobbyBrowserState.loaded = false;
         navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
         void refreshLobbyBrowser();
