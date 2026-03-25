@@ -32,7 +32,7 @@ const adapters: GenericAdapter[] = [
 
 const state = {
     lang: getInitialLang() as Lang,
-    view: 'play' as View,
+    view: readRoute().view as View,
     sidebarCollapsed: false,
     route: readRoute() as AppRoute,
 };
@@ -156,11 +156,7 @@ function renderView() {
 
     if (state.view === 'home') {
         cleanupRoomSession();
-        main.innerHTML = `
-      <h1 class="h1" data-i18n="home.title"></h1>
-      <p class="sub" data-i18n="home.subtitle"></p>
-      ${playCards()}
-    `;
+        main.innerHTML = renderHomepage();
     } else if (state.view === 'play') {
         cleanupRoomSession();
         main.innerHTML = `
@@ -391,6 +387,112 @@ function playCards() {
       ${gameCard('game.dice', 'Terningebaseret spil (placeholder).', 'action.open')}
       ${gameCard('game.more', 'Flere spil bliver tilføjet løbende.', 'action.play')}
     </div>
+  `;
+}
+
+function renderHomepage() {
+    return `
+    <section class="home-layout">
+      <section class="card home-hero">
+        <div class="home-hero-copy">
+          <span class="pill home-kicker" data-i18n="home.hero.kicker"></span>
+          <h1 class="home-hero-title" data-i18n="home.title"></h1>
+          <p class="sub home-hero-subtitle" data-i18n="home.subtitle"></p>
+        </div>
+
+        <aside class="home-hero-note">
+          <span class="pill home-pill-real" data-i18n="home.status.real"></span>
+          <p class="card-desc home-note-text" data-i18n="home.hero.note"></p>
+        </aside>
+      </section>
+
+      <section class="home-actions" aria-label="Homepage action cards">
+        ${renderHomepagePlaceholderCard({
+            titleKey: 'home.card.continue.title',
+            descKey: 'home.card.continue.desc',
+            className: 'home-card-half',
+        })}
+        ${renderHomepagePlaceholderCard({
+            titleKey: 'home.card.quick.title',
+            descKey: 'home.card.quick.desc',
+            className: 'home-card-half',
+            chipKeys: [
+                'home.card.quick.item.quick',
+                'home.card.quick.item.create',
+                'home.card.quick.item.join',
+            ],
+        })}
+      </section>
+
+      <section class="home-content-grid" aria-label="Homepage content cards">
+        <article class="card home-card home-card-wide">
+          <div class="home-card-header">
+            <div>
+              <p class="home-eyebrow" data-i18n="home.section.games.kicker"></p>
+              <div class="card-title home-card-title" data-i18n="home.section.games.title"></div>
+            </div>
+            <span class="pill home-pill-real" data-i18n="home.status.real"></span>
+          </div>
+
+          <p class="card-desc home-card-desc" data-i18n="home.section.games.desc"></p>
+          ${playCards()}
+        </article>
+
+        ${renderHomepagePlaceholderCard({
+            titleKey: 'home.section.leaderboard.title',
+            descKey: 'home.section.leaderboard.desc',
+            className: 'home-card-narrow',
+        })}
+        ${renderHomepagePlaceholderCard({
+            titleKey: 'home.section.profile.title',
+            descKey: 'home.section.profile.desc',
+            className: 'home-card-narrow',
+        })}
+        ${renderHomepagePlaceholderCard({
+            titleKey: 'home.section.friends.title',
+            descKey: 'home.section.friends.desc',
+            className: 'home-card-narrow',
+        })}
+        ${renderHomepagePlaceholderCard({
+            titleKey: 'home.section.stats.title',
+            descKey: 'home.section.stats.desc',
+            className: 'home-card-narrow',
+        })}
+      </section>
+    </section>
+  `;
+}
+
+function renderHomepagePlaceholderCard(input: {
+    titleKey: string;
+    descKey: string;
+    className?: string;
+    chipKeys?: string[];
+}): string {
+    const chips = (input.chipKeys ?? []).map((key) => `
+      <span class="pill home-chip" data-i18n="${key}"></span>
+    `).join('');
+
+    const chipRow = chips
+        ? `<div class="home-chip-row">${chips}</div>`
+        : '';
+
+    return `
+    <article class="card home-card home-placeholder-card ${input.className ?? ''}">
+      <div class="home-card-header">
+        <div>
+          <div class="card-title home-card-title" data-i18n="${input.titleKey}"></div>
+        </div>
+        <span class="pill home-pill-placeholder" data-i18n="home.status.placeholder"></span>
+      </div>
+
+      <p class="card-desc home-card-desc" data-i18n="${input.descKey}"></p>
+      ${chipRow}
+
+      <div class="home-placeholder-footer">
+        <button class="btn home-placeholder-btn" type="button" disabled data-i18n="home.action.comingSoon"></button>
+      </div>
+    </article>
   `;
 }
 

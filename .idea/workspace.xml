@@ -5,24 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="made even more work">
+      <change afterPath="$PROJECT_DIR$/docs/contracts/homepage_v1_contract.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/BodegaServerApplication.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/BodegaServerApplication.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/RoomController.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/RoomController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/HighCardEnginePortAdapter.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/HighCardEnginePortAdapter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/InMemoryRuntimeStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/InMemoryRuntimeStore.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/HighCardEnginePortAdapterTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/HighCardEnginePortAdapterTest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/public/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/public/styles.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/app/router.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/app/router.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/game-room/session.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/game-room/session.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/game-room/store.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/game-room/store.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/game-room/transport/ws-client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/game-room/transport/ws-client.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/i18n.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/i18n.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/net/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/net/api.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/net/protocol.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/net/protocol.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/export-code.ps1" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/export-code.ps1" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/infra/nginx/nginx.conf" beforeDir="false" afterPath="$PROJECT_DIR$/infra/nginx/nginx.conf" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -42,18 +31,18 @@
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "CheatInNeed"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;CheatInNeed&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/CheatInNeed/BodegaDK.git",
-    "accountId": "e1b6cf9a-6d31-42b1-8682-9161bda8295c"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/CheatInNeed/BodegaDK.git&quot;,
+    &quot;accountId&quot;: &quot;e1b6cf9a-6d31-42b1-8682-9161bda8295c&quot;
   }
-}]]></component>
+}</component>
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
@@ -66,22 +55,22 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;lobby-implementation-2.0&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/Users/merianokholm/WebstormProjects/BodegaDK/node_modules/typescript/lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "git-widget-placeholder": "dev",
+    "javascript.preferred.runtime.type.id": "node",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "ts.external.directory.path": "/Users/merianokholm/WebstormProjects/BodegaDK/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>

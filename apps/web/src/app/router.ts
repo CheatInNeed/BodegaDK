@@ -87,7 +87,7 @@ function parseView(value: string | null): View {
         return value;
     }
 
-    return 'play';
+    return 'home';
 }
 
 /**
