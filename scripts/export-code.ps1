@@ -1,8 +1,7 @@
-# To run type pwsh ./scripts/export-code.ps1
-
+# To run: pwsh ./infra/scripts/export-code.ps1
 
 # ============================================================
-# Project Code Dump Script (Focused / Chat-friendly)
+# Project Code Dump Script (Monorepo / Chat-friendly)
 # ============================================================
 
 $root = (Resolve-Path ".").Path
@@ -15,40 +14,131 @@ if (Test-Path $outputFile) {
 
 Write-Host "Creating project dump..."
 
-$files = @()
-
-# ------------------------------------------------------------
-# 1) Include all TypeScript source files
-# ------------------------------------------------------------
-if (Test-Path "$root/src") {
-    $files += Get-ChildItem -Path "$root/src" -Recurse -File -Filter "*.ts"
+# Helper: exclude noisy folders and generated/binary files
+function IsExcludedPath($fullName) {
+    return ($fullName -match "(^|[\\/])(node_modules|dist|\.git|\.idea|\.vscode|target|build|out|coverage|tmp|\.next)([\\/]|$)")
 }
 
-# ------------------------------------------------------------
-# 2) Optional: include apps folder (if used)
-# ------------------------------------------------------------
-if (Test-Path "$root/apps") {
-    $files += Get-ChildItem -Path "$root/apps" -Recurse -File -Filter "*.ts"
+function IsExcludedFile($file) {
+    $name = $file.Name
+    $extension = $file.Extension.ToLowerInvariant()
+
+    if ($name -eq "project_dump.txt") { return $true }
+
+    $excludedExtensions = @(
+        ".class", ".jar", ".war", ".ear",
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf",
+        ".zip", ".tar", ".gz", ".7z",
+        ".exe", ".dll", ".so", ".dylib",
+        ".db", ".sqlite", ".sqlite3",
+        ".lock"
+    )
+
+    return $excludedExtensions -contains $extension
 }
 
-# ------------------------------------------------------------
-# 2b) Include Markdown files (.md)
-# ------------------------------------------------------------
-$files += Get-ChildItem -Path $root -Recurse -File -Filter "*.md" |
-    Where-Object {
-        $_.FullName -notmatch "node_modules|dist|\.git|\.idea"
+function GetProjectFiles($basePath, $extensions) {
+    if (-not (Test-Path $basePath)) {
+        return @()
     }
 
-# ------------------------------------------------------------
-# 3) Important root configuration files
-# ------------------------------------------------------------
-$importantFiles = @(
-    "package.json",
-    "tsconfig.json",
-    "index.html"
+    return Get-ChildItem -Path $basePath -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { -not (IsExcludedPath $_.FullName) } |
+        Where-Object { -not (IsExcludedFile $_) } |
+        Where-Object { $extensions -contains $_.Extension.ToLowerInvariant() }
+}
+
+function GetNamedFiles($basePath, $names) {
+    if (-not (Test-Path $basePath)) {
+        return @()
+    }
+
+    return Get-ChildItem -Path $basePath -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { -not (IsExcludedPath $_.FullName) } |
+        Where-Object { -not (IsExcludedFile $_) } |
+        Where-Object { $names -contains $_.Name }
+}
+
+$files = @()
+
+$codeExtensions = @(
+    ".md",
+    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+    ".java", ".kt", ".kts",
+    ".html", ".css", ".scss",
+    ".json",
+    ".xml",
+    ".yml", ".yaml",
+    ".properties",
+    ".sql",
+    ".sh", ".ps1", ".bat",
+    ".env", ".example",
+    ".conf"
 )
 
-foreach ($name in $importantFiles) {
+$importantFileNames = @(
+    "package.json",
+    "package-lock.json",
+    "pom.xml",
+    "tsconfig.json",
+    "vite.config.ts",
+    "vite.config.js",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "Dockerfile",
+    ".dockerignore",
+    ".gitignore",
+    ".env",
+    ".env.example",
+    "README.md"
+)
+
+# ------------------------------------------------------------
+# 1) App code (web/server/etc.)
+# ------------------------------------------------------------
+if (Test-Path "$root/apps") {
+    $files += GetProjectFiles "$root/apps" $codeExtensions
+    $files += GetNamedFiles "$root/apps" $importantFileNames
+}
+
+# ------------------------------------------------------------
+# 2) Infra (docker/nginx/etc.)
+# ------------------------------------------------------------
+if (Test-Path "$root/infra") {
+    $files += GetProjectFiles "$root/infra" $codeExtensions
+    $files += GetNamedFiles "$root/infra" $importantFileNames
+}
+
+# ------------------------------------------------------------
+# 3) Protocol / packages
+# ------------------------------------------------------------
+if (Test-Path "$root/packages") {
+    $files += GetProjectFiles "$root/packages" $codeExtensions
+    $files += GetNamedFiles "$root/packages" $importantFileNames
+}
+
+# ------------------------------------------------------------
+# 4) Docs
+# ------------------------------------------------------------
+if (Test-Path "$root/docs") {
+    $files += GetProjectFiles "$root/docs" $codeExtensions
+}
+
+# ------------------------------------------------------------
+# 5) Top-level code/config/docs files
+# ------------------------------------------------------------
+$topLevelFiles = Get-ChildItem -Path $root -File -ErrorAction SilentlyContinue |
+    Where-Object { -not (IsExcludedFile $_) } |
+    Where-Object {
+        $importantFileNames -contains $_.Name -or
+        $codeExtensions -contains $_.Extension.ToLowerInvariant()
+    }
+$files += $topLevelFiles
+
+# ------------------------------------------------------------
+# 6) Important root configuration files
+# ------------------------------------------------------------
+foreach ($name in $importantFileNames) {
     $path = Join-Path $root $name
     if (Test-Path -LiteralPath $path) {
         $item = Get-Item -LiteralPath $path -ErrorAction SilentlyContinue
@@ -58,9 +148,11 @@ foreach ($name in $importantFiles) {
     }
 }
 
-# Remove duplicates and sort
+# Remove excluded + duplicates and sort
 $files = $files |
     Where-Object { $_ -ne $null } |
+    Where-Object { -not (IsExcludedPath $_.FullName) } |
+    Where-Object { -not (IsExcludedFile $_) } |
     Sort-Object FullName -Unique
 
 # ------------------------------------------------------------

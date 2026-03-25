@@ -74,7 +74,7 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
         const hand = readHand(msg.payload.privateState);
         return {
             ...state,
-            playerId: readPlayerId(msg.payload.privateState),
+            playerId: readPlayerId(msg.payload.privateState) ?? state.playerId,
             publicState: msg.payload.publicState,
             privateState: msg.payload.privateState,
             selectedHandCards: state.selectedHandCards.filter((card) => hand.includes(card)),
@@ -106,13 +106,25 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
         const hand = readHand(msg.payload);
         return {
             ...state,
-            playerId: state.playerId ?? incomingPlayerId,
+            playerId: state.playerId ?? incomingPlayerId ?? null,
             privateState: {
                 ...(state.privateState ?? {}),
                 ...msg.payload,
             },
             selectedHandCards: state.selectedHandCards.filter((card) => hand.includes(card)),
             lastError: null,
+        };
+    }
+
+    if (msg.type === 'HEARTBEAT_ACK') {
+        return state;
+    }
+
+    if (msg.type === 'ROOM_CLOSED') {
+        return {
+            ...state,
+            lastError: 'Room closed',
+            connection: 'error',
         };
     }
 
@@ -143,6 +155,6 @@ function readHand(privateState: SnydPrivateState | Record<string, unknown>): str
     return Array.isArray(hand) ? hand.filter((card) => typeof card === 'string') : [];
 }
 
-function readPlayerId(privateState: Record<string, unknown>): string | null {
+function readPlayerId(privateState: Partial<SnydPrivateState> | Record<string, unknown>): string | null {
     return typeof privateState.playerId === 'string' ? privateState.playerId : null;
 }
