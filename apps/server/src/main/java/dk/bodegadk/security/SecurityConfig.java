@@ -1,25 +1,32 @@
 package dk.bodegadk.security;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.nio.charset.StandardCharsets;
-import javax.crypto.spec.SecretKeySpec;
+import java.util.List;
 
 @Configuration
 public class SecurityConfig {
-    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+    private static final String LOCAL_WEB_ORIGIN = "http://localhost:5173";
+    private static final String REQUIRED_AUDIENCE = "authenticated";
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -37,19 +44,38 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder(
-            @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}") String jwkSetUri,
-            @Value("${app.supabase.jwt-secret:}") String jwtSecret
-    ) {
-        if (jwtSecret != null && !jwtSecret.isBlank()) {
-            log.info("Configuring Supabase JWT decoder with shared secret (HS256)");
-            SecretKeySpec secretKey = new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-            return NimbusJwtDecoder.withSecretKey(secretKey)
-                    .macAlgorithm(MacAlgorithm.HS256)
-                    .build();
-        }
+    public JwtDecoder jwtDecoder(@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
+        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
+        OAuth2TokenValidator<Jwt> withAudience = jwt -> {
+            List<String> audience = jwt.getAudience();
+            if (audience != null && audience.contains(REQUIRED_AUDIENCE)) {
+                return OAuth2TokenValidatorResult.success();
+            }
 
-        log.info("Configuring Supabase JWT decoder with JWK set URI: {}", jwkSetUri);
-        return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+            OAuth2Error error = new OAuth2Error(
+                    "invalid_token",
+                    "The required audience '" + REQUIRED_AUDIENCE + "' is missing",
+                    null
+            );
+            return OAuth2TokenValidatorResult.failure(error);
+        };
+
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(withIssuer, withAudience));
+        return decoder;
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of(LOCAL_WEB_ORIGIN));
+        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }
