@@ -50,6 +50,7 @@ const lobbyBrowserState = {
 const authUiState = {
     initialized: false,
     user: null as { id: string } | null,
+    accessToken: null as string | null,
     avatar: null as { color: string; shape: string } | null,
 };
 
@@ -217,6 +218,14 @@ function renderLobbyContent(): string {
         cleanupRoomSession();
         return renderRoomError('Missing query params. Required: view=lobby&room=ABC123&token=yourToken');
     }
+    if (!route.mock && !authUiState.initialized) {
+        cleanupRoomSession();
+        return renderRoomError('Loading authenticated session...');
+    }
+    if (!route.mock && !authUiState.accessToken) {
+        cleanupRoomSession();
+        return renderRoomError('You must be logged in to open this lobby');
+    }
 
     const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.token, route.mock);
     const roomState = session?.getState();
@@ -266,6 +275,14 @@ function renderRoomContent(): string {
     if (!adapter) {
         cleanupRoomSession();
         return renderRoomError(`Unsupported game mode: ${route.game}`);
+    }
+    if (!route.mock && !authUiState.initialized) {
+        cleanupRoomSession();
+        return renderRoomError('Loading authenticated session...');
+    }
+    if (!route.mock && !authUiState.accessToken) {
+        cleanupRoomSession();
+        return renderRoomError('You must be logged in to open this room');
     }
 
     const session = ensureRoomSession(route.game, route.room, route.token, route.mock, adapter);
@@ -341,6 +358,7 @@ function ensureRoomSession(
                 game,
                 roomCode,
                 token,
+                accessToken: useMock ? '' : (authUiState.accessToken ?? ''),
                 useMock,
             },
             adapter,
@@ -693,7 +711,8 @@ async function refreshLobbyBrowser() {
     renderView();
 
     try {
-        lobbyBrowserState.rooms = await listRooms();
+        const auth = await requireAuthenticatedContext();
+        lobbyBrowserState.rooms = await listRooms(auth.accessToken);
         lobbyBrowserState.loaded = true;
     } catch (error) {
         lobbyBrowserState.errorMessage = toErrorMessage(error, 'Failed to load lobbies');
@@ -710,11 +729,12 @@ async function handleCreateLobby() {
     renderView();
 
     try {
+        const auth = await requireAuthenticatedContext();
         const created = await createRoom({
             gameType: FALLBACK_LOBBY_GAME_ID,
             isPrivate: lobbyBrowserState.createPrivate,
-            playerId: randomToken(),
-            token: randomToken(),
+            playerId: auth.userId,
+            accessToken: auth.accessToken,
         });
 
         navigate({
@@ -749,10 +769,11 @@ async function handleJoinByCode(rawRoomCode: string) {
     renderView();
 
     try {
+        const auth = await requireAuthenticatedContext();
         const joined = await joinRoom({
             roomCode,
-            playerId: randomToken(),
-            token: randomToken(),
+            playerId: auth.userId,
+            accessToken: auth.accessToken,
         });
 
         navigate({
@@ -775,7 +796,8 @@ async function handleJoinByCode(rawRoomCode: string) {
 
 async function handleLeaveLobby(roomCode: string, token: string) {
     try {
-        await leaveRoom({ roomCode, token });
+        const auth = await requireAuthenticatedContext();
+        await leaveRoom({ roomCode, token, accessToken: auth.accessToken });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to leave lobby'));
     } finally {
@@ -796,7 +818,8 @@ async function handleLeaveActiveRoom() {
     }
 
     try {
-        await leaveRoom({ roomCode: route.room, token: route.token });
+        const auth = await requireAuthenticatedContext();
+        await leaveRoom({ roomCode: route.room, token: route.token, accessToken: auth.accessToken });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to leave table'));
     } finally {
@@ -808,7 +831,8 @@ async function handleLeaveActiveRoom() {
 
 async function handleKickPlayer(roomCode: string, actorToken: string, targetPlayerId: string) {
     try {
-        await kickPlayer({ roomCode, actorToken, targetPlayerId });
+        const auth = await requireAuthenticatedContext();
+        await kickPlayer({ roomCode, actorToken, targetPlayerId, accessToken: auth.accessToken });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to kick player'));
         renderView();
@@ -885,14 +909,17 @@ async function syncAuthState(renderAfter = true) {
             throw error;
         }
         const user = data.session?.user ?? null;
+        const accessToken = data.session?.access_token ?? null;
 
         authUiState.initialized = true;
         authUiState.user = user ? { id: user.id } : null;
+        authUiState.accessToken = accessToken;
         authUiState.avatar = user ? await loadAvatarData(user.id) : null;
     } catch (error) {
         console.error('Failed to sync auth UI', error);
         authUiState.initialized = true;
         authUiState.user = null;
+        authUiState.accessToken = null;
         authUiState.avatar = null;
     }
 
@@ -943,12 +970,11 @@ function normalizeGameKey(game: string): string {
 
 async function startHighCardQuickplay() {
     try {
-        const playerId = randomToken();
-        const token = randomToken();
+        const auth = await requireAuthenticatedContext();
         const created = await createRoom({
             gameType: HIGHCARD_GAME_ID,
-            playerId,
-            token,
+            playerId: auth.userId,
+            accessToken: auth.accessToken,
         });
 
         navigate({
@@ -966,6 +992,41 @@ async function startHighCardQuickplay() {
 
 function randomToken(): string {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function requireAuthenticatedContext(): Promise<{ userId: string; accessToken: string }> {
+    if (authUiState.user?.id && authUiState.accessToken) {
+        console.debug('[auth] using cached Supabase session', {
+            userId: authUiState.user.id,
+            accessTokenPresent: true,
+            accessTokenPreview: authUiState.accessToken.slice(0, 20),
+        });
+        return {
+            userId: authUiState.user.id,
+            accessToken: authUiState.accessToken,
+        };
+    }
+
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+        throw error;
+    }
+
+    const userId = data.session?.user?.id ?? null;
+    const accessToken = data.session?.access_token ?? null;
+    console.debug('[auth] fetched Supabase session', {
+        userId,
+        accessTokenPresent: !!accessToken,
+        accessTokenPreview: accessToken ? accessToken.slice(0, 20) : null,
+    });
+    if (!userId || !accessToken) {
+        throw new Error('You must be logged in to join a room');
+    }
+
+    authUiState.initialized = true;
+    authUiState.user = { id: userId };
+    authUiState.accessToken = accessToken;
+    return { userId, accessToken };
 }
 
 function sanitizeRoomCode(value: string): string {
@@ -1007,10 +1068,11 @@ window.addEventListener('popstate', () => {
 });
 
 supabase.auth.onAuthStateChange((_event: unknown, session: unknown) => {
-    type AuthSession = { user?: { id: string } | null } | null;
+    type AuthSession = { user?: { id: string } | null; access_token?: string | null } | null;
     const currentSession = session as AuthSession;
     authUiState.initialized = true;
     authUiState.user = currentSession?.user ? { id: currentSession.user.id } : null;
+    authUiState.accessToken = currentSession?.access_token ?? null;
     if (!currentSession?.user) {
         authUiState.avatar = null;
         renderApp();

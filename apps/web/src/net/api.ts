@@ -31,8 +31,10 @@ export type JoinRoomResponse = {
 
 export type RoomActionResponse = { ok: boolean };
 
-export async function listRooms(): Promise<LobbyRoomSummary[]> {
-    const response = await fetch(`${resolveApiBaseUrl()}/rooms`);
+export async function listRooms(accessToken: string): Promise<LobbyRoomSummary[]> {
+    const response = await fetch(`${resolveApiBaseUrl()}/rooms`, {
+        headers: authHeaders(accessToken),
+    });
     return parseJsonResponse<LobbyRoomSummary[]>(response, 'Failed to load public rooms');
 }
 
@@ -41,24 +43,21 @@ export async function createRoom(input: {
     isPrivate?: boolean;
     playerId?: string;
     token?: string;
+    accessToken: string;
 }): Promise<CreateRoomResponse> {
     const response = await fetch(`${resolveApiBaseUrl()}/rooms`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(input.accessToken),
         body: JSON.stringify(input),
     });
 
     return parseJsonResponse<CreateRoomResponse>(response, 'Failed to create room');
 }
 
-export async function joinRoom(input: { roomCode: string; playerId?: string; token?: string }): Promise<JoinRoomResponse> {
+export async function joinRoom(input: { roomCode: string; playerId?: string; token?: string; accessToken: string }): Promise<JoinRoomResponse> {
     const response = await fetch(`${resolveApiBaseUrl()}/rooms/${encodeURIComponent(input.roomCode)}/join`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(input.accessToken),
         body: JSON.stringify({
             playerId: input.playerId,
             token: input.token,
@@ -68,12 +67,10 @@ export async function joinRoom(input: { roomCode: string; playerId?: string; tok
     return parseJsonResponse<JoinRoomResponse>(response, 'Failed to join room');
 }
 
-export async function leaveRoom(input: { roomCode: string; token: string }): Promise<RoomActionResponse> {
+export async function leaveRoom(input: { roomCode: string; token: string; accessToken: string }): Promise<RoomActionResponse> {
     const response = await fetch(`${resolveApiBaseUrl()}/rooms/${encodeURIComponent(input.roomCode)}/leave`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(input.accessToken),
         body: JSON.stringify({
             token: input.token,
         }),
@@ -82,12 +79,10 @@ export async function leaveRoom(input: { roomCode: string; token: string }): Pro
     return parseJsonResponse<RoomActionResponse>(response, 'Failed to leave room');
 }
 
-export async function kickPlayer(input: { roomCode: string; actorToken: string; targetPlayerId: string }): Promise<RoomActionResponse> {
+export async function kickPlayer(input: { roomCode: string; actorToken: string; targetPlayerId: string; accessToken: string }): Promise<RoomActionResponse> {
     const response = await fetch(`${resolveApiBaseUrl()}/rooms/${encodeURIComponent(input.roomCode)}/kick`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: jsonHeaders(input.accessToken),
         body: JSON.stringify({
             actorToken: input.actorToken,
             targetPlayerId: input.targetPlayerId,
@@ -110,6 +105,12 @@ async function parseJsonResponse<T>(response: Response, fallbackMessage: string)
         details = '';
     }
 
+    console.error('[api]', fallbackMessage, {
+        status: response.status,
+        statusText: response.statusText,
+        details,
+    });
+
     const suffix = details ? `: ${details}` : '';
     throw new Error(`${fallbackMessage} (${response.status})${suffix}`);
 }
@@ -119,4 +120,17 @@ function resolveApiBaseUrl(): string {
         return 'http://localhost:8080';
     }
     return '/api';
+}
+
+function authHeaders(accessToken: string): HeadersInit {
+    return {
+        Authorization: `Bearer ${accessToken}`,
+    };
+}
+
+function jsonHeaders(accessToken: string): HeadersInit {
+    return {
+        ...authHeaders(accessToken),
+        'Content-Type': 'application/json',
+    };
 }

@@ -86,7 +86,8 @@ Alle WebSocket messages har format:
   "type": "CONNECT",
   "payload": {
     "roomCode": "ABC123",
-    "token": "jwt-or-session-token"
+    "token": "room-session-token",
+    "accessToken": "supabase-access-jwt"
   }
 }
 ```
@@ -174,6 +175,9 @@ Broadcast til alle spillere.
 {
   "type": "PUBLIC_UPDATE",
   "payload": {
+    "players": [
+      { "playerId": "8e40cdb3-8d10-41aa-99b8-4a8764db16cb", "userId": "8e40cdb3-8d10-41aa-99b8-4a8764db16cb" }
+    ],
     "turnPlayerId": "p2",
     "pileCount": 10
   }

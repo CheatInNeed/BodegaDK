@@ -117,7 +117,7 @@ public class InMemoryRuntimeStore {
         }
     }
 
-    public PlayerSession joinRoom(String roomCode, String playerId, String token) {
+    public PlayerSession joinRoom(String roomCode, String playerId, String token, String userId) {
         RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             throw new IllegalArgumentException("Room does not exist: " + roomCode);
@@ -133,19 +133,31 @@ public class InMemoryRuntimeStore {
             }
         }
 
-        sessionsByToken.put(token, new SessionRecord(roomCode, playerId, now, false));
+        sessionsByToken.put(token, new SessionRecord(roomCode, playerId, userId, now, false));
         refreshPlayers(roomCode);
-        return new PlayerSession(roomCode, playerId, token);
+        return new PlayerSession(roomCode, playerId, userId, token);
     }
 
-    public Optional<PlayerSession> resolveConnect(String roomCode, String token) {
+    public PlayerSession joinRoom(String roomCode, String playerId, String token) {
+        return joinRoom(roomCode, playerId, token, playerId);
+    }
+
+    public Optional<PlayerSession> resolveConnect(String roomCode, String token, String userId) {
         SessionRecord session = sessionsByToken.get(token);
-        if (session == null || !session.roomCode.equals(roomCode)) {
+        if (session == null || !session.roomCode.equals(roomCode) || !session.userId.equals(userId)) {
             return Optional.empty();
         }
 
         sessionsByToken.computeIfPresent(token, (key, current) -> current.connected(Instant.now()));
-        return Optional.of(new PlayerSession(session.roomCode, session.playerId, token));
+        return Optional.of(new PlayerSession(session.roomCode, session.playerId, session.userId, token));
+    }
+
+    public Optional<PlayerSession> resolveConnect(String roomCode, String token) {
+        SessionRecord session = sessionsByToken.get(token);
+        if (session == null) {
+            return Optional.empty();
+        }
+        return resolveConnect(roomCode, token, session.userId);
     }
 
     public boolean touchHeartbeat(String token) {
@@ -165,12 +177,20 @@ public class InMemoryRuntimeStore {
         return touched;
     }
 
-    public Optional<RoomMutation> leaveRoom(String roomCode, String token) {
+    public Optional<RoomMutation> leaveRoom(String roomCode, String token, String userId) {
         SessionRecord session = sessionsByToken.get(token);
-        if (session == null || !session.roomCode.equals(roomCode)) {
+        if (session == null || !session.roomCode.equals(roomCode) || !session.userId.equals(userId)) {
             return Optional.empty();
         }
         return removePlayer(roomCode, session.playerId);
+    }
+
+    public Optional<RoomMutation> leaveRoom(String roomCode, String token) {
+        SessionRecord session = sessionsByToken.get(token);
+        if (session == null) {
+            return Optional.empty();
+        }
+        return leaveRoom(roomCode, token, session.userId);
     }
 
     public Optional<RoomMutation> disconnect(String token) {
@@ -182,9 +202,9 @@ public class InMemoryRuntimeStore {
         return Optional.empty();
     }
 
-    public Optional<RoomMutation> kickPlayer(String roomCode, String hostToken, String targetPlayerId) {
+    public Optional<RoomMutation> kickPlayer(String roomCode, String hostToken, String targetPlayerId, String actorUserId) {
         SessionRecord hostSession = sessionsByToken.get(hostToken);
-        if (hostSession == null || !hostSession.roomCode.equals(roomCode)) {
+        if (hostSession == null || !hostSession.roomCode.equals(roomCode) || !hostSession.userId.equals(actorUserId)) {
             return Optional.empty();
         }
 
@@ -206,6 +226,14 @@ public class InMemoryRuntimeStore {
         }
 
         return removePlayer(roomCode, targetPlayerId);
+    }
+
+    public Optional<RoomMutation> kickPlayer(String roomCode, String hostToken, String targetPlayerId) {
+        SessionRecord session = sessionsByToken.get(hostToken);
+        if (session == null) {
+            return Optional.empty();
+        }
+        return kickPlayer(roomCode, hostToken, targetPlayerId, session.userId);
     }
 
     public List<ExpiredSession> sweepExpiredSessions(Duration maxAge) {
@@ -379,7 +407,12 @@ public class InMemoryRuntimeStore {
         }
 
         synchronized (room) {
-            room.participants.forEach(players::add);
+            room.participants.forEach(playerId -> {
+                ObjectNode playerNode = JsonNodeFactory.instance.objectNode();
+                playerNode.put("playerId", playerId);
+                playerNode.put("userId", playerId);
+                players.add(playerNode);
+            });
             publicState.set("players", players);
             if (blank(room.hostPlayerId)) {
                 publicState.putNull("hostPlayerId");
@@ -476,7 +509,7 @@ public class InMemoryRuntimeStore {
         IN_GAME
     }
 
-    public record PlayerSession(String roomCode, String playerId, String token) {
+    public record PlayerSession(String roomCode, String playerId, String userId, String token) {
     }
 
     public record RoomSummary(
@@ -529,13 +562,13 @@ public class InMemoryRuntimeStore {
         }
     }
 
-    private record SessionRecord(String roomCode, String playerId, Instant lastHeartbeat, boolean connected) {
+    private record SessionRecord(String roomCode, String playerId, String userId, Instant lastHeartbeat, boolean connected) {
         private SessionRecord connected(Instant now) {
-            return new SessionRecord(roomCode, playerId, now, true);
+            return new SessionRecord(roomCode, playerId, userId, now, true);
         }
 
         private SessionRecord disconnected() {
-            return new SessionRecord(roomCode, playerId, lastHeartbeat, false);
+            return new SessionRecord(roomCode, playerId, userId, lastHeartbeat, false);
         }
     }
 }

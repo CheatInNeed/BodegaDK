@@ -1,5 +1,5 @@
 import type { GameAdapter, RoomSessionState, UiIntent } from '../../game-room/types.js';
-import type { ClientToServerMessage } from '../../net/protocol.js';
+import type { ClientToServerMessage, PlayerRef } from '../../net/protocol.js';
 import type { KrigViewModel } from './view.js';
 
 type KrigPublicState = {
@@ -7,7 +7,7 @@ type KrigPublicState = {
     round?: number;
     totalRounds?: number;
     turnPlayerId?: string;
-    players?: string[];
+    players?: PlayerRef[];
     scores?: Record<string, number>;
     tableCards?: Record<string, string | null>;
     lastBattle?: {
@@ -36,7 +36,14 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
 
     toViewModel({ publicState, privateState, selectedCards, selfPlayerId }) {
         const playerIds = Array.isArray(publicState?.players)
-            ? publicState.players.filter((playerId): playerId is string => typeof playerId === 'string')
+            ? publicState.players
+                .map((player) => {
+                    if (typeof player === 'string') {
+                        return player;
+                    }
+                    return typeof player?.playerId === 'string' ? player.playerId : null;
+                })
+                .filter((playerId): playerId is string => typeof playerId === 'string')
             : [];
         const handCodes = Array.isArray(privateState?.hand)
             ? privateState.hand.filter((card): card is string => typeof card === 'string')

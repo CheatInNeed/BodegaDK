@@ -55,6 +55,7 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
                     payload: {
                         roomCode: options.bootstrap.roomCode,
                         token: options.bootstrap.token,
+                        accessToken: options.bootstrap.accessToken,
                     },
                 });
             },

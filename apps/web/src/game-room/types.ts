@@ -39,6 +39,7 @@ export type GameAdapter<TPublic extends Record<string, unknown>, TPrivate extend
 export type RoomBootstrap = {
     roomCode: string;
     token: string;
+    accessToken: string;
     game: string;
     useMock: boolean;
 };

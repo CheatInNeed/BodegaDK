@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.runtime.GameLoopService;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -28,14 +31,21 @@ public class GameWsHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final InMemoryRuntimeStore runtimeStore;
     private final GameLoopService gameLoopService;
+    private final JwtDecoder jwtDecoder;
 
     private final ConcurrentMap<String, WebSocketSession> sessionsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ConnectionBinding> bindingsById = new ConcurrentHashMap<>();
 
-    public GameWsHandler(ObjectMapper objectMapper, InMemoryRuntimeStore runtimeStore, GameLoopService gameLoopService) {
+    public GameWsHandler(
+            ObjectMapper objectMapper,
+            InMemoryRuntimeStore runtimeStore,
+            GameLoopService gameLoopService,
+            JwtDecoder jwtDecoder
+    ) {
         this.objectMapper = objectMapper;
         this.runtimeStore = runtimeStore;
         this.gameLoopService = gameLoopService;
+        this.jwtDecoder = jwtDecoder;
     }
 
     @Override
@@ -122,14 +132,22 @@ public class GameWsHandler extends TextWebSocketHandler {
     private void handleConnect(WebSocketSession session, InboundMessage inbound) {
         String roomCode = inbound.payload.path("roomCode").asText("");
         String token = inbound.payload.path("token").asText("");
+        String accessToken = inbound.payload.path("accessToken").asText("");
 
-        if (roomCode.isBlank() || token.isBlank()) {
+        if (roomCode.isBlank() || token.isBlank() || accessToken.isBlank()) {
             sendError(session, "BAD_MESSAGE: invalid envelope or type");
             closeQuietly(session);
             return;
         }
 
-        Optional<InMemoryRuntimeStore.PlayerSession> resolved = runtimeStore.resolveConnect(roomCode, token);
+        String userId = extractUserId(accessToken);
+        if (userId == null) {
+            sendError(session, "SESSION_NOT_READY: session validation unavailable");
+            closeQuietly(session);
+            return;
+        }
+
+        Optional<InMemoryRuntimeStore.PlayerSession> resolved = runtimeStore.resolveConnect(roomCode, token, userId);
         if (resolved.isEmpty()) {
             sendError(session, "SESSION_NOT_READY: session validation unavailable");
             closeQuietly(session);
@@ -246,8 +264,26 @@ public class GameWsHandler extends TextWebSocketHandler {
         payload.put("version", runtimeStore.loadState(room.roomCode()).version());
 
         var players = payload.putArray("players");
-        room.participants().forEach(players::add);
+        room.participants().forEach(playerId -> {
+            ObjectNode player = objectMapper.createObjectNode();
+            player.put("playerId", playerId);
+            player.put("userId", playerId);
+            players.add(player);
+        });
         return payload;
+    }
+
+    private String extractUserId(String accessToken) {
+        try {
+            Jwt jwt = jwtDecoder.decode(accessToken);
+            String subject = jwt.getSubject();
+            if (subject == null || subject.isBlank()) {
+                return null;
+            }
+            return subject;
+        } catch (JwtException exception) {
+            return null;
+        }
     }
 
     private void closeSessionByToken(String token, String reason) {

@@ -6,7 +6,7 @@ export type WsEnvelope<TType extends string, TPayload> = {
     payload: TPayload;
 };
 
-export type PlayerRef = string | { playerId: string; handCount?: number; name?: string };
+export type PlayerRef = string | { playerId: string; userId?: string; handCount?: number; name?: string };
 export type RoomStatus = 'LOBBY' | 'IN_GAME';
 
 export type LobbyPublicState = {
@@ -38,7 +38,7 @@ export type SnydPrivateState = {
     [key: string]: unknown;
 };
 
-export type ConnectMessage = WsEnvelope<'CONNECT', { roomCode: string; token: string }>;
+export type ConnectMessage = WsEnvelope<'CONNECT', { roomCode: string; token: string; accessToken: string }>;
 export type HeartbeatMessage = WsEnvelope<'HEARTBEAT', Record<string, never>>;
 export type SelectGameMessage = WsEnvelope<'SELECT_GAME', { game: string }>;
 export type StartGameMessage = WsEnvelope<'START_GAME', Record<string, never>>;
