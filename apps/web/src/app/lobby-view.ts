@@ -2,6 +2,7 @@ import type { LobbyRoomSummary } from '../net/api.js';
 
 export type LobbyPlayerSeat = {
     playerId: string;
+    username: string;
     isHost: boolean;
     isSelf: boolean;
 };
@@ -137,7 +138,8 @@ export function renderLobbyRoom(viewModel: LobbyRoomViewModel): string {
     const playersHtml = viewModel.players.map((player) => `
       <div class="card lobby-player-card">
         <div>
-          <div class="card-title">${player.playerId}</div>
+          <div class="card-title">${player.username}</div>
+          <p class="card-desc">${player.playerId}</p>
           <p class="card-desc">${player.isHost ? 'Lobby host' : 'Participant'}${player.isSelf ? ' · You' : ''}</p>
         </div>
         <div class="card-row">

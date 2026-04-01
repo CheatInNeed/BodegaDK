@@ -6,7 +6,7 @@ export type WsEnvelope<TType extends string, TPayload> = {
     payload: TPayload;
 };
 
-export type PlayerRef = string | { playerId: string; userId?: string; handCount?: number; name?: string };
+export type PlayerRef = string | { playerId: string; userId?: string; username?: string; handCount?: number; name?: string };
 export type RoomStatus = 'LOBBY' | 'IN_GAME';
 
 export type LobbyPublicState = {

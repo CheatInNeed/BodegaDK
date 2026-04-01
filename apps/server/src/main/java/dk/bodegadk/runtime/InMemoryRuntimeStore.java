@@ -117,29 +117,31 @@ public class InMemoryRuntimeStore {
         }
     }
 
-    public PlayerSession joinRoom(String roomCode, String playerId, String token, String userId) {
+    public PlayerSession joinRoom(String roomCode, String playerId, String token, String userId, String username) {
         RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             throw new IllegalArgumentException("Room does not exist: " + roomCode);
         }
 
         Instant now = Instant.now();
+        String resolvedUsername = blank(username) ? playerId : username;
         synchronized (room) {
             if (!room.participants.contains(playerId)) {
                 room.participants.add(playerId);
             }
+            room.playerNames.put(playerId, resolvedUsername);
             if (blank(room.hostPlayerId)) {
                 room.hostPlayerId = playerId;
             }
         }
 
-        sessionsByToken.put(token, new SessionRecord(roomCode, playerId, userId, now, false));
+        sessionsByToken.put(token, new SessionRecord(roomCode, playerId, userId, resolvedUsername, now, false));
         refreshPlayers(roomCode);
-        return new PlayerSession(roomCode, playerId, userId, token);
+        return new PlayerSession(roomCode, playerId, userId, resolvedUsername, token);
     }
 
     public PlayerSession joinRoom(String roomCode, String playerId, String token) {
-        return joinRoom(roomCode, playerId, token, playerId);
+        return joinRoom(roomCode, playerId, token, playerId, playerId);
     }
 
     public Optional<PlayerSession> resolveConnect(String roomCode, String token, String userId) {
@@ -149,7 +151,7 @@ public class InMemoryRuntimeStore {
         }
 
         sessionsByToken.computeIfPresent(token, (key, current) -> current.connected(Instant.now()));
-        return Optional.of(new PlayerSession(session.roomCode, session.playerId, session.userId, token));
+        return Optional.of(new PlayerSession(session.roomCode, session.playerId, session.userId, session.username, token));
     }
 
     public Optional<PlayerSession> resolveConnect(String roomCode, String token) {
@@ -370,6 +372,7 @@ public class InMemoryRuntimeStore {
                 removeSessionsForPlayer(roomCode, playerId);
                 return Optional.empty();
             }
+            room.playerNames.remove(playerId);
 
             removeSessionsForPlayer(roomCode, playerId);
 
@@ -411,6 +414,8 @@ public class InMemoryRuntimeStore {
                 ObjectNode playerNode = JsonNodeFactory.instance.objectNode();
                 playerNode.put("playerId", playerId);
                 playerNode.put("userId", playerId);
+                String username = room.playerNames.get(playerId);
+                playerNode.put("username", blank(username) ? playerId : username);
                 players.add(playerNode);
             });
             publicState.set("players", players);
@@ -444,7 +449,14 @@ public class InMemoryRuntimeStore {
                 room.isPrivate,
                 room.selectedGame,
                 room.status,
-                List.copyOf(room.participants)
+                List.copyOf(room.participants),
+                room.participants.stream()
+                        .map(playerId -> new PlayerPresence(
+                                playerId,
+                                playerId,
+                                blank(room.playerNames.get(playerId)) ? playerId : room.playerNames.get(playerId)
+                        ))
+                        .toList()
         );
     }
 
@@ -509,7 +521,10 @@ public class InMemoryRuntimeStore {
         IN_GAME
     }
 
-    public record PlayerSession(String roomCode, String playerId, String userId, String token) {
+    public record PlayerSession(String roomCode, String playerId, String userId, String username, String token) {
+    }
+
+    public record PlayerPresence(String playerId, String userId, String username) {
     }
 
     public record RoomSummary(
@@ -528,7 +543,8 @@ public class InMemoryRuntimeStore {
             boolean isPrivate,
             String selectedGame,
             RoomStatus status,
-            List<String> participants
+            List<String> participants,
+            List<PlayerPresence> playerDetails
     ) {
     }
 
@@ -548,6 +564,7 @@ public class InMemoryRuntimeStore {
     private static final class RoomRecord {
         private final String roomCode;
         private final List<String> participants = new ArrayList<>();
+        private final ConcurrentMap<String, String> playerNames = new ConcurrentHashMap<>();
         private String hostPlayerId;
         private final boolean isPrivate;
         private String selectedGame;
@@ -562,13 +579,13 @@ public class InMemoryRuntimeStore {
         }
     }
 
-    private record SessionRecord(String roomCode, String playerId, String userId, Instant lastHeartbeat, boolean connected) {
+    private record SessionRecord(String roomCode, String playerId, String userId, String username, Instant lastHeartbeat, boolean connected) {
         private SessionRecord connected(Instant now) {
-            return new SessionRecord(roomCode, playerId, userId, now, true);
+            return new SessionRecord(roomCode, playerId, userId, username, now, true);
         }
 
         private SessionRecord disconnected() {
-            return new SessionRecord(roomCode, playerId, userId, lastHeartbeat, false);
+            return new SessionRecord(roomCode, playerId, userId, username, lastHeartbeat, false);
         }
     }
 }

@@ -1,6 +1,7 @@
 package dk.bodegadk.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dk.bodegadk.profile.LobbyPlayerIdentityService;
 import dk.bodegadk.runtime.GameLoopService;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
 import dk.bodegadk.ws.GameWsHandler;
@@ -11,6 +12,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -33,7 +35,7 @@ class RoomControllerSecurityTest {
                 new GameLoopService(runtimeStore, null),
                 jwtDecoder
         );
-        RoomController controller = new RoomController(runtimeStore, gameWsHandler);
+        RoomController controller = new RoomController(runtimeStore, gameWsHandler, new LobbyPlayerIdentityService(Optional.empty()));
 
         String roomCode = runtimeStore.createRoom("highcard", false, USER_ID);
         JwtAuthenticationToken authentication = new JwtAuthenticationToken(supabaseJwt(USER_ID));

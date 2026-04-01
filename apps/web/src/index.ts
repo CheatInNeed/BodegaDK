@@ -1049,16 +1049,23 @@ function readLobbyPlayers(value: unknown, hostPlayerId: string | null, selfPlaye
     return value
         .map((entry) => {
             if (typeof entry === 'string') {
-                return entry;
+                return { playerId: entry, username: entry };
             }
             const record = toRecord(entry);
-            return typeof record.playerId === 'string' ? record.playerId : null;
+            if (typeof record.playerId !== 'string') {
+                return null;
+            }
+            return {
+                playerId: record.playerId,
+                username: typeof record.username === 'string' && record.username.trim() ? record.username : record.playerId,
+            };
         })
-        .filter((playerId): playerId is string => typeof playerId === 'string')
-        .map((playerId) => ({
-            playerId,
-            isHost: playerId === hostPlayerId,
-            isSelf: playerId === selfPlayerId,
+        .filter((player): player is { playerId: string; username: string } => player !== null)
+        .map((player) => ({
+            playerId: player.playerId,
+            username: player.username,
+            isHost: player.playerId === hostPlayerId,
+            isSelf: player.playerId === selfPlayerId,
         }));
 }
 

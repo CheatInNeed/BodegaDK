@@ -1,16 +1,25 @@
 spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/bodegadk}
+    username: ${SPRING_DATASOURCE_USERNAME:bodegadk}
+    password: ${SPRING_DATASOURCE_PASSWORD:bodegadk}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_MAX_POOL_SIZE:5}
   flyway:
     enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: public
   security:
     oauth2:
       resourceserver:
         jwt:
           issuer-uri: ${SUPABASE_ISSUER_URI:https://awdhzmyieafhfpjmzwsh.supabase.co/auth/v1}
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
 
 server:
   port: 8080

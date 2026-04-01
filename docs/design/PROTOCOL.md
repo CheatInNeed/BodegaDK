@@ -148,7 +148,10 @@ Sendes ved connect eller re-sync.
   "payload": {
     "publicState": {
       "roomCode": "ABC123",
-      "players": ["p1", "p2"],
+      "players": [
+        { "playerId": "8e40cdb3-8d10-41aa-99b8-4a8764db16cb", "userId": "8e40cdb3-8d10-41aa-99b8-4a8764db16cb", "username": "Peter" },
+        { "playerId": "29d78f90-2eaf-4d85-a629-c630a21feef8", "userId": "29d78f90-2eaf-4d85-a629-c630a21feef8", "username": "Player 29d78f90" }
+      ],
       "turnPlayerId": "p1",
       "pileCount": 8,
       "lastClaim": {
@@ -176,7 +179,7 @@ Broadcast til alle spillere.
   "type": "PUBLIC_UPDATE",
   "payload": {
     "players": [
-      { "playerId": "8e40cdb3-8d10-41aa-99b8-4a8764db16cb", "userId": "8e40cdb3-8d10-41aa-99b8-4a8764db16cb" }
+      { "playerId": "8e40cdb3-8d10-41aa-99b8-4a8764db16cb", "userId": "8e40cdb3-8d10-41aa-99b8-4a8764db16cb", "username": "Peter" }
     ],
     "turnPlayerId": "p2",
     "pileCount": 10

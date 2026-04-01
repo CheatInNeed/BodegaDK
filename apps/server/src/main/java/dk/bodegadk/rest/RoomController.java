@@ -1,6 +1,7 @@
 package dk.bodegadk.rest;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import dk.bodegadk.profile.LobbyPlayerIdentityService;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
 import dk.bodegadk.ws.GameWsHandler;
 import org.springframework.http.HttpStatus;
@@ -22,10 +23,16 @@ import java.util.UUID;
 public class RoomController {
     private final InMemoryRuntimeStore runtimeStore;
     private final GameWsHandler gameWsHandler;
+    private final LobbyPlayerIdentityService lobbyPlayerIdentityService;
 
-    public RoomController(InMemoryRuntimeStore runtimeStore, GameWsHandler gameWsHandler) {
+    public RoomController(
+            InMemoryRuntimeStore runtimeStore,
+            GameWsHandler gameWsHandler,
+            LobbyPlayerIdentityService lobbyPlayerIdentityService
+    ) {
         this.runtimeStore = runtimeStore;
         this.gameWsHandler = gameWsHandler;
+        this.lobbyPlayerIdentityService = lobbyPlayerIdentityService;
     }
 
     @GetMapping
@@ -47,12 +54,14 @@ public class RoomController {
             JwtAuthenticationToken authentication,
             @RequestBody(required = false) CreateRoomRequest request
     ) {
-        String playerId = authenticatedUserId(authentication);
+        UUID userId = authenticatedUserId(authentication);
+        LobbyPlayerIdentityService.ResolvedPlayerIdentity player = lobbyPlayerIdentityService.resolve(userId);
+        String playerId = player.userId();
         String token = blank(request == null ? null : request.token()) ? "dev-" + UUID.randomUUID() : request.token();
         boolean isPrivate = request != null && Boolean.TRUE.equals(request.isPrivate());
 
         String roomCode = runtimeStore.createRoom(request == null ? null : request.gameType(), isPrivate, playerId);
-        runtimeStore.joinRoom(roomCode, playerId, token, playerId);
+        runtimeStore.joinRoom(roomCode, playerId, token, playerId, player.username());
 
         return runtimeStore.roomSnapshot(roomCode)
                 .map(room -> new CreateRoomResponse(room.roomCode(), playerId, token, room.hostPlayerId(), room.isPrivate(), room.selectedGame(), room.status().name()))
@@ -70,12 +79,14 @@ public class RoomController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found");
         }
 
-        String playerId = authenticatedUserId(authentication);
+        UUID userId = authenticatedUserId(authentication);
+        LobbyPlayerIdentityService.ResolvedPlayerIdentity player = lobbyPlayerIdentityService.resolve(userId);
+        String playerId = player.userId();
         String token = request == null || blank(request.token())
                 ? "dev-" + UUID.randomUUID()
                 : request.token();
 
-        runtimeStore.joinRoom(roomCode, playerId, token, playerId);
+        runtimeStore.joinRoom(roomCode, playerId, token, playerId, player.username());
         gameWsHandler.publishLobbyState(roomCode);
 
         InMemoryRuntimeStore.RoomSnapshot room = runtimeStore.roomSnapshot(roomCode)
@@ -100,7 +111,7 @@ public class RoomController {
                             roomCode,
                             request.actorToken(),
                             request.targetPlayerId(),
-                            authenticatedUserId(authentication)
+                            authenticatedUserId(authentication).toString()
                     )
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room or player not found"));
             gameWsHandler.publishRoomMutation(mutation);
@@ -121,7 +132,7 @@ public class RoomController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "token is required");
         }
 
-        InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.leaveRoom(roomCode, request.token(), authenticatedUserId(authentication))
+        InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.leaveRoom(roomCode, request.token(), authenticatedUserId(authentication).toString())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room or session not found"));
         gameWsHandler.publishRoomMutation(mutation);
         return new RoomActionResponse(true);
@@ -131,14 +142,14 @@ public class RoomController {
         return value == null || value.isBlank();
     }
 
-    private String authenticatedUserId(JwtAuthenticationToken authentication) {
+    private UUID authenticatedUserId(JwtAuthenticationToken authentication) {
         String subject = authentication.getToken().getSubject();
         if (blank(subject)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "JWT subject is required");
         }
 
         try {
-            return UUID.fromString(subject).toString();
+            return UUID.fromString(subject);
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "JWT subject must be a valid UUID");
         }
