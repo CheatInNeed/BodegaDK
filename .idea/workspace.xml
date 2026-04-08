@@ -4,19 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Updated gitignore">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/public/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/public/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/custom.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/custom.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/login.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/login.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/signUp.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/signUp.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/supabase.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/supabase.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="added migration based database">
+      <change beforePath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -108,7 +97,7 @@
       <workItem from="1773758883484" duration="20159000" />
       <workItem from="1773860197305" duration="2071000" />
       <workItem from="1775645570494" duration="1149000" />
-      <workItem from="1775647164563" duration="2164000" />
+      <workItem from="1775647164563" duration="3073000" />
     </task>
     <task id="LOCAL-00002" summary="login and customize avatar">
       <option name="closed" value="true" />
@@ -126,7 +115,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774436398013</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="added migration based database">
+      <option name="closed" value="true" />
+      <created>1775649787092</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1775649787092</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -147,7 +144,8 @@
     <MESSAGE value="login mock" />
     <MESSAGE value="login and customize avatar" />
     <MESSAGE value="Updated gitignore" />
-    <option name="LAST_COMMIT_MESSAGE" value="Updated gitignore" />
+    <MESSAGE value="added migration based database" />
+    <option name="LAST_COMMIT_MESSAGE" value="added migration based database" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>
