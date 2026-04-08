@@ -44,6 +44,20 @@ const da: Dict = {
     'home.status.real': 'Real',
     'home.status.placeholder': 'Placeholder',
     'home.action.comingSoon': 'Kommer snart',
+    'theme.mark': 'Oak & Iron',
+    'theme.controlDeck': 'Control Deck',
+    'theme.navigation': 'Navigation',
+    'home.game.liveTable': 'Live table',
+    'home.game.ready': 'Klar ved bordet',
+    'lobby.kicker': 'Oak & Iron',
+    'lobby.room.kicker': 'Room staging',
+    'room.brand': 'Oak & Iron',
+    'room.subtitle': 'Industrielt multiplayer-bord med server-synkroniseret spil.',
+    'room.feed.title': 'Game Feed',
+    'room.feed.subtitle': 'Live bord-feed og room-kontekst',
+    'room.feed.tab.log': 'Log',
+    'room.feed.tab.chat': 'Chat',
+    'room.feed.tab.players': 'Players',
 };
 
 const en: Dict = {
@@ -88,6 +102,20 @@ const en: Dict = {
     'home.status.real': 'Real',
     'home.status.placeholder': 'Placeholder',
     'home.action.comingSoon': 'Coming Soon',
+    'theme.mark': 'Oak & Iron',
+    'theme.controlDeck': 'Control Deck',
+    'theme.navigation': 'Navigation',
+    'home.game.liveTable': 'Live table',
+    'home.game.ready': 'Ready at the table',
+    'lobby.kicker': 'Oak & Iron',
+    'lobby.room.kicker': 'Room staging',
+    'room.brand': 'Oak & Iron',
+    'room.subtitle': 'Industrial multiplayer table with server-synced play.',
+    'room.feed.title': 'Game Feed',
+    'room.feed.subtitle': 'Live table feed and room context',
+    'room.feed.tab.log': 'Log',
+    'room.feed.tab.chat': 'Chat',
+    'room.feed.tab.players': 'Players',
 };
 
 const dictionaries: Record<Lang, Dict> = { da, en };

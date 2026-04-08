@@ -61,7 +61,8 @@ export function renderLobbyBrowser(params: {
     return `
     <section class="lobby-browser">
       <div class="lobby-hero card">
-        <div>
+        <div class="lobby-hero-copy">
+          <span class="home-eyebrow" data-i18n="lobby.kicker"></span>
           <h1 class="h1">Lobby Browser</h1>
           <p class="sub">Find an open bodega table, spin up a private room, or jump in with a room code.</p>
         </div>
@@ -150,7 +151,8 @@ export function renderLobbyRoom(viewModel: LobbyRoomViewModel): string {
     return `
     <section class="lobby-room">
       <div class="lobby-hero card">
-        <div>
+        <div class="lobby-hero-copy">
+          <span class="home-eyebrow" data-i18n="lobby.room.kicker"></span>
           <h1 class="h1">Lobby ${viewModel.roomCode}</h1>
           <p class="sub">Stay here while the table fills up. The server keeps this roster authoritative in real time.</p>
         </div>

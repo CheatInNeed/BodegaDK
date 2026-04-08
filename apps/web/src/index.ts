@@ -94,16 +94,21 @@ function renderApp() {
       <header class="topbar">
         <a class="brand" href="#" id="goHome" aria-label="Gå til forsiden">
           <div class="logo" aria-hidden="true"></div>
-          <span data-i18n="app.name"></span>
+          <div class="brand-copy">
+            <span class="brand-mark" data-i18n="theme.mark"></span>
+            <span class="brand-name" data-i18n="app.name"></span>
+          </div>
         </a>
 
         <div class="topbar-right">
-          <select class="select" id="langSelect" aria-label="Sprog">
-            <option value="da">DA</option>
-            <option value="en">EN</option>
-          </select>
+          <div class="topbar-tools">
+            <select class="select" id="langSelect" aria-label="Sprog">
+              <option value="da">DA</option>
+              <option value="en">EN</option>
+            </select>
 
-          <div id="avatarDisplay" class="avatar hidden" aria-hidden="true"></div>
+            <div id="avatarDisplay" class="avatar hidden" aria-hidden="true"></div>
+          </div>
           <button class="btn" id="loginBtn" data-i18n="top.login"></button>
           <button class="btn primary" id="signupBtn" data-i18n="top.signup"></button>
           <button class="btn" id="profileBtn" data-i18n="top.profile"></button>
@@ -112,7 +117,10 @@ function renderApp() {
 
       <aside class="sidebar">
         <div class="sidebar-header">
-          <div class="sidebar-title pill">Menu</div>
+          <div class="sidebar-title">
+            <span class="sidebar-kicker" data-i18n="theme.navigation"></span>
+            <span class="sidebar-heading" data-i18n="theme.controlDeck"></span>
+          </div>
           <button class="burger" id="burgerBtn" aria-label="Åbn/luk menu">☰</button>
         </div>
 
@@ -498,11 +506,17 @@ function renderHomepagePlaceholderCard(input: {
 
 function gameCard(titleKey: string, desc: string, actionKey: string) {
     return `
-    <div class="card">
-      <div class="card-title" data-i18n="${titleKey}"></div>
+    <div class="card game-discovery-card">
+      <div class="game-discovery-head">
+        <div>
+          <div class="home-eyebrow" data-i18n="home.game.liveTable"></div>
+          <div class="card-title" data-i18n="${titleKey}"></div>
+        </div>
+        <span class="pill home-pill-real" data-i18n="home.status.real"></span>
+      </div>
       <div class="card-desc">${desc}</div>
       <div class="card-row">
-        <span class="pill">Status: Placeholder</span>
+        <span class="pill game-discovery-meta" data-i18n="home.game.ready"></span>
         <button class="btn primary" data-i18n="${actionKey}" data-action="open-game" data-game="${titleKey}"></button>
       </div>
     </div>

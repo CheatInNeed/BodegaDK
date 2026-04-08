@@ -48,10 +48,10 @@ export function renderRoomFrame(params: {
       <div class="game-room-main">
         <header class="game-room-topbar">
           <div class="game-room-brand-block">
-            <span class="game-room-brand">The Digital Bodega</span>
+            <span class="game-room-brand" data-i18n="room.brand"></span>
             <div class="game-room-title-group">
               <h1 class="game-room-title">${params.gameTitle}</h1>
-              <p class="game-room-subtitle">Immersive table view for live multiplayer play.</p>
+              <p class="game-room-subtitle" data-i18n="room.subtitle"></p>
             </div>
           </div>
 
@@ -83,13 +83,14 @@ export function renderRoomFrame(params: {
 
       <aside class="game-room-sidebar">
         <div class="game-room-sidebar-header">
-          <h2 class="game-room-sidebar-title">Table Log</h2>
-          <p class="game-room-sidebar-subtitle">Live feed and rules sidebar</p>
+          <h2 class="game-room-sidebar-title" data-i18n="room.feed.title"></h2>
+          <p class="game-room-sidebar-subtitle" data-i18n="room.feed.subtitle"></p>
         </div>
 
         <nav class="game-room-sidebar-tabs" aria-label="Room side tabs">
-          <button class="game-room-sidebar-tab active" type="button">Chat</button>
-          <button class="game-room-sidebar-tab" type="button">Rules</button>
+          <button class="game-room-sidebar-tab active" type="button" data-i18n="room.feed.tab.log"></button>
+          <button class="game-room-sidebar-tab" type="button" data-i18n="room.feed.tab.chat"></button>
+          <button class="game-room-sidebar-tab" type="button" data-i18n="room.feed.tab.players"></button>
         </nav>
 
         <div class="game-room-log-list">
