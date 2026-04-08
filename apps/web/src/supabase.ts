@@ -1,13 +1,25 @@
 declare global {
     interface Window {
         supabase: any;
+        __BODEGADK_CONFIG__?: {
+            supabaseUrl?: string;
+            supabaseAnonKey?: string;
+        };
     }
 }
 
-const supabaseUrl = 'https://awdhzmyieafhfpjmzwsh.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3ZGh6bXlpZWFmaGZwam16d3NoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0MTg0MjAsImV4cCI6MjA4Njk5NDQyMH0.6XB-Wy_5IMcmRDWXO5zsb6LQtyvOJpP1x3a8jMF2t3Q'
+function readConfigValue(value: string | undefined): string {
+    return typeof value === 'string' ? value.trim() : '';
+}
 
-export const supabase = window.supabase.createClient(
-    supabaseUrl,
-    supabaseAnonKey
-);
+const rawConfig = window.__BODEGADK_CONFIG__ ?? {};
+const supabaseUrl = readConfigValue(rawConfig.supabaseUrl);
+const supabaseAnonKey = readConfigValue(rawConfig.supabaseAnonKey);
+const hasSupabaseSdk = typeof window.supabase?.createClient === 'function';
+
+export const isSupabaseConfigured = hasSupabaseSdk && supabaseUrl.length > 0 && supabaseAnonKey.length > 0;
+export const supabaseUnavailableMessage = 'Supabase auth/profile features are unavailable. Set PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY before serving the web client.';
+
+export const supabase = isSupabaseConfigured
+    ? window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+    : null;

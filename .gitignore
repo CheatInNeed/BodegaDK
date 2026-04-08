@@ -12,6 +12,7 @@ project_dump.txt
 
 # Build artifacts
 /apps/web/public/dist/
+/apps/web/public/app-config.js
 /apps/server/target/
 /dist/*.js
 

@@ -65,7 +65,8 @@ These commands switch branch before deploying.
 ## Documentation
 
 - Contributor and agent guidance: [AGENTS.md](/Users/alex/WebstormProjects/BodegaDK/AGENTS.md)
-- Local development guide: [docs/DEVELOPMENT.md](/Users/alex/WebstormProjects/BodegaDK/docs/DEVELOPMENT.md)
-- Debian/server deploy guide: [docs/SERVER_GUIDE.md](/Users/alex/WebstormProjects/BodegaDK/docs/SERVER_GUIDE.md)
-- Protocol contract: [docs/PROTOCOL.md](/Users/alex/WebstormProjects/BodegaDK/docs/PROTOCOL.md)
-- Engine integration contract: [docs/enginge_intergration_contract.md](/Users/alex/WebstormProjects/BodegaDK/docs/enginge_intergration_contract.md)
+- Supabase migrations and web auth config: [docs/instructions/SUPABASE.md](/Users/alex/WebstormProjects/BodegaDK/docs/instructions/SUPABASE.md)
+- Local development guide: [docs/instructions/DEVELOPMENT.md](/Users/alex/WebstormProjects/BodegaDK/docs/instructions/DEVELOPMENT.md)
+- Debian/server deploy guide: [docs/instructions/SERVER_GUIDE.md](/Users/alex/WebstormProjects/BodegaDK/docs/instructions/SERVER_GUIDE.md)
+- Protocol contract: [docs/design/PROTOCOL.md](/Users/alex/WebstormProjects/BodegaDK/docs/design/PROTOCOL.md)
+- Engine integration contract: [docs/contracts/enginge_intergration_contract.md](/Users/alex/WebstormProjects/BodegaDK/docs/contracts/enginge_intergration_contract.md)

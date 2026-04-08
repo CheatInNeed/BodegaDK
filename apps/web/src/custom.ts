@@ -1,21 +1,26 @@
 import { navigate } from './index.js';
-import { supabase } from "./supabase.js";
+import { isSupabaseConfigured, supabase, supabaseUnavailableMessage } from "./supabase.js";
 
 export function renderCustom() {
     const app = document.getElementById('app');
     if (!app) return;
 
+    const unavailableHtml = !isSupabaseConfigured
+        ? `<p class="card-desc">${supabaseUnavailableMessage}</p>`
+        : '';
+
     app.innerHTML = `
     <div class="auth-page">
       <div class="card auth-card">
         <h1 class="card-title">Choose Avatar</h1>
+        ${unavailableHtml}
 
         <div class="avatar-options">
           <div class="avatar choice" data-color="red" data-shape="circle"></div>
           <div class="avatar choice" data-color="blue" data-shape="square"></div>
         </div>
 
-        <button id="saveAvatar" class="btn primary full">Save</button>
+        <button id="saveAvatar" class="btn primary full" ${!isSupabaseConfigured ? 'disabled' : ''}>Save</button>
       </div>
     </div>
     `;
@@ -44,6 +49,11 @@ function wireCustomEvents() {
 
     document.getElementById('saveAvatar')?.addEventListener('click', async () => {
         console.log("SAVE CLICK");
+
+        if (!supabase) {
+            alert(supabaseUnavailableMessage);
+            return;
+        }
 
         const { data } = await supabase.auth.getUser();
         const user = data.user;

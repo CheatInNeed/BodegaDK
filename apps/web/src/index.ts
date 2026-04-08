@@ -13,7 +13,7 @@ import { renderSnydRoom } from './games/snyd/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
-import { supabase } from './supabase.js';
+import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
     createRoom,
     joinRoom,
@@ -861,6 +861,9 @@ function applyAuthUI() {
     signupBtn.onclick = () => navigate('/custom');
     profileBtn.textContent = 'Logout';
     profileBtn.onclick = async () => {
+        if (!supabase) {
+            return;
+        }
         await supabase.auth.signOut();
         navigate('/');
     };
@@ -879,6 +882,16 @@ function applyAuthUI() {
 }
 
 async function syncAuthState(renderAfter = true) {
+    if (!supabase) {
+        authUiState.initialized = true;
+        authUiState.user = null;
+        authUiState.avatar = null;
+        if (renderAfter) {
+            renderApp();
+        }
+        return;
+    }
+
     try {
         const { data, error } = await supabase.auth.getSession();
         if (error) {
@@ -902,6 +915,10 @@ async function syncAuthState(renderAfter = true) {
 }
 
 async function loadAvatarData(userId: string): Promise<{ color: string; shape: string } | null> {
+    if (!supabase) {
+        return null;
+    }
+
     const { data: avatar } = await supabase
         .from('avatars')
         .select('*')
@@ -1006,27 +1023,29 @@ window.addEventListener('popstate', () => {
     renderApp();
 });
 
-supabase.auth.onAuthStateChange((_event: unknown, session: unknown) => {
-    type AuthSession = { user?: { id: string } | null } | null;
-    const currentSession = session as AuthSession;
-    authUiState.initialized = true;
-    authUiState.user = currentSession?.user ? { id: currentSession.user.id } : null;
-    if (!currentSession?.user) {
-        authUiState.avatar = null;
-        renderApp();
-        return;
-    }
-
-    void loadAvatarData(currentSession.user.id)
-        .then((avatar) => {
-            authUiState.avatar = avatar;
-            renderApp();
-        })
-        .catch(() => {
+if (isSupabaseConfigured && supabase) {
+    supabase.auth.onAuthStateChange((_event: unknown, session: unknown) => {
+        type AuthSession = { user?: { id: string } | null } | null;
+        const currentSession = session as AuthSession;
+        authUiState.initialized = true;
+        authUiState.user = currentSession?.user ? { id: currentSession.user.id } : null;
+        if (!currentSession?.user) {
             authUiState.avatar = null;
             renderApp();
-        });
-});
+            return;
+        }
+
+        void loadAvatarData(currentSession.user.id)
+            .then((avatar) => {
+                authUiState.avatar = avatar;
+                renderApp();
+            })
+            .catch(() => {
+                authUiState.avatar = null;
+                renderApp();
+            });
+    });
+}
 void syncAuthState();
 
 syncStateFromRoute();

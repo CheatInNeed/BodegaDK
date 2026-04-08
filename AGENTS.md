@@ -69,6 +69,7 @@ Do not run `deploy:main` or `deploy:dev` unless explicitly asked; they switch gi
 - Keep styles in `apps/web/public/styles.css` and reuse existing CSS variables/tokens.
 - Do not introduce Tailwind, inline styles, or external font dependencies.
 - Ensure TypeScript output remains compatible with `apps/web/public/dist`.
+- Treat `apps/web/public/app-config.js` as generated runtime config, not a tracked source file.
 - Preserve shared utility classes used by multiple flows; auth/homepage uses `.full`, lobby still uses `.full-width`.
 - Keep the current auth path routes working: `/login`, `/signup`, `/custom`.
 - Keep the current lobby flow working:
@@ -84,6 +85,12 @@ Homepage V1 rules:
   - real: `Games`
   - placeholder: `Continue Game`, `Quick Play / Create / Join`, `Leaderboard`, `Profile`, `Invite / Friends`, `Stats`
 - Do not surface partial plumbing as real homepage features. HighCard quickplay and Supabase auth/avatar support exist elsewhere, but homepage cards still follow the locked contract.
+
+Supabase rules:
+- App-owned Supabase schema changes belong in `supabase/migrations/`.
+- Do not treat the Supabase dashboard as the source of truth for schema.
+- Public browser config comes from `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` via generated runtime config.
+- Private migration credentials belong in GitHub secrets, not in source files.
 
 ### `apps/server`
 - Target Java 21 and existing Spring Boot patterns.
@@ -119,6 +126,7 @@ Homepage V1 rules:
 ## Documentation Sync Rules
 If behavior changes, update corresponding docs in the same task:
 - `docs/contracts/homepage_v1_contract.md` for homepage layout/behavior changes
+- `docs/instructions/SUPABASE.md` for Supabase schema/config/CI changes
 - `docs/design/PROTOCOL.md` for REST/WS payload or message changes
 - `docs/instructions/DEVELOPMENT.md` for local workflow changes
 - `docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md` for structural changes
@@ -128,8 +136,6 @@ Related docs commonly needed during feature work:
 - `docs/design/WEB_CLIENT_GAME_ROOM.md`
 - `docs/design/DESIGN_GUIDE.md`
 - `docs/design/SERVER_ENGINE.md`
-
-Note: `README.md` still contains some outdated doc links. Prefer `docs/instructions`, `docs/design`, and `docs/contracts` when adding new references.
 
 ## Change Checklist (Before Hand-Off)
 - Run the smallest relevant validation for the change scope.
