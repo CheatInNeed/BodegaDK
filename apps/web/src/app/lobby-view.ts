@@ -2,6 +2,7 @@ import type { LobbyRoomSummary } from '../net/api.js';
 
 export type LobbyPlayerSeat = {
     playerId: string;
+    username: string;
     isHost: boolean;
     isSelf: boolean;
 };
@@ -42,7 +43,7 @@ export function renderLobbyBrowser(params: {
                 </div>
               </div>
               <div class="lobby-player-strip">
-                ${room.participants.map((playerId) => `<span class="pill">${playerId}</span>`).join('')}
+                ${room.participants.map((player) => `<span class="pill">${escapeHtml(player.username ?? player.playerId)}</span>`).join('')}
               </div>
               <div class="card-row">
                 <span class="pill">Public lobby</span>
@@ -137,7 +138,8 @@ export function renderLobbyRoom(viewModel: LobbyRoomViewModel): string {
     const playersHtml = viewModel.players.map((player) => `
       <div class="card lobby-player-card">
         <div>
-          <div class="card-title">${player.playerId}</div>
+          <div class="card-title">${escapeHtml(player.username)}</div>
+          <p class="card-desc">${escapeHtml(player.playerId)}</p>
           <p class="card-desc">${player.isHost ? 'Lobby host' : 'Participant'}${player.isSelf ? ' · You' : ''}</p>
         </div>
         <div class="card-row">
@@ -211,4 +213,13 @@ function gameOption(value: string, current: string): string {
 
 function escapeAttr(value: string): string {
     return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
 }

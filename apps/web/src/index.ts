@@ -49,7 +49,7 @@ const lobbyBrowserState = {
 
 const authUiState = {
     initialized: false,
-    user: null as { id: string } | null,
+    user: null as { id: string; username: string | null } | null,
     avatar: null as { color: string; shape: string } | null,
 };
 
@@ -710,11 +710,13 @@ async function handleCreateLobby() {
     renderView();
 
     try {
+        const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
             gameType: FALLBACK_LOBBY_GAME_ID,
             isPrivate: lobbyBrowserState.createPrivate,
-            playerId: randomToken(),
-            token: randomToken(),
+            playerId: playerIdentity.playerId,
+            username: playerIdentity.username ?? undefined,
+            token: playerIdentity.token,
         });
 
         navigate({
@@ -749,10 +751,12 @@ async function handleJoinByCode(rawRoomCode: string) {
     renderView();
 
     try {
+        const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
-            playerId: randomToken(),
-            token: randomToken(),
+            playerId: playerIdentity.playerId,
+            username: playerIdentity.username ?? undefined,
+            token: playerIdentity.token,
         });
 
         navigate({
@@ -900,7 +904,7 @@ async function syncAuthState(renderAfter = true) {
         const user = data.session?.user ?? null;
 
         authUiState.initialized = true;
-        authUiState.user = user ? { id: user.id } : null;
+        authUiState.user = user ? { id: user.id, username: await loadProfileUsername(user.id) } : null;
         authUiState.avatar = user ? await loadAvatarData(user.id) : null;
     } catch (error) {
         console.error('Failed to sync auth UI', error);
@@ -933,6 +937,20 @@ async function loadAvatarData(userId: string): Promise<{ color: string; shape: s
         color: avatar.avatar_color ?? '',
         shape: avatar.avatar_shape ?? 'square',
     };
+}
+
+async function loadProfileUsername(userId: string): Promise<string | null> {
+    if (!supabase) {
+        return null;
+    }
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .single();
+
+    return typeof profile?.username === 'string' && profile.username.trim() ? profile.username.trim() : null;
 }
 
 export function navigate(target: Partial<AppRoute> | string) {
@@ -985,6 +1003,15 @@ function randomToken(): string {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function getLobbyIdentity() {
+    const authenticatedUserId = authUiState.user?.id?.trim();
+    return {
+        playerId: authenticatedUserId || randomToken(),
+        username: authUiState.user?.username?.trim() || null,
+        token: randomToken(),
+    };
+}
+
 function sanitizeRoomCode(value: string): string {
     return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 }
@@ -1005,16 +1032,30 @@ function readLobbyPlayers(value: unknown, hostPlayerId: string | null, selfPlaye
     return value
         .map((entry) => {
             if (typeof entry === 'string') {
-                return entry;
+                return {
+                    playerId: entry,
+                    username: entry,
+                };
             }
             const record = toRecord(entry);
-            return typeof record.playerId === 'string' ? record.playerId : null;
+            if (typeof record.playerId !== 'string') {
+                return null;
+            }
+            return {
+                playerId: record.playerId,
+                username: typeof record.username === 'string' && record.username.trim()
+                    ? record.username.trim()
+                    : (record.playerId === selfPlayerId && authUiState.user?.username?.trim()
+                        ? authUiState.user.username.trim()
+                        : 'Guest'),
+            };
         })
-        .filter((playerId): playerId is string => typeof playerId === 'string')
-        .map((playerId) => ({
-            playerId,
-            isHost: playerId === hostPlayerId,
-            isSelf: playerId === selfPlayerId,
+        .filter((player): player is { playerId: string; username: string } => player !== null)
+        .map((player) => ({
+            playerId: player.playerId,
+            username: player.username || player.playerId,
+            isHost: player.playerId === hostPlayerId,
+            isSelf: player.playerId === selfPlayerId,
         }));
 }
 
@@ -1028,19 +1069,24 @@ if (isSupabaseConfigured && supabase) {
         type AuthSession = { user?: { id: string } | null } | null;
         const currentSession = session as AuthSession;
         authUiState.initialized = true;
-        authUiState.user = currentSession?.user ? { id: currentSession.user.id } : null;
+        authUiState.user = currentSession?.user ? { id: currentSession.user.id, username: null } : null;
         if (!currentSession?.user) {
             authUiState.avatar = null;
             renderApp();
             return;
         }
 
-        void loadAvatarData(currentSession.user.id)
-            .then((avatar) => {
+        void Promise.all([
+            loadProfileUsername(currentSession.user.id),
+            loadAvatarData(currentSession.user.id),
+        ])
+            .then(([username, avatar]) => {
+                authUiState.user = { id: currentSession.user!.id, username };
                 authUiState.avatar = avatar;
                 renderApp();
             })
             .catch(() => {
+                authUiState.user = { id: currentSession.user!.id, username: null };
                 authUiState.avatar = null;
                 renderApp();
             });
