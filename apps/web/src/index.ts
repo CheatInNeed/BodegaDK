@@ -904,7 +904,12 @@ async function syncAuthState(renderAfter = true) {
         const user = data.session?.user ?? null;
 
         authUiState.initialized = true;
-        authUiState.user = user ? { id: user.id, username: await loadProfileUsername(user.id) } : null;
+        if (user) {
+            await upsertProfileFromAuth(user);
+        }
+        authUiState.user = user
+            ? { id: user.id, username: await loadProfileUsername(user.id, user.user_metadata?.username) }
+            : null;
         authUiState.avatar = user ? await loadAvatarData(user.id) : null;
     } catch (error) {
         console.error('Failed to sync auth UI', error);
@@ -939,9 +944,9 @@ async function loadAvatarData(userId: string): Promise<{ color: string; shape: s
     };
 }
 
-async function loadProfileUsername(userId: string): Promise<string | null> {
+async function loadProfileUsername(userId: string, fallbackUsername?: string | null): Promise<string | null> {
     if (!supabase) {
-        return null;
+        return normalizeUsernameValue(fallbackUsername);
     }
 
     const { data: profile } = await supabase
@@ -950,7 +955,32 @@ async function loadProfileUsername(userId: string): Promise<string | null> {
         .eq('id', userId)
         .single();
 
-    return typeof profile?.username === 'string' && profile.username.trim() ? profile.username.trim() : null;
+    return normalizeUsernameValue(profile?.username) ?? normalizeUsernameValue(fallbackUsername);
+}
+
+async function upsertProfileFromAuth(user: {
+    id: string;
+    user_metadata?: { username?: string | null; country?: string | null } | null;
+}): Promise<void> {
+    if (!supabase) {
+        return;
+    }
+
+    const username = normalizeUsernameValue(user.user_metadata?.username);
+    const country = normalizeUsernameValue(user.user_metadata?.country);
+    if (!username && !country) {
+        return;
+    }
+
+    await supabase.from('profiles').upsert({
+        id: user.id,
+        username,
+        country,
+    });
+}
+
+function normalizeUsernameValue(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 export function navigate(target: Partial<AppRoute> | string) {
@@ -1066,7 +1096,12 @@ window.addEventListener('popstate', () => {
 
 if (isSupabaseConfigured && supabase) {
     supabase.auth.onAuthStateChange((_event: unknown, session: unknown) => {
-        type AuthSession = { user?: { id: string } | null } | null;
+        type AuthSession = {
+            user?: {
+                id: string;
+                user_metadata?: { username?: string | null; country?: string | null } | null;
+            } | null;
+        } | null;
         const currentSession = session as AuthSession;
         authUiState.initialized = true;
         authUiState.user = currentSession?.user ? { id: currentSession.user.id, username: null } : null;
@@ -1077,10 +1112,14 @@ if (isSupabaseConfigured && supabase) {
         }
 
         void Promise.all([
-            loadProfileUsername(currentSession.user.id),
+            upsertProfileFromAuth(currentSession.user),
             loadAvatarData(currentSession.user.id),
         ])
-            .then(([username, avatar]) => {
+            .then(async ([, avatar]) => {
+                const username = await loadProfileUsername(
+                    currentSession.user!.id,
+                    currentSession.user?.user_metadata?.username
+                );
                 authUiState.user = { id: currentSession.user!.id, username };
                 authUiState.avatar = avatar;
                 renderApp();
