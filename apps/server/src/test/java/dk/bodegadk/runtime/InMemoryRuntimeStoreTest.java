@@ -14,23 +14,24 @@ class InMemoryRuntimeStoreTest {
     void migratesHostWhenCurrentHostLeaves() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
-        store.joinRoom(roomCode, "p2", "token-p2");
-        store.joinRoom(roomCode, "p3", "token-p3");
+        store.joinRoom(roomCode, "p1", "alice", "token-p1");
+        store.joinRoom(roomCode, "p2", "bob", "token-p2");
+        store.joinRoom(roomCode, "p3", "charlie", "token-p3");
 
         store.leaveRoom(roomCode, "token-p1");
 
         InMemoryRuntimeStore.RoomSnapshot room = store.roomSnapshot(roomCode).orElseThrow();
         assertEquals("p2", room.hostPlayerId());
         assertEquals(2, room.participants().size());
-        assertEquals("p2", room.participants().getFirst());
+        assertEquals("p2", room.participants().getFirst().playerId());
+        assertEquals("bob", room.participants().getFirst().username());
     }
 
     @Test
     void deletesRoomWhenLastPlayerLeaves() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
+        store.joinRoom(roomCode, "p1", "alice", "token-p1");
 
         store.leaveRoom(roomCode, "token-p1");
 
@@ -42,7 +43,7 @@ class InMemoryRuntimeStoreTest {
     void expiresConnectedSessionsWithoutHeartbeat() throws InterruptedException {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
+        store.joinRoom(roomCode, "p1", "alice", "token-p1");
         store.resolveConnect(roomCode, "token-p1");
 
         Thread.sleep(15);
@@ -57,7 +58,7 @@ class InMemoryRuntimeStoreTest {
     void disconnectKeepsPlayerInRoomUntilHeartbeatTimeout() throws InterruptedException {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
+        store.joinRoom(roomCode, "p1", "alice", "token-p1");
         store.resolveConnect(roomCode, "token-p1");
 
         store.disconnect("token-p1");
