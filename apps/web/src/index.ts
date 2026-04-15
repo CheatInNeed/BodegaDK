@@ -1,8 +1,9 @@
-import { applyI18n, getInitialLang, setLang, type Lang } from './i18n.js';
+import { applyI18n, getInitialLang, setLang, t, type Lang } from './i18n.js';
 import { readRoute, writeRoute, type AppRoute, type View } from './app/router.js';
 import { renderLobbyBrowser, renderLobbyRoom, type LobbyRoomViewModel } from './app/lobby-view.js';
 import { createGameRoomSession } from './game-room/session.js';
 import type { GameAdapter } from './game-room/types.js';
+import { createLayoutSpec } from './game-room/ui.js';
 import { renderRoomError, renderRoomFrame } from './game-room/view.js';
 import { highcardAdapter } from './games/highcard/adapter.js';
 import { krigAdapter } from './games/krig/adapter.js';
@@ -30,11 +31,22 @@ const adapters: GenericAdapter[] = [
     krigAdapter as GenericAdapter,
 ];
 
+type ThemeId = 'bodega' | 'harbor' | 'parlor';
+
+const THEME_STORAGE_KEY = 'ui-theme';
+
+const THEMES: Array<{ id: ThemeId; labelKey: string; toneKey: string }> = [
+    { id: 'bodega', labelKey: 'theme.bodega.label', toneKey: 'theme.bodega.tone' },
+    { id: 'harbor', labelKey: 'theme.harbor.label', toneKey: 'theme.harbor.tone' },
+    { id: 'parlor', labelKey: 'theme.parlor.label', toneKey: 'theme.parlor.tone' },
+];
+
 const state = {
     lang: getInitialLang() as Lang,
     view: readRoute().view as View,
     sidebarCollapsed: false,
     route: readRoute() as AppRoute,
+    theme: getInitialTheme() as ThemeId,
 };
 
 const lobbyBrowserState = {
@@ -62,6 +74,21 @@ let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
 let highCardAutoStartKey: string | null = null;
 
+function getInitialTheme(): ThemeId {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return THEMES.some((theme) => theme.id === stored) ? stored as ThemeId : 'bodega';
+}
+
+function setTheme(theme: ThemeId) {
+    state.theme = theme;
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    applyTheme(theme);
+}
+
+function applyTheme(theme: ThemeId) {
+    document.documentElement.dataset.theme = theme;
+}
+
 function iconSvg(pathD: string) {
     return `
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -72,6 +99,7 @@ function iconSvg(pathD: string) {
 
 function renderApp() {
     const path = window.location.pathname;
+    applyTheme(state.theme);
 
     if (path === '/login') {
         renderLogin();
@@ -181,15 +209,50 @@ function renderView() {
         cleanupRoomSession();
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.settings"></h1>
-      <div class="card">
-        <p class="card-desc">
-          (Placeholder) Her kan I senere have lyd, tema, sprog, kontoindstillinger osv.
-        </p>
-        <div class="card-row">
-          <span class="pill">Tema: Default</span>
-          <button class="btn" id="fakeThemeBtn">Skift tema (senere)</button>
-        </div>
-      </div>
+      <section class="settings-layout">
+        <article class="card settings-card">
+          <div class="settings-card-header">
+            <div>
+              <p class="home-eyebrow" data-i18n="settings.theme.kicker"></p>
+              <div class="card-title" data-i18n="settings.theme.title"></div>
+            </div>
+            <span class="pill" data-i18n="settings.theme.badge"></span>
+          </div>
+          <p class="card-desc" data-i18n="settings.theme.desc"></p>
+          <label class="settings-field" for="themeSelect">
+            <span data-i18n="settings.theme.selectLabel"></span>
+            <select class="select settings-select" id="themeSelect" aria-label="${t(state.lang, 'settings.theme.ariaLabel')}">
+              ${THEMES.map((theme) => `
+                <option value="${theme.id}" data-i18n="${theme.labelKey}"></option>
+              `).join('')}
+            </select>
+          </label>
+        </article>
+        <article class="card settings-card">
+          <div class="settings-card-header">
+            <div>
+              <p class="home-eyebrow" data-i18n="settings.preview.kicker"></p>
+              <div class="card-title" data-i18n="settings.preview.title"></div>
+            </div>
+          </div>
+          <div class="theme-preview-grid">
+            ${THEMES.map((theme) => `
+              <button class="theme-preview ${theme.id === state.theme ? 'active' : ''}" type="button" data-theme-preview="${theme.id}">
+                <span class="theme-preview-swatches">
+                  <span class="theme-swatch accent"></span>
+                  <span class="theme-swatch secondary"></span>
+                  <span class="theme-swatch tertiary"></span>
+                  <span class="theme-swatch surface"></span>
+                </span>
+                <span class="theme-preview-copy">
+                  <strong data-i18n="${theme.labelKey}"></strong>
+                  <span data-i18n="${theme.toneKey}"></span>
+                </span>
+              </button>
+            `).join('')}
+          </div>
+        </article>
+      </section>
     `;
     } else if (state.view === 'help') {
         cleanupRoomSession();
@@ -299,19 +362,33 @@ function renderRoomContent(): string {
     }
 
     const disableByConnection = roomState.connection !== 'connected' || !!roomState.winnerPlayerId;
+    const layoutSpec = adapter.ui ?? createLayoutSpec({
+        maxPlayers: 8,
+        preferredLayout: 'ring',
+    });
     let bodyHtml = '';
 
     if (adapter.id === highcardAdapter.id) {
-        bodyHtml = renderSingleCardHighestWinsRoom(viewModel as Parameters<typeof renderSingleCardHighestWinsRoom>[0]);
+        bodyHtml = renderSingleCardHighestWinsRoom(
+            viewModel as Parameters<typeof renderSingleCardHighestWinsRoom>[0],
+            layoutSpec,
+        );
     } else if (adapter.id === krigAdapter.id) {
-        bodyHtml = renderKrigRoom(viewModel as Parameters<typeof renderKrigRoom>[0]);
+        bodyHtml = renderKrigRoom(
+            viewModel as Parameters<typeof renderKrigRoom>[0],
+            layoutSpec,
+        );
     } else {
-        bodyHtml = renderSnydRoom(viewModel as Parameters<typeof renderSnydRoom>[0], {
-            disablePlay: disableByConnection
-                || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn
-                || (viewModel as Parameters<typeof renderSnydRoom>[0]).selectedCount === 0,
-            disableCallSnyd: disableByConnection || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn,
-        });
+        bodyHtml = renderSnydRoom(
+            viewModel as Parameters<typeof renderSnydRoom>[0],
+            {
+                disablePlay: disableByConnection
+                    || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn
+                    || (viewModel as Parameters<typeof renderSnydRoom>[0]).selectedCount === 0,
+                disableCallSnyd: disableByConnection || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn,
+            },
+            layoutSpec,
+        );
     }
 
     return renderRoomFrame({
@@ -398,11 +475,26 @@ function renderHomepage() {
           <span class="pill home-kicker" data-i18n="home.hero.kicker"></span>
           <h1 class="home-hero-title" data-i18n="home.title"></h1>
           <p class="sub home-hero-subtitle" data-i18n="home.subtitle"></p>
+          <div class="home-hero-actions">
+            <span class="pill home-pill-real" data-i18n="home.status.real"></span>
+            <span class="pill home-theme-pill" data-i18n="home.hero.themeReady"></span>
+          </div>
         </div>
 
-        <aside class="home-hero-note">
-          <span class="pill home-pill-real" data-i18n="home.status.real"></span>
-          <p class="card-desc home-note-text" data-i18n="home.hero.note"></p>
+        <aside class="home-hero-note-grid">
+          <div class="home-hero-note home-hero-note-primary">
+            <p class="home-eyebrow" data-i18n="home.hero.noteTitle"></p>
+            <p class="card-desc home-note-text" data-i18n="home.hero.note"></p>
+          </div>
+          <div class="home-hero-note home-hero-note-compact">
+            <p class="home-eyebrow" data-i18n="home.hero.themesTitle"></p>
+            <div class="home-theme-stack" aria-hidden="true">
+              ${THEMES.map((theme) => `
+                <span class="home-theme-dot home-theme-dot-${theme.id}"></span>
+              `).join('')}
+            </div>
+            <p class="card-desc home-note-text" data-i18n="home.hero.themesBody"></p>
+          </div>
         </aside>
       </section>
 
@@ -545,6 +637,31 @@ function wireEvents() {
         state.lang = next;
         setLang(next);
         renderApp();
+    });
+
+    const themeSelect = document.getElementById('themeSelect') as HTMLSelectElement | null;
+    if (themeSelect) {
+        themeSelect.value = state.theme;
+        themeSelect.addEventListener('change', () => {
+            const nextTheme = themeSelect.value;
+            if (!THEMES.some((theme) => theme.id === nextTheme)) {
+                themeSelect.value = state.theme;
+                return;
+            }
+            setTheme(nextTheme as ThemeId);
+            renderApp();
+        });
+    }
+
+    document.querySelectorAll<HTMLButtonElement>('[data-theme-preview]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextTheme = button.dataset.themePreview;
+            if (!nextTheme || !THEMES.some((theme) => theme.id === nextTheme)) {
+                return;
+            }
+            setTheme(nextTheme as ThemeId);
+            renderApp();
+        });
     });
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-game"]').forEach((btn) => {
