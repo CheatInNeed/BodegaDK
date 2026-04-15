@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.runtime.GameLoopService;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
+import dk.bodegadk.server.domain.games.casino.CasinoEngine;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -122,11 +123,34 @@ public class GameWsHandler extends TextWebSocketHandler {
     private void handleConnect(WebSocketSession session, InboundMessage inbound) {
         String roomCode = inbound.payload.path("roomCode").asText("");
         String token = inbound.payload.path("token").asText("");
+        String requestedGame = inbound.payload.path("game").asText("");
 
         if (roomCode.isBlank() || token.isBlank()) {
             sendError(session, "BAD_MESSAGE: invalid envelope or type");
             closeQuietly(session);
             return;
+        }
+
+        Optional<String> roomGameType = runtimeStore.roomGameType(roomCode);
+        if (roomGameType.isEmpty()) {
+            sendError(session, "SESSION_NOT_READY: session validation unavailable");
+            closeQuietly(session);
+            return;
+        }
+        if (!requestedGame.isBlank() && !roomGameType.get().equalsIgnoreCase(requestedGame)) {
+            sendError(session, "BAD_MESSAGE: invalid envelope or type");
+            closeQuietly(session);
+            return;
+        }
+        if ("casino".equalsIgnoreCase(roomGameType.get())) {
+            Map<String, java.util.List<Integer>> valueMap = parseCasinoValueMap(inbound.payload.path("setup").path("casinoRules").path("valueMap"));
+            String validationError = CasinoEngine.validateValueMap(valueMap);
+            if (validationError != null) {
+                sendError(session, validationError);
+                closeQuietly(session);
+                return;
+            }
+            runtimeStore.saveCasinoValueMap(roomCode, valueMap);
         }
 
         Optional<InMemoryRuntimeStore.PlayerSession> resolved = runtimeStore.resolveConnect(roomCode, token);
@@ -149,6 +173,14 @@ public class GameWsHandler extends TextWebSocketHandler {
         payload.set("privateState", privateState == null ? objectMapper.createObjectNode() : privateState);
 
         sendEnvelope(session, "STATE_SNAPSHOT", payload);
+        publishLobbyState(roomCode);
+
+        if (state.publicState().path("started").asBoolean(false)) {
+            broadcastToRoom(roomCode, "PUBLIC_UPDATE", state.publicState());
+            for (Map.Entry<String, ObjectNode> entry : state.privateStateByPlayer().entrySet()) {
+                sendToPlayer(roomCode, entry.getKey(), "PRIVATE_UPDATE", entry.getValue());
+            }
+        }
         publishLobbyState(roomCode);
     }
 
@@ -367,6 +399,27 @@ public class GameWsHandler extends TextWebSocketHandler {
     }
 
     private record InboundMessage(String type, JsonNode payload) {
+    }
+
+    private Map<String, java.util.List<Integer>> parseCasinoValueMap(JsonNode valueMapNode) {
+        Map<String, java.util.List<Integer>> valueMap = new java.util.LinkedHashMap<>();
+        if (valueMapNode == null || !valueMapNode.isObject()) {
+            return valueMap;
+        }
+        valueMapNode.fields().forEachRemaining(entry -> {
+            JsonNode valuesNode = entry.getValue();
+            if (!valuesNode.isArray()) {
+                return;
+            }
+            java.util.List<Integer> values = new java.util.ArrayList<>();
+            valuesNode.forEach(value -> {
+                if (value.isInt()) {
+                    values.add(value.asInt());
+                }
+            });
+            valueMap.put(entry.getKey(), values);
+        });
+        return valueMap;
     }
 
     private record ConnectionBinding(String roomCode, String playerId, String token, boolean connected) {

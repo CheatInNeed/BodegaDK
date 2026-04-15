@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.server.domain.games.krig.KrigState;
+import dk.bodegadk.server.domain.games.casino.CasinoState;
 import dk.bodegadk.server.domain.games.highcard.HighCardState;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -37,6 +39,7 @@ public class InMemoryRuntimeStore {
     // TEAM-DB-INTEGRATION: replace in-memory domain state map with durable game-state persistence.
     private final ConcurrentMap<String, HighCardState> highCardStatesByRoom = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, KrigState> krigStatesByRoom = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, CasinoState> casinoStatesByRoom = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ExecutorService> roomExecutors = new ConcurrentHashMap<>();
 
     public String createRoom(String gameType) {
@@ -125,6 +128,9 @@ public class InMemoryRuntimeStore {
 
         Instant now = Instant.now();
         synchronized (room) {
+            if (!room.participants.contains(playerId) && room.participants.size() >= maxPlayersFor(room.selectedGame)) {
+                throw new IllegalStateException("Room is full");
+            }
             if (!room.participants.contains(playerId)) {
                 room.participants.add(playerId);
             }
@@ -141,7 +147,19 @@ public class InMemoryRuntimeStore {
     public Optional<PlayerSession> resolveConnect(String roomCode, String token) {
         SessionRecord session = sessionsByToken.get(token);
         if (session == null || !session.roomCode.equals(roomCode)) {
-            return Optional.empty();
+            RoomRecord room = rooms.get(roomCode);
+            if (room == null) {
+                return Optional.empty();
+            }
+            synchronized (room) {
+                if (room.participants.size() >= maxPlayersFor(room.selectedGame)) {
+                    return Optional.empty();
+                }
+                String playerId = "p" + (room.participants.size() + 1);
+                room.participants.add(playerId);
+                sessionsByToken.put(token, new SessionRecord(roomCode, playerId));
+                return Optional.of(new PlayerSession(roomCode, playerId, token));
+            }
         }
 
         sessionsByToken.computeIfPresent(token, (key, current) -> current.connected(Instant.now()));
@@ -309,6 +327,36 @@ public class InMemoryRuntimeStore {
         return Optional.of(mutation);
     }
 
+    public CasinoState loadOrCreateCasinoState(String roomCode, Supplier<CasinoState> initializer) {
+        return casinoStatesByRoom.computeIfAbsent(roomCode, key -> initializer.get());
+    }
+
+    public void saveCasinoState(String roomCode, CasinoState state) {
+        casinoStatesByRoom.put(roomCode, state);
+    }
+
+    public void saveCasinoValueMap(String roomCode, Map<String, List<Integer>> valueMap) {
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return;
+        }
+        synchronized (room) {
+            room.casinoValueMap = new ConcurrentHashMap<>(valueMap);
+        }
+    }
+
+    public Optional<Map<String, List<Integer>>> casinoValueMap(String roomCode) {
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null || room.casinoValueMap == null) {
+            return Optional.empty();
+        }
+        synchronized (room) {
+            Map<String, List<Integer>> copy = new ConcurrentHashMap<>();
+            room.casinoValueMap.forEach((card, values) -> copy.put(card, List.copyOf(values)));
+            return Optional.of(copy);
+        }
+    }
+
     public void submit(String roomCode, Runnable command) {
         ExecutorService executor = roomExecutors.computeIfAbsent(roomCode, key -> Executors.newSingleThreadExecutor());
         executor.submit(command);
@@ -436,6 +484,14 @@ public class InMemoryRuntimeStore {
     private void clearGameStates(String roomCode) {
         highCardStatesByRoom.remove(roomCode);
         krigStatesByRoom.remove(roomCode);
+        casinoStatesByRoom.remove(roomCode);
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return;
+        }
+        synchronized (room) {
+            room.casinoValueMap = null;
+        }
     }
 
     private String normalizeGameType(String gameType) {
@@ -443,6 +499,13 @@ public class InMemoryRuntimeStore {
             return DEFAULT_GAME_TYPE;
         }
         return gameType.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private int maxPlayersFor(String gameType) {
+        return switch (normalizeGameType(gameType)) {
+            case "casino" -> 2;
+            default -> Integer.MAX_VALUE;
+        };
     }
 
     private String randomCode() {
@@ -519,6 +582,7 @@ public class InMemoryRuntimeStore {
         private final boolean isPrivate;
         private String selectedGame;
         private RoomStatus status;
+        private Map<String, List<Integer>> casinoValueMap;
 
         private RoomRecord(String roomCode, String hostPlayerId, boolean isPrivate, String selectedGame, RoomStatus status) {
             this.roomCode = roomCode;
@@ -530,6 +594,10 @@ public class InMemoryRuntimeStore {
     }
 
     private record SessionRecord(String roomCode, String playerId, Instant lastHeartbeat, boolean connected) {
+        private SessionRecord(String roomCode, String playerId) {
+            this(roomCode, playerId, Instant.now(), false);
+        }
+
         private SessionRecord connected(Instant now) {
             return new SessionRecord(roomCode, playerId, now, true);
         }

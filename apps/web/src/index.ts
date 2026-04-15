@@ -11,6 +11,8 @@ import { renderKrigRoom } from './games/krig/view.js';
 import { renderSingleCardHighestWinsRoom } from './games/single-card-highest-wins/view.js';
 import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
+import { casinoAdapter } from './games/casino/adapter.js';
+import { renderCasinoRoom } from './games/casino/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
@@ -27,6 +29,7 @@ import {
 type GenericAdapter = GameAdapter<Record<string, unknown>, Record<string, unknown>, unknown>;
 const adapters: GenericAdapter[] = [
     snydAdapter as GenericAdapter,
+    casinoAdapter as GenericAdapter,
     highcardAdapter as GenericAdapter,
     krigAdapter as GenericAdapter,
 ];
@@ -88,6 +91,7 @@ function setTheme(theme: ThemeId) {
 function applyTheme(theme: ThemeId) {
     document.documentElement.dataset.theme = theme;
 }
+let casinoSelectedStackIds: string[] = [];
 
 function iconSvg(pathD: string) {
     return `
@@ -368,7 +372,16 @@ function renderRoomContent(): string {
     });
     let bodyHtml = '';
 
-    if (adapter.id === highcardAdapter.id) {
+    if (adapter.id === casinoAdapter.id) {
+        const casinoViewModel = viewModel as Parameters<typeof renderCasinoRoom>[0];
+        const validStackIds = new Set(casinoViewModel.tableStacks.map((stack) => stack.stackId));
+        casinoSelectedStackIds = casinoSelectedStackIds.filter((stackId) => validStackIds.has(stackId));
+        bodyHtml = renderCasinoRoom(casinoViewModel, {
+            disablePlay: disableByConnection || !casinoViewModel.isMyTurn || !casinoViewModel.selectedHandCard,
+            disableBuild: disableByConnection || !casinoViewModel.isMyTurn || !casinoViewModel.selectedHandCard || casinoSelectedStackIds.length !== 1,
+            selectedStackIds: casinoSelectedStackIds,
+        });
+    } else if (adapter.id === highcardAdapter.id) {
         bodyHtml = renderSingleCardHighestWinsRoom(
             viewModel as Parameters<typeof renderSingleCardHighestWinsRoom>[0],
             layoutSpec,
@@ -442,6 +455,7 @@ function cleanupRoomSession() {
     roomSession = null;
     roomSessionKey = null;
     highCardAutoStartKey = null;
+    casinoSelectedStackIds = [];
 }
 
 function resolveAdapter(game: string): GenericAdapter | undefined {
@@ -459,6 +473,7 @@ function playCards() {
     </div>
     <div class="grid">
       ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.open')}
+      ${gameCard('casino', '2-player Casino with capture sums and full deck.', 'action.open')}
       ${gameCard('single.card.highest.wins', 'Backend-ready: single player vs dealer high-card game.', 'action.open')}
       ${gameCard('game.500', 'Kortspil med stik og meldinger (placeholder).', 'action.open')}
       ${gameCard('game.dice', 'Terningebaseret spil (placeholder).', 'action.open')}
@@ -667,8 +682,8 @@ function wireEvents() {
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-game"]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const game = normalizeGameKey(btn.dataset.game ?? '');
-            if (game === HIGHCARD_GAME_ID) {
-                void startHighCardQuickplay();
+            if (game === HIGHCARD_GAME_ID || game === 'casino') {
+                void startRealtimeRoom(game);
                 return;
             }
 
@@ -731,6 +746,46 @@ function wireRoomEvents() {
     callSnydButton?.addEventListener('click', () => {
         roomSession?.sendIntent({ type: 'CALL_SNYD' });
     });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="casino-toggle-table"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const stackId = button.dataset.stackId;
+            if (!stackId) return;
+            if (casinoSelectedStackIds.includes(stackId)) {
+                casinoSelectedStackIds = casinoSelectedStackIds.filter((id) => id !== stackId);
+            } else {
+                casinoSelectedStackIds = [...casinoSelectedStackIds, stackId];
+            }
+            renderView();
+        });
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="casino-play"]')?.addEventListener('click', () => {
+        const casinoViewModel = roomSession?.toViewModel() as { selectedHandCard?: string | null } | undefined;
+        const handCard = casinoViewModel?.selectedHandCard;
+        if (!handCard) return;
+        roomSession?.sendIntent({
+            type: 'CASINO_PLAY_MOVE',
+            handCard,
+            captureStackIds: casinoSelectedStackIds,
+        });
+        casinoSelectedStackIds = [];
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="casino-build"]')?.addEventListener('click', () => {
+        const casinoViewModel = roomSession?.toViewModel() as { selectedHandCard?: string | null } | undefined;
+        const handCard = casinoViewModel?.selectedHandCard;
+        const targetStackId = casinoSelectedStackIds[0];
+        if (!handCard || !targetStackId) return;
+        roomSession?.sendIntent({
+            type: 'CASINO_BUILD_STACK',
+            handCard,
+            targetStackId,
+        });
+        casinoSelectedStackIds = [];
+    });
+
+    triggerCasinoQuickMerge();
 }
 
 function wireLobbyEvents() {
@@ -1070,32 +1125,81 @@ function syncStateFromRoute() {
 
 function normalizeGameKey(game: string): string {
     if (game === 'game.cheat') return 'snyd';
+    if (game === 'casino') return 'casino';
     if (game === 'single.card.highest.wins') return HIGHCARD_GAME_ID;
     if (game === 'single-card-highest-wins') return HIGHCARD_GAME_ID;
     return game;
 }
 
-async function startHighCardQuickplay() {
+async function startRealtimeRoom(gameType: string) {
     try {
-        const playerId = randomToken();
         const token = randomToken();
+        const playerId = token;
         const created = await createRoom({
-            gameType: HIGHCARD_GAME_ID,
+            gameType,
             playerId,
             token,
         });
 
         navigate({
             view: 'room',
-            game: HIGHCARD_GAME_ID,
+            game: gameType,
             room: created.roomCode,
             token: created.token,
             mock: false,
         });
     } catch (error) {
-        const message = toErrorMessage(error, 'Failed to start HighCard quickplay');
+        const message = toErrorMessage(error, `Failed to start ${gameType} room`);
         alert(message);
     }
+}
+
+function triggerCasinoQuickMerge() {
+    if (!roomSession) return;
+    const roomState = roomSession.getState();
+    if (roomState.game.toLowerCase() !== 'casino') return;
+    if (roomState.selectedHandCards.length > 0) return;
+    if (casinoSelectedStackIds.length < 2) return;
+
+    const casinoViewModel = roomSession.toViewModel() as {
+        hand?: Array<{ card: string }>;
+        tableStacks?: Array<{ stackId: string; total: number }>;
+    };
+    const selectedStacks = (casinoViewModel.tableStacks ?? []).filter((stack) => casinoSelectedStackIds.includes(stack.stackId));
+    if (selectedStacks.length !== casinoSelectedStackIds.length) return;
+
+    const total = selectedStacks.reduce((sum, stack) => sum + stack.total, 0);
+    const valueMap = readCasinoValueMap(roomState.publicState);
+    const hasMatchingHandCard = (casinoViewModel.hand ?? []).some(({ card }) => matchesCasinoTotal(card, total, valueMap));
+    if (!hasMatchingHandCard) return;
+
+    roomSession.sendIntent({
+        type: 'CASINO_MERGE_STACKS',
+        stackIds: casinoSelectedStackIds,
+    });
+    casinoSelectedStackIds = [];
+}
+
+function matchesCasinoTotal(cardCode: string, total: number, valueMap: Record<string, number[]> | null): boolean {
+    const configured = valueMap?.[cardCode];
+    if (Array.isArray(configured) && configured.every((value) => typeof value === 'number')) {
+        return configured.includes(total);
+    }
+
+    const rank = cardCode.slice(1).toUpperCase();
+    if (rank === 'A') return total === 1 || total === 14;
+    if (rank === 'J') return total === 11;
+    if (rank === 'Q') return total === 12;
+    if (rank === 'K') return total === 13;
+    return Number(rank) === total;
+}
+
+function readCasinoValueMap(publicState: Record<string, unknown> | null): Record<string, number[]> | null {
+    const rules = publicState?.rules;
+    if (!rules || typeof rules !== 'object') return null;
+    const valueMap = (rules as { valueMap?: unknown }).valueMap;
+    if (!valueMap || typeof valueMap !== 'object') return null;
+    return valueMap as Record<string, number[]>;
 }
 
 function randomToken(): string {

@@ -8,21 +8,21 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
 public class GameLoopService {
     private final InMemoryRuntimeStore runtimeStore;
+    private final List<EnginePort> enginePorts;
 
-    // TEAM-ENGINE-INTEGRATION: inject production engine implementation from engine team.
-    private final EnginePort enginePort;
-
-    public GameLoopService(InMemoryRuntimeStore runtimeStore, @Autowired(required = false) EnginePort enginePort) {
+    public GameLoopService(InMemoryRuntimeStore runtimeStore, @Autowired(required = false) List<EnginePort> enginePorts) {
         this.runtimeStore = runtimeStore;
-        this.enginePort = enginePort;
+        this.enginePorts = enginePorts == null ? List.of() : List.copyOf(enginePorts);
     }
 
     public LoopResult handleAction(ActionCommand command) {
+        EnginePort enginePort = resolveEngine(command.roomCode());
         if (enginePort == null) {
             return LoopResult.error("ENGINE_NOT_READY: no engine available for room/game type");
         }
@@ -55,6 +55,7 @@ public class GameLoopService {
 
     public RoomState prepareSnapshot(String roomCode, String playerId) {
         RoomState refreshed = runtimeStore.refreshPlayers(roomCode);
+        EnginePort enginePort = resolveEngine(roomCode);
         if (enginePort == null) {
             return refreshed;
         }
@@ -68,6 +69,13 @@ public class GameLoopService {
         return prepared;
     }
 
+    private EnginePort resolveEngine(String roomCode) {
+        return enginePorts.stream()
+                .filter(enginePort -> enginePort.supports(roomCode))
+                .findFirst()
+                .orElse(null);
+    }
+
     private Map<String, ObjectNode> copyPrivateState(Map<String, ObjectNode> original) {
         Map<String, ObjectNode> copy = new HashMap<>();
         for (Map.Entry<String, ObjectNode> entry : original.entrySet()) {
@@ -77,6 +85,8 @@ public class GameLoopService {
     }
 
     public interface EnginePort {
+        boolean supports(String roomCode);
+
         LoopResult apply(RoomState state, ActionCommand command);
 
         default RoomState prepareSnapshot(RoomState state, String playerId) {

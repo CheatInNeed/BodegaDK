@@ -8,6 +8,7 @@ export type WsEnvelope<TType extends string, TPayload> = {
 
 export type PlayerRef = string | { playerId: string; handCount?: number; name?: string };
 export type RoomStatus = 'LOBBY' | 'IN_GAME';
+export type CasinoValueMap = Record<string, number[]>;
 
 export type LobbyPublicState = {
     roomCode: string;
@@ -38,12 +39,63 @@ export type SnydPrivateState = {
     [key: string]: unknown;
 };
 
-export type ConnectMessage = WsEnvelope<'CONNECT', { roomCode: string; token: string }>;
+export type CasinoPublicState = {
+    roomCode: string;
+    players: string[];
+    dealerPlayerId?: string | null;
+    turnPlayerId?: string | null;
+    tableStacks?: Array<{
+        stackId: string;
+        cards: string[];
+        total: number;
+        locked: boolean;
+        topCard: string;
+    }>;
+    deckCount?: number;
+    capturedCounts?: Record<string, number>;
+    lastCapturePlayerId?: string | null;
+    started?: boolean;
+    rules?: {
+        valueMap: CasinoValueMap;
+    };
+    [key: string]: unknown;
+};
+
+export type CasinoPrivateState = {
+    playerId: string;
+    hand: string[];
+    capturedCards?: string[];
+    [key: string]: unknown;
+};
+
+export type ConnectMessage = WsEnvelope<'CONNECT', {
+    roomCode: string;
+    token: string;
+    game?: string;
+    setup?: {
+        casinoRules?: {
+            valueMap: CasinoValueMap;
+        };
+    };
+}>;
 export type HeartbeatMessage = WsEnvelope<'HEARTBEAT', Record<string, never>>;
 export type SelectGameMessage = WsEnvelope<'SELECT_GAME', { game: string }>;
 export type StartGameMessage = WsEnvelope<'START_GAME', Record<string, never>>;
 export type PlayCardsMessage = WsEnvelope<'PLAY_CARDS', { cards: string[]; claimRank: string }>;
 export type CallSnydMessage = WsEnvelope<'CALL_SNYD', Record<string, never>>;
+export type CasinoPlayMoveMessage = WsEnvelope<'CASINO_PLAY_MOVE', {
+    handCard: string;
+    captureStackIds: string[];
+    playedValue?: number;
+}>;
+export type CasinoBuildStackMessage = WsEnvelope<'CASINO_BUILD_STACK', {
+    handCard: string;
+    targetStackId: string;
+    playedValue?: number;
+}>;
+export type CasinoMergeStacksMessage = WsEnvelope<'CASINO_MERGE_STACKS', {
+    stackIds: string[];
+}>;
 
 export type ClientToServerMessage =
     | ConnectMessage
@@ -51,19 +103,22 @@ export type ClientToServerMessage =
     | SelectGameMessage
     | StartGameMessage
     | PlayCardsMessage
-    | CallSnydMessage;
+    | CallSnydMessage
+    | CasinoPlayMoveMessage
+    | CasinoBuildStackMessage
+    | CasinoMergeStacksMessage;
 
 export type StateSnapshotMessage = WsEnvelope<'STATE_SNAPSHOT', {
-    publicState: SnydPublicState;
-    privateState: Partial<SnydPrivateState> & Record<string, unknown>;
+    publicState: Record<string, unknown>;
+    privateState: Record<string, unknown>;
 }>;
 
-export type PublicUpdateMessage = WsEnvelope<'PUBLIC_UPDATE', Partial<SnydPublicState>>;
-export type PrivateUpdateMessage = WsEnvelope<'PRIVATE_UPDATE', Partial<SnydPrivateState> & Record<string, unknown>>;
+export type PublicUpdateMessage = WsEnvelope<'PUBLIC_UPDATE', Record<string, unknown>>;
+export type PrivateUpdateMessage = WsEnvelope<'PRIVATE_UPDATE', Record<string, unknown>>;
 export type HeartbeatAckMessage = WsEnvelope<'HEARTBEAT_ACK', { at: string }>;
 export type RoomClosedMessage = WsEnvelope<'ROOM_CLOSED', Record<string, never>>;
 export type ErrorMessage = WsEnvelope<'ERROR', { message: string }>;
-export type GameFinishedMessage = WsEnvelope<'GAME_FINISHED', { winnerPlayerId: string }>;
+export type GameFinishedMessage = WsEnvelope<'GAME_FINISHED', { winnerPlayerId: string | null }>;
 
 export type ServerToClientMessage =
     | StateSnapshotMessage
@@ -103,4 +158,25 @@ export function parseServerMessage(raw: unknown): ServerToClientMessage | null {
  */
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
+}
+
+const SUITS = ['H', 'D', 'C', 'S'] as const;
+const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
+
+export function createDefaultCasinoValueMap(): CasinoValueMap {
+    const valueMap: CasinoValueMap = {};
+    for (const suit of SUITS) {
+        for (const rank of RANKS) {
+            valueMap[`${suit}${rank}`] = rankToValues(rank);
+        }
+    }
+    return valueMap;
+}
+
+function rankToValues(rank: string): number[] {
+    if (rank === 'A') return [1, 14];
+    if (rank === 'J') return [11];
+    if (rank === 'Q') return [12];
+    if (rank === 'K') return [13];
+    return [Number(rank)];
 }

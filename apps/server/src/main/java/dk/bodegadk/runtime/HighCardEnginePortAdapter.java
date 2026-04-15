@@ -43,6 +43,14 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
     }
 
     @Override
+    public boolean supports(String roomCode) {
+        return runtimeStore.roomGameType(roomCode)
+                .map(this::normalizedGame)
+                .map(this::isSupportedGame)
+                .orElse(false);
+    }
+
+    @Override
     public GameLoopService.LoopResult apply(GameLoopService.RoomState state, GameLoopService.ActionCommand command) {
         if (!runtimeStore.isParticipant(command.roomCode(), command.playerId())) {
             return GameLoopService.LoopResult.error("SESSION_NOT_READY: session validation unavailable");
