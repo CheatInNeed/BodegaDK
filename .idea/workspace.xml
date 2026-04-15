@@ -4,93 +4,46 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="login and customize avatar">
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/pom.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/BodegaServerApplication.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/RoomController.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/GameLoopService.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/HighCardEnginePortAdapter.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/InMemoryRuntimeStore.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/HealthController.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/GameAction.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/GameEngine.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/GameState.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/TurnManager.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/engine/ViewProjector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/highcard/HighCardAction.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/highcard/HighCardEngine.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/highcard/HighCardState.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/highcard/HighCardViewProjector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/snyd/SnydAction.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/snyd/SnydEngine.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/snyd/SnydState.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/games/snyd/SnydViewProjector.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/primitives/Card.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/primitives/Deck.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/primitives/Dice.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/server/domain/primitives/DiceSet.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/WsConfig.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/resources/application-local.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/main/resources/application.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/HighCardEnginePortAdapterTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/engine/TurnManagerTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/games/highcard/HighCardEngineTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/games/snyd/SnydEngineTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/primitives/CardTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/primitives/DeckTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/server/domain/primitives/DiceTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/ws/ServerLoopCoreTest.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/package.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/public/index.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/public/styles.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/app/router.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/custom.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/session.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/store.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/transport/ws-client.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/types.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/game-room/view.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/highcard/adapter.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/single-card-highest-wins/view.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/snyd/actions.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/snyd/adapter.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/games/snyd/view.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/i18n.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/login.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/net/api.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/net/mock-server.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/net/protocol.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/signUp.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/src/supabase.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/apps/web/tsconfig.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/dist/i18n.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/DESIGN_GUIDE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/SERVER_ENGINE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/design/web-game-architecture-gdd.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/security/security.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/infra/docker-compose.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/infra/nginx/nginx.conf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/infra/scripts/export-code.ps1" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="added migration based database">
+      <change beforePath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_/Users/alex/WebstormProjects/BodegaDK" value="3C4WxYrhQF8Ooqah2ksVJ0CjBUJ" />
+      <entry key="_/Users/peterroland/Library/CloudStorage/OneDrive-DanmarksTekniskeUniversitet/DTU/4_Semester/62595_Full_stack_development/BodegaDK" value="3ATq15ONpesXwkLXmSD166wfQI8" />
+    </persistenceIdMap>
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="195" />
+  </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="dev" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;CheatInNeed&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/CheatInNeed/BodegaDK.git&quot;,
+    &quot;accountId&quot;: &quot;66255ece-a824-417e-ad8b-c498b367d5c9&quot;
+  }
+}</component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
@@ -100,22 +53,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "git-widget-placeholder": "Merging auth__database",
-    "javascript.preferred.runtime.type.id": "node",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "ts.external.directory.path": "/Users/merianokholm/WebstormProjects/BodegaDK/node_modules/typescript/lib",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;dev&quot;,
+    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;/Users/alex/WebstormProjects/BodegaDK/node_modules/typescript/lib&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -141,6 +95,9 @@
       <workItem from="1772626692529" duration="685000" />
       <workItem from="1773231543940" duration="2887000" />
       <workItem from="1773758883484" duration="20159000" />
+      <workItem from="1773860197305" duration="2071000" />
+      <workItem from="1775645570494" duration="1149000" />
+      <workItem from="1775647164563" duration="3073000" />
     </task>
     <task id="LOCAL-00002" summary="login and customize avatar">
       <option name="closed" value="true" />
@@ -150,15 +107,52 @@
       <option name="project" value="LOCAL" />
       <updated>1773832947712</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="Updated gitignore">
+      <option name="closed" value="true" />
+      <created>1774436398013</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1774436398013</updated>
+    </task>
+    <task id="LOCAL-00004" summary="added migration based database">
+      <option name="closed" value="true" />
+      <created>1775649787092</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1775649787092</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="login mock" />
     <MESSAGE value="login and customize avatar" />
-    <option name="LAST_COMMIT_MESSAGE" value="login and customize avatar" />
+    <MESSAGE value="Updated gitignore" />
+    <MESSAGE value="added migration based database" />
+    <option name="LAST_COMMIT_MESSAGE" value="added migration based database" />
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
   </component>
 </project>

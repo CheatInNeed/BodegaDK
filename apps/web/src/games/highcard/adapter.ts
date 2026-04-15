@@ -1,5 +1,6 @@
 import type { GameAdapter } from '../../game-room/types.js';
 import type { RoomSessionState, UiIntent } from '../../game-room/types.js';
+import { createLayoutSpec } from '../../game-room/ui.js';
 import type { ClientToServerMessage } from '../../net/protocol.js';
 import type { SingleCardHighestWinsViewModel } from '../single-card-highest-wins/view.js';
 
@@ -25,6 +26,12 @@ type HighCardPrivateState = {
 
 export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateState, SingleCardHighestWinsViewModel> = {
     id: 'highcard',
+    ui: createLayoutSpec({
+        maxPlayers: 2,
+        preferredLayout: 'duel',
+        centerBoardMode: 'focus',
+        seatRenderMode: 'label-only',
+    }),
 
     canHandle(game: string) {
         const normalized = game.toLowerCase();

@@ -3,6 +3,10 @@
 Dette dokument beskriver den implementerede game-room client layer i
 `apps/web`.
 
+UI-kontrakten for aktive game rooms findes i:
+
+-   `docs/contracts/gameroom_ui_contract.md`
+
 ------------------------------------------------------------------------
 
 ## Formål
@@ -15,6 +19,10 @@ clienten:
 -   håndterer adskilt `publicState` og `privateState`
 -   mapper state til UI via per-game adapters
 -   sender intents som protocol messages
+
+Dette dokument dækker runtime/session flow.
+Det nye UI contract dokument dækker den delte struktur for aktive game-room
+views, seats, table surface, center board og private tray.
 
 ------------------------------------------------------------------------
 

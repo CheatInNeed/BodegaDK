@@ -1,0 +1,96 @@
+name: Supabase Migrations
+
+on:
+  push:
+    branches:
+      - dev
+      - master
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/supabase-migrations.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-shared-db
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Detect migration files
+        id: migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find supabase/migrations -type f -name '*.sql' | grep -q .; then
+            echo "has_migrations=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_migrations=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify required secrets
+        if: steps.migrations.outputs.has_migrations == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required secret: $key"
+              exit 1
+            fi
+          done
+
+      - name: Guard shared master/dev migration history
+        if: steps.migrations.outputs.has_migrations == 'true' && github.ref_name == 'master'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin dev
+
+          dev_migrations="$(mktemp)"
+          current_migrations="$(mktemp)"
+
+          git ls-tree -r --name-only origin/dev supabase/migrations | sort >"$dev_migrations"
+          git ls-tree -r --name-only HEAD supabase/migrations | sort >"$current_migrations"
+
+          missing_from_master="$(comm -23 "$dev_migrations" "$current_migrations" || true)"
+
+          if [ -n "$missing_from_master" ]; then
+            echo "::error::master is missing migrations that already exist on dev."
+            printf '%s\n' "$missing_from_master"
+            exit 1
+          fi
+
+      - name: Skip deploy when no SQL migrations exist yet
+        if: steps.migrations.outputs.has_migrations != 'true'
+        run: echo "No Supabase SQL migrations detected yet. Skipping deploy."
+
+      - name: Link hosted Supabase project
+        if: steps.migrations.outputs.has_migrations == 'true'
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Dry-run migration deploy
+        if: steps.migrations.outputs.has_migrations == 'true'
+        run: supabase db push --linked --dry-run
+
+      - name: Apply migrations
+        if: steps.migrations.outputs.has_migrations == 'true'
+        run: supabase db push --linked

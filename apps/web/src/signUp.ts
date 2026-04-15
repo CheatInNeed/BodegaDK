@@ -1,4 +1,4 @@
-import { supabase } from './supabase.js';
+import { isSupabaseConfigured, supabase, supabaseUnavailableMessage } from './supabase.js';
 import { navigate } from './index.js';
 
 
@@ -6,10 +6,15 @@ export function renderSignup() {
     const app = document.getElementById('app');
     if (!app) return;
 
+    const unavailableHtml = !isSupabaseConfigured
+        ? `<p class="card-desc">${supabaseUnavailableMessage}</p>`
+        : '';
+
     const html = `
     <div class="auth-page">
       <div class="auth-card">
         <h1 class="card-title">Opret konto</h1>
+        ${unavailableHtml}
 
         <div class="auth-fields">
           <input id="email" class="input" placeholder="Email" />
@@ -26,7 +31,7 @@ export function renderSignup() {
           </select>
         </div>
 
-        <button id="signupSubmit" class="btn primary full">Opret konto</button>
+        <button id="signupSubmit" class="btn primary full" ${!isSupabaseConfigured ? 'disabled' : ''}>Opret konto</button>
         <div id="authMessage" class="auth-message hidden"></div>
 
         <p class="auth-switch">
@@ -61,6 +66,11 @@ export function renderSignup() {
 
 
     async function handleSignup() {
+        if (!supabase) {
+            alert(supabaseUnavailableMessage);
+            return;
+        }
+
         const emailEl = document.getElementById('email') as HTMLInputElement | null;
         const passwordEl = document.getElementById('password') as HTMLInputElement | null;
         const usernameEl = document.getElementById('username') as HTMLInputElement | null;
@@ -114,5 +124,3 @@ export function renderSignup() {
             }
         }
     }
-
-

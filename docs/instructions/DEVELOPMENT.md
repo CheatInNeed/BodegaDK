@@ -4,7 +4,8 @@ Denne guide forklarer hvordan du kører og udvikler på projektet lokalt.
 
 Se også:
 
--   `docs/WEB_CLIENT_GAME_ROOM.md` for detaljer om game-room client layer.
+-   `docs/design/WEB_CLIENT_GAME_ROOM.md` for detaljer om game-room client layer.
+-   `docs/instructions/SUPABASE.md` for Supabase migrations, secrets, and web auth/profile config.
 
 ------------------------------------------------------------------------
 
@@ -37,6 +38,13 @@ Fra repo root:
 
 ``` bash
 npm install
+```
+
+Hvis du vil have Supabase auth/profile features lokalt, sæt også:
+
+``` bash
+export PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
+export PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 ```
 
 ### Start web
@@ -153,6 +161,9 @@ I denne mode:
 
 - REST kaldes mod `http://localhost:8080/rooms`
 - WS kaldes mod `ws://localhost:8080/ws`
+
+Hvis Supabase public config mangler, virker gameplay stadig, men login,
+signup og avatar-flow bliver slået fra.
 
 ------------------------------------------------------------------------
 

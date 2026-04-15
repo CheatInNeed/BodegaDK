@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.runtime.GameLoopService;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
 import dk.bodegadk.server.domain.games.casino.CasinoEngine;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -13,6 +14,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +24,8 @@ import java.util.concurrent.ConcurrentMap;
 
 @Component
 public class GameWsHandler extends TextWebSocketHandler {
+    private static final Duration HEARTBEAT_TIMEOUT = Duration.ofSeconds(20);
+
     private final ObjectMapper objectMapper;
     private final InMemoryRuntimeStore runtimeStore;
     private final GameLoopService gameLoopService;
@@ -69,17 +73,51 @@ public class GameWsHandler extends TextWebSocketHandler {
             return;
         }
 
+        if ("HEARTBEAT".equals(inbound.type)) {
+            handleHeartbeat(session, binding);
+            return;
+        }
+
         dispatchAction(session, binding, inbound);
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        removeSession(session.getId());
+        removeSession(session.getId(), true);
     }
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         closeQuietly(session);
+    }
+
+    @Scheduled(fixedDelay = 5000)
+    public void sweepStaleConnections() {
+        for (InMemoryRuntimeStore.ExpiredSession expired : runtimeStore.sweepExpiredSessions(HEARTBEAT_TIMEOUT)) {
+            closeSessionByToken(expired.token(), "HEARTBEAT_TIMEOUT");
+            publishRoomMutation(expired.mutation());
+        }
+    }
+
+    public void publishLobbyState(String roomCode) {
+        runtimeStore.roomSnapshot(roomCode).ifPresentOrElse(
+                room -> broadcastToRoom(roomCode, "PUBLIC_UPDATE", lobbyPayload(room)),
+                () -> broadcastToRoom(roomCode, "ROOM_CLOSED", objectMapper.createObjectNode())
+        );
+    }
+
+    public void publishRoomMutation(InMemoryRuntimeStore.RoomMutation mutation) {
+        if (mutation == null) {
+            return;
+        }
+        if (mutation.removedPlayerId() != null) {
+            closePlayerSessions(mutation.roomCode(), mutation.removedPlayerId(), "SESSION_CLOSED");
+        }
+        if (mutation.deleted()) {
+            broadcastToRoom(mutation.roomCode(), "ROOM_CLOSED", objectMapper.createObjectNode());
+            return;
+        }
+        broadcastToRoom(mutation.roomCode(), "PUBLIC_UPDATE", lobbyPayload(mutation.room()));
     }
 
     private void handleConnect(WebSocketSession session, InboundMessage inbound) {
@@ -123,7 +161,8 @@ public class GameWsHandler extends TextWebSocketHandler {
         }
 
         InMemoryRuntimeStore.PlayerSession playerSession = resolved.get();
-        bindingsById.put(session.getId(), ConnectionBinding.connected(roomCode, playerSession.playerId()));
+        closeExistingSocketForToken(playerSession.token(), session.getId());
+        bindingsById.put(session.getId(), ConnectionBinding.connected(roomCode, playerSession.playerId(), playerSession.token()));
 
         GameLoopService.RoomState state = gameLoopService.prepareSnapshot(roomCode, playerSession.playerId());
         ObjectNode payload = objectMapper.createObjectNode();
@@ -134,6 +173,7 @@ public class GameWsHandler extends TextWebSocketHandler {
         payload.set("privateState", privateState == null ? objectMapper.createObjectNode() : privateState);
 
         sendEnvelope(session, "STATE_SNAPSHOT", payload);
+        publishLobbyState(roomCode);
 
         if (state.publicState().path("started").asBoolean(false)) {
             broadcastToRoom(roomCode, "PUBLIC_UPDATE", state.publicState());
@@ -141,6 +181,19 @@ public class GameWsHandler extends TextWebSocketHandler {
                 sendToPlayer(roomCode, entry.getKey(), "PRIVATE_UPDATE", entry.getValue());
             }
         }
+        publishLobbyState(roomCode);
+    }
+
+    private void handleHeartbeat(WebSocketSession session, ConnectionBinding binding) {
+        if (!runtimeStore.touchHeartbeat(binding.token)) {
+            sendError(session, "SESSION_NOT_READY: session validation unavailable");
+            closeQuietly(session);
+            return;
+        }
+
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("at", Instant.now().toString());
+        sendEnvelope(session, "HEARTBEAT_ACK", payload);
     }
 
     private void dispatchAction(WebSocketSession actorSession, ConnectionBinding binding, InboundMessage inbound) {
@@ -215,6 +268,68 @@ public class GameWsHandler extends TextWebSocketHandler {
         }
     }
 
+    private ObjectNode lobbyPayload(InMemoryRuntimeStore.RoomSnapshot room) {
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("roomCode", room.roomCode());
+        payload.put("hostPlayerId", room.hostPlayerId());
+        payload.put("selectedGame", room.selectedGame());
+        payload.put("status", room.status().name());
+        payload.put("isPrivate", room.isPrivate());
+        payload.put("version", runtimeStore.loadState(room.roomCode()).version());
+
+        var players = payload.putArray("players");
+        room.participants().forEach(players::add);
+        return payload;
+    }
+
+    private void closeSessionByToken(String token, String reason) {
+        for (Map.Entry<String, ConnectionBinding> entry : bindingsById.entrySet()) {
+            ConnectionBinding binding = entry.getValue();
+            if (!binding.connected || !token.equals(binding.token)) {
+                continue;
+            }
+            WebSocketSession session = sessionsById.get(entry.getKey());
+            if (session == null) {
+                continue;
+            }
+            sendError(session, reason);
+            closeQuietly(session, true);
+        }
+    }
+
+    private void closeExistingSocketForToken(String token, String keepSessionId) {
+        for (Map.Entry<String, ConnectionBinding> entry : bindingsById.entrySet()) {
+            if (entry.getKey().equals(keepSessionId)) {
+                continue;
+            }
+            ConnectionBinding binding = entry.getValue();
+            if (!binding.connected || !token.equals(binding.token)) {
+                continue;
+            }
+            WebSocketSession session = sessionsById.get(entry.getKey());
+            if (session == null) {
+                continue;
+            }
+            sendError(session, "SESSION_REPLACED");
+            closeQuietly(session, false);
+        }
+    }
+
+    private void closePlayerSessions(String roomCode, String playerId, String reason) {
+        for (Map.Entry<String, ConnectionBinding> entry : bindingsById.entrySet()) {
+            ConnectionBinding binding = entry.getValue();
+            if (!binding.connected || !roomCode.equals(binding.roomCode) || !playerId.equals(binding.playerId)) {
+                continue;
+            }
+            WebSocketSession session = sessionsById.get(entry.getKey());
+            if (session == null) {
+                continue;
+            }
+            sendError(session, reason);
+            closeQuietly(session, false);
+        }
+    }
+
     private InboundMessage parseInbound(String raw) {
         try {
             JsonNode root = objectMapper.readTree(raw);
@@ -251,12 +366,16 @@ public class GameWsHandler extends TextWebSocketHandler {
             try {
                 session.sendMessage(new TextMessage(envelope.toString()));
             } catch (IOException ignored) {
-                closeQuietly(session);
+                closeQuietly(session, true);
             }
         }
     }
 
     private void closeQuietly(WebSocketSession session) {
+        closeQuietly(session, true);
+    }
+
+    private void closeQuietly(WebSocketSession session, boolean removePlayer) {
         if (session == null) {
             return;
         }
@@ -265,13 +384,18 @@ public class GameWsHandler extends TextWebSocketHandler {
         } catch (IOException ignored) {
             // ignored
         } finally {
-            removeSession(session.getId());
+            removeSession(session.getId(), removePlayer);
         }
     }
 
-    private void removeSession(String sessionId) {
+    private void removeSession(String sessionId, boolean removePlayer) {
         sessionsById.remove(sessionId);
-        bindingsById.remove(sessionId);
+        ConnectionBinding binding = bindingsById.remove(sessionId);
+        if (binding == null || !binding.connected || !removePlayer) {
+            return;
+        }
+
+        runtimeStore.disconnect(binding.token).ifPresent(this::publishRoomMutation);
     }
 
     private record InboundMessage(String type, JsonNode payload) {
@@ -298,13 +422,13 @@ public class GameWsHandler extends TextWebSocketHandler {
         return valueMap;
     }
 
-    private record ConnectionBinding(String roomCode, String playerId, boolean connected) {
+    private record ConnectionBinding(String roomCode, String playerId, String token, boolean connected) {
         static ConnectionBinding pending() {
-            return new ConnectionBinding(null, null, false);
+            return new ConnectionBinding(null, null, null, false);
         }
 
-        static ConnectionBinding connected(String roomCode, String playerId) {
-            return new ConnectionBinding(roomCode, playerId, true);
+        static ConnectionBinding connected(String roomCode, String playerId, String token) {
+            return new ConnectionBinding(roomCode, playerId, token, true);
         }
     }
 }
