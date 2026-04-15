@@ -71,7 +71,7 @@ public class InMemoryRuntimeStore {
             return List.of();
         }
         synchronized (room) {
-            return List.copyOf(room.participants);
+            return room.participants.stream().map(PlayerSummary::playerId).toList();
         }
     }
 
@@ -116,11 +116,11 @@ public class InMemoryRuntimeStore {
             return false;
         }
         synchronized (room) {
-            return room.participants.contains(playerId);
+            return findParticipantIndex(room.participants, playerId) >= 0;
         }
     }
 
-    public PlayerSession joinRoom(String roomCode, String playerId, String token) {
+    public PlayerSession joinRoom(String roomCode, String playerId, String username, String token) {
         RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             throw new IllegalArgumentException("Room does not exist: " + roomCode);
@@ -128,11 +128,15 @@ public class InMemoryRuntimeStore {
 
         Instant now = Instant.now();
         synchronized (room) {
-            if (!room.participants.contains(playerId) && room.participants.size() >= maxPlayersFor(room.selectedGame)) {
+            PlayerSummary participant = new PlayerSummary(playerId, normalizeUsername(username));
+            int existingIndex = findParticipantIndex(room.participants, playerId);
+            if (existingIndex < 0 && room.participants.size() >= maxPlayersFor(room.selectedGame)) {
                 throw new IllegalStateException("Room is full");
             }
-            if (!room.participants.contains(playerId)) {
-                room.participants.add(playerId);
+            if (existingIndex >= 0) {
+                room.participants.set(existingIndex, participant);
+            } else {
+                room.participants.add(participant);
             }
             if (blank(room.hostPlayerId)) {
                 room.hostPlayerId = playerId;
@@ -156,7 +160,7 @@ public class InMemoryRuntimeStore {
                     return Optional.empty();
                 }
                 String playerId = "p" + (room.participants.size() + 1);
-                room.participants.add(playerId);
+                room.participants.add(new PlayerSummary(playerId, null));
                 sessionsByToken.put(token, new SessionRecord(roomCode, playerId));
                 return Optional.of(new PlayerSession(roomCode, playerId, token));
             }
@@ -215,7 +219,7 @@ public class InMemoryRuntimeStore {
             if (!Objects.equals(room.hostPlayerId, hostSession.playerId)) {
                 throw new IllegalStateException("Only the host can kick players");
             }
-            if (!room.participants.contains(targetPlayerId)) {
+            if (findParticipantIndex(room.participants, targetPlayerId) < 0) {
                 return Optional.empty();
             }
             if (Objects.equals(room.hostPlayerId, targetPlayerId)) {
@@ -386,10 +390,12 @@ public class InMemoryRuntimeStore {
 
         RoomMutation mutation;
         synchronized (room) {
-            if (!room.participants.remove(playerId)) {
+            int participantIndex = findParticipantIndex(room.participants, playerId);
+            if (participantIndex < 0) {
                 removeSessionsForPlayer(roomCode, playerId);
                 return Optional.empty();
             }
+            room.participants.remove(participantIndex);
 
             removeSessionsForPlayer(roomCode, playerId);
 
@@ -399,7 +405,7 @@ public class InMemoryRuntimeStore {
                 mutation = RoomMutation.deleted(roomCode, playerId);
             } else {
                 if (Objects.equals(room.hostPlayerId, playerId)) {
-                    room.hostPlayerId = room.participants.getFirst();
+                    room.hostPlayerId = room.participants.getFirst().playerId();
                 }
                 mutation = RoomMutation.updated(toSnapshot(room), playerId);
             }
@@ -427,7 +433,16 @@ public class InMemoryRuntimeStore {
         }
 
         synchronized (room) {
-            room.participants.forEach(players::add);
+            room.participants.forEach(player -> {
+                ObjectNode playerState = JsonNodeFactory.instance.objectNode();
+                playerState.put("playerId", player.playerId());
+                if (player.username() == null) {
+                    playerState.putNull("username");
+                } else {
+                    playerState.put("username", player.username());
+                }
+                players.add(playerState);
+            });
             publicState.set("players", players);
             if (blank(room.hostPlayerId)) {
                 publicState.putNull("hostPlayerId");
@@ -494,6 +509,15 @@ public class InMemoryRuntimeStore {
         }
     }
 
+    private int findParticipantIndex(List<PlayerSummary> participants, String playerId) {
+        for (int index = 0; index < participants.size(); index += 1) {
+            if (Objects.equals(participants.get(index).playerId(), playerId)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
     private String normalizeGameType(String gameType) {
         if (gameType == null || gameType.isBlank()) {
             return DEFAULT_GAME_TYPE;
@@ -506,6 +530,13 @@ public class InMemoryRuntimeStore {
             case "casino" -> 2;
             default -> Integer.MAX_VALUE;
         };
+    }
+
+    private String normalizeUsername(String username) {
+        if (blank(username)) {
+            return null;
+        }
+        return username.trim();
     }
 
     private String randomCode() {
@@ -542,14 +573,20 @@ public class InMemoryRuntimeStore {
     public record PlayerSession(String roomCode, String playerId, String token) {
     }
 
+    public record PlayerSummary(String playerId, String username) {
+    }
+
     public record RoomSummary(
             String roomCode,
             String hostPlayerId,
             String selectedGame,
             String status,
             int playerCount,
-            List<String> participants
+            List<PlayerSummary> participants
     ) {
+        public List<String> participantIds() {
+            return participants.stream().map(PlayerSummary::playerId).toList();
+        }
     }
 
     public record RoomSnapshot(
@@ -558,8 +595,11 @@ public class InMemoryRuntimeStore {
             boolean isPrivate,
             String selectedGame,
             RoomStatus status,
-            List<String> participants
+            List<PlayerSummary> participants
     ) {
+        public List<String> participantIds() {
+            return participants.stream().map(PlayerSummary::playerId).toList();
+        }
     }
 
     public record RoomMutation(String roomCode, RoomSnapshot room, boolean deleted, String removedPlayerId) {
@@ -577,7 +617,7 @@ public class InMemoryRuntimeStore {
 
     private static final class RoomRecord {
         private final String roomCode;
-        private final List<String> participants = new ArrayList<>();
+        private final List<PlayerSummary> participants = new ArrayList<>();
         private String hostPlayerId;
         private final boolean isPrivate;
         private String selectedGame;

@@ -278,7 +278,16 @@ public class GameWsHandler extends TextWebSocketHandler {
         payload.put("version", runtimeStore.loadState(room.roomCode()).version());
 
         var players = payload.putArray("players");
-        room.participants().forEach(players::add);
+        room.participants().forEach(player -> {
+            ObjectNode playerPayload = objectMapper.createObjectNode();
+            playerPayload.put("playerId", player.playerId());
+            if (player.username() == null || player.username().isBlank()) {
+                playerPayload.putNull("username");
+            } else {
+                playerPayload.put("username", player.username());
+            }
+            players.add(playerPayload);
+        });
         return payload;
     }
 

@@ -47,6 +47,16 @@ export PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
 export PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 ```
 
+Du kan også lægge dem i en lokal fil i repo root:
+
+``` bash
+cp .env.local.example .env.local
+```
+
+`npm run web:config`, `npm run web:build`, `npm run web:watch`,
+`npm run web:serve` og `npm run local:dev` læser nu automatisk fra
+`.env.local` eller `.env`, hvis shell env vars ikke allerede er sat.
+
 ### Start web
 
 ``` bash
@@ -164,6 +174,10 @@ I denne mode:
 
 Hvis Supabase public config mangler, virker gameplay stadig, men login,
 signup og avatar-flow bliver slået fra.
+
+Hvis auth/profile skal virke i denne mode, så sørg for at
+`PUBLIC_SUPABASE_URL` og `PUBLIC_SUPABASE_ANON_KEY` findes enten i shell
+env eller i `.env.local` før du starter `npm run local:dev`.
 
 ------------------------------------------------------------------------
 

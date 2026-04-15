@@ -36,6 +36,18 @@ Base path (dev): http://localhost:8080/
 
 Opretter et nyt room.
 
+### Request
+
+``` json
+{
+  "gameType": "highcard",
+  "isPrivate": false,
+  "playerId": "supabase-user-id-or-guest-id",
+  "username": "Alice",
+  "token": "session-token"
+}
+```
+
 ### Response
 
 ``` json
@@ -49,6 +61,16 @@ Opretter et nyt room.
 ## POST /rooms/{roomCode}/join
 
 Joiner et eksisterende room.
+
+### Request
+
+``` json
+{
+  "playerId": "supabase-user-id-or-guest-id",
+  "username": "Alice",
+  "token": "session-token"
+}
+```
 
 ### Response
 
@@ -205,7 +227,10 @@ Sendes ved connect eller re-sync.
   "payload": {
     "publicState": {
       "roomCode": "ABC123",
-      "players": ["p1", "p2"],
+      "players": [
+        { "playerId": "p1", "username": "Alice" },
+        { "playerId": "p2", "username": "Bob" }
+      ],
       "turnPlayerId": "p1",
       "pileCount": 8,
       "lastClaim": {
@@ -236,6 +261,10 @@ Broadcast til alle spillere.
 {
   "type": "PUBLIC_UPDATE",
   "payload": {
+    "players": [
+      { "playerId": "p1", "username": "Alice" },
+      { "playerId": "p2", "username": "Bob" }
+    ],
     "turnPlayerId": "p2",
     "pileCount": 10
   }
