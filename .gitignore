@@ -16,6 +16,12 @@ project_dump.txt
 /apps/server/target/
 /dist/*.js
 
+# Local environment config
+.env
+.env.local
+apps/web/.env
+apps/web/.env.local
+
 # Local IDE state
 .ai/*
 .idea/*

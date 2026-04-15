@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.server.domain.games.krig.KrigState;
+import dk.bodegadk.server.domain.games.casino.CasinoState;
 import dk.bodegadk.server.domain.games.highcard.HighCardState;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -37,6 +39,7 @@ public class InMemoryRuntimeStore {
     // TEAM-DB-INTEGRATION: replace in-memory domain state map with durable game-state persistence.
     private final ConcurrentMap<String, HighCardState> highCardStatesByRoom = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, KrigState> krigStatesByRoom = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, CasinoState> casinoStatesByRoom = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ExecutorService> roomExecutors = new ConcurrentHashMap<>();
 
     public String createRoom(String gameType) {
@@ -68,7 +71,7 @@ public class InMemoryRuntimeStore {
             return List.of();
         }
         synchronized (room) {
-            return List.copyOf(room.participants);
+            return room.participants.stream().map(PlayerSummary::playerId).toList();
         }
     }
 
@@ -113,11 +116,11 @@ public class InMemoryRuntimeStore {
             return false;
         }
         synchronized (room) {
-            return room.participants.contains(playerId);
+            return findParticipantIndex(room.participants, playerId) >= 0;
         }
     }
 
-    public PlayerSession joinRoom(String roomCode, String playerId, String token) {
+    public PlayerSession joinRoom(String roomCode, String playerId, String username, String token) {
         RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             throw new IllegalArgumentException("Room does not exist: " + roomCode);
@@ -125,8 +128,15 @@ public class InMemoryRuntimeStore {
 
         Instant now = Instant.now();
         synchronized (room) {
-            if (!room.participants.contains(playerId)) {
-                room.participants.add(playerId);
+            PlayerSummary participant = new PlayerSummary(playerId, normalizeUsername(username));
+            int existingIndex = findParticipantIndex(room.participants, playerId);
+            if (existingIndex < 0 && room.participants.size() >= maxPlayersFor(room.selectedGame)) {
+                throw new IllegalStateException("Room is full");
+            }
+            if (existingIndex >= 0) {
+                room.participants.set(existingIndex, participant);
+            } else {
+                room.participants.add(participant);
             }
             if (blank(room.hostPlayerId)) {
                 room.hostPlayerId = playerId;
@@ -141,7 +151,19 @@ public class InMemoryRuntimeStore {
     public Optional<PlayerSession> resolveConnect(String roomCode, String token) {
         SessionRecord session = sessionsByToken.get(token);
         if (session == null || !session.roomCode.equals(roomCode)) {
-            return Optional.empty();
+            RoomRecord room = rooms.get(roomCode);
+            if (room == null) {
+                return Optional.empty();
+            }
+            synchronized (room) {
+                if (room.participants.size() >= maxPlayersFor(room.selectedGame)) {
+                    return Optional.empty();
+                }
+                String playerId = "p" + (room.participants.size() + 1);
+                room.participants.add(new PlayerSummary(playerId, null));
+                sessionsByToken.put(token, new SessionRecord(roomCode, playerId));
+                return Optional.of(new PlayerSession(roomCode, playerId, token));
+            }
         }
 
         sessionsByToken.computeIfPresent(token, (key, current) -> current.connected(Instant.now()));
@@ -197,7 +219,7 @@ public class InMemoryRuntimeStore {
             if (!Objects.equals(room.hostPlayerId, hostSession.playerId)) {
                 throw new IllegalStateException("Only the host can kick players");
             }
-            if (!room.participants.contains(targetPlayerId)) {
+            if (findParticipantIndex(room.participants, targetPlayerId) < 0) {
                 return Optional.empty();
             }
             if (Objects.equals(room.hostPlayerId, targetPlayerId)) {
@@ -309,6 +331,36 @@ public class InMemoryRuntimeStore {
         return Optional.of(mutation);
     }
 
+    public CasinoState loadOrCreateCasinoState(String roomCode, Supplier<CasinoState> initializer) {
+        return casinoStatesByRoom.computeIfAbsent(roomCode, key -> initializer.get());
+    }
+
+    public void saveCasinoState(String roomCode, CasinoState state) {
+        casinoStatesByRoom.put(roomCode, state);
+    }
+
+    public void saveCasinoValueMap(String roomCode, Map<String, List<Integer>> valueMap) {
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return;
+        }
+        synchronized (room) {
+            room.casinoValueMap = new ConcurrentHashMap<>(valueMap);
+        }
+    }
+
+    public Optional<Map<String, List<Integer>>> casinoValueMap(String roomCode) {
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null || room.casinoValueMap == null) {
+            return Optional.empty();
+        }
+        synchronized (room) {
+            Map<String, List<Integer>> copy = new ConcurrentHashMap<>();
+            room.casinoValueMap.forEach((card, values) -> copy.put(card, List.copyOf(values)));
+            return Optional.of(copy);
+        }
+    }
+
     public void submit(String roomCode, Runnable command) {
         ExecutorService executor = roomExecutors.computeIfAbsent(roomCode, key -> Executors.newSingleThreadExecutor());
         executor.submit(command);
@@ -338,10 +390,12 @@ public class InMemoryRuntimeStore {
 
         RoomMutation mutation;
         synchronized (room) {
-            if (!room.participants.remove(playerId)) {
+            int participantIndex = findParticipantIndex(room.participants, playerId);
+            if (participantIndex < 0) {
                 removeSessionsForPlayer(roomCode, playerId);
                 return Optional.empty();
             }
+            room.participants.remove(participantIndex);
 
             removeSessionsForPlayer(roomCode, playerId);
 
@@ -351,7 +405,7 @@ public class InMemoryRuntimeStore {
                 mutation = RoomMutation.deleted(roomCode, playerId);
             } else {
                 if (Objects.equals(room.hostPlayerId, playerId)) {
-                    room.hostPlayerId = room.participants.getFirst();
+                    room.hostPlayerId = room.participants.getFirst().playerId();
                 }
                 mutation = RoomMutation.updated(toSnapshot(room), playerId);
             }
@@ -379,7 +433,16 @@ public class InMemoryRuntimeStore {
         }
 
         synchronized (room) {
-            room.participants.forEach(players::add);
+            room.participants.forEach(player -> {
+                ObjectNode playerState = JsonNodeFactory.instance.objectNode();
+                playerState.put("playerId", player.playerId());
+                if (player.username() == null) {
+                    playerState.putNull("username");
+                } else {
+                    playerState.put("username", player.username());
+                }
+                players.add(playerState);
+            });
             publicState.set("players", players);
             if (blank(room.hostPlayerId)) {
                 publicState.putNull("hostPlayerId");
@@ -436,6 +499,23 @@ public class InMemoryRuntimeStore {
     private void clearGameStates(String roomCode) {
         highCardStatesByRoom.remove(roomCode);
         krigStatesByRoom.remove(roomCode);
+        casinoStatesByRoom.remove(roomCode);
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return;
+        }
+        synchronized (room) {
+            room.casinoValueMap = null;
+        }
+    }
+
+    private int findParticipantIndex(List<PlayerSummary> participants, String playerId) {
+        for (int index = 0; index < participants.size(); index += 1) {
+            if (Objects.equals(participants.get(index).playerId(), playerId)) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private String normalizeGameType(String gameType) {
@@ -443,6 +523,20 @@ public class InMemoryRuntimeStore {
             return DEFAULT_GAME_TYPE;
         }
         return gameType.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private int maxPlayersFor(String gameType) {
+        return switch (normalizeGameType(gameType)) {
+            case "casino" -> 2;
+            default -> Integer.MAX_VALUE;
+        };
+    }
+
+    private String normalizeUsername(String username) {
+        if (blank(username)) {
+            return null;
+        }
+        return username.trim();
     }
 
     private String randomCode() {
@@ -479,14 +573,20 @@ public class InMemoryRuntimeStore {
     public record PlayerSession(String roomCode, String playerId, String token) {
     }
 
+    public record PlayerSummary(String playerId, String username) {
+    }
+
     public record RoomSummary(
             String roomCode,
             String hostPlayerId,
             String selectedGame,
             String status,
             int playerCount,
-            List<String> participants
+            List<PlayerSummary> participants
     ) {
+        public List<String> participantIds() {
+            return participants.stream().map(PlayerSummary::playerId).toList();
+        }
     }
 
     public record RoomSnapshot(
@@ -495,8 +595,11 @@ public class InMemoryRuntimeStore {
             boolean isPrivate,
             String selectedGame,
             RoomStatus status,
-            List<String> participants
+            List<PlayerSummary> participants
     ) {
+        public List<String> participantIds() {
+            return participants.stream().map(PlayerSummary::playerId).toList();
+        }
     }
 
     public record RoomMutation(String roomCode, RoomSnapshot room, boolean deleted, String removedPlayerId) {
@@ -514,11 +617,12 @@ public class InMemoryRuntimeStore {
 
     private static final class RoomRecord {
         private final String roomCode;
-        private final List<String> participants = new ArrayList<>();
+        private final List<PlayerSummary> participants = new ArrayList<>();
         private String hostPlayerId;
         private final boolean isPrivate;
         private String selectedGame;
         private RoomStatus status;
+        private Map<String, List<Integer>> casinoValueMap;
 
         private RoomRecord(String roomCode, String hostPlayerId, boolean isPrivate, String selectedGame, RoomStatus status) {
             this.roomCode = roomCode;
@@ -530,6 +634,10 @@ public class InMemoryRuntimeStore {
     }
 
     private record SessionRecord(String roomCode, String playerId, Instant lastHeartbeat, boolean connected) {
+        private SessionRecord(String roomCode, String playerId) {
+            this(roomCode, playerId, Instant.now(), false);
+        }
+
         private SessionRecord connected(Instant now) {
             return new SessionRecord(roomCode, playerId, now, true);
         }

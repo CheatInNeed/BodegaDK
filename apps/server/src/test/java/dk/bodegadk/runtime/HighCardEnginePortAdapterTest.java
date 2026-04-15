@@ -21,7 +21,7 @@ class HighCardEnginePortAdapterTest {
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
 
         String roomCode = store.createRoom("snyd");
-        store.joinRoom(roomCode, "p1", "token-p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
         GameLoopService.RoomState state = store.refreshPlayers(roomCode);
 
         GameLoopService.LoopResult result = adapter.apply(state, playCommand(roomCode, "p1", "HA"));
@@ -34,10 +34,10 @@ class HighCardEnginePortAdapterTest {
     void rejectsInvalidPlayCardsPayloadAfterHighCardStarts() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
-        GameLoopService service = new GameLoopService(store, adapter);
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
 
         String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
 
         GameLoopService.LoopResult startResult = service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode()));
         assertFalse(startResult.isError());
@@ -61,10 +61,10 @@ class HighCardEnginePortAdapterTest {
     void appliesValidHighCardActionAndProducesPrivateUpdate() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
-        GameLoopService service = new GameLoopService(store, adapter);
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
 
         String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
 
         GameLoopService.LoopResult startResult = service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode()));
         assertFalse(startResult.isError());
@@ -85,10 +85,10 @@ class HighCardEnginePortAdapterTest {
     void prepareSnapshotContainsPlayerHandAfterStart() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
-        GameLoopService service = new GameLoopService(store, adapter);
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
 
         String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
         GameLoopService.LoopResult startResult = service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode()));
 
         assertFalse(startResult.isError());
@@ -108,8 +108,8 @@ class HighCardEnginePortAdapterTest {
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
 
         String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
-        store.joinRoom(roomCode, "p2", "token-p2");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
+        store.joinRoom(roomCode, "p2", null, "token-p2");
 
         GameLoopService.RoomState state = adapter.prepareSnapshot(store.refreshPlayers(roomCode), "p1");
         JsonNode privateState = state.privateStateFor("p1");
@@ -124,10 +124,10 @@ class HighCardEnginePortAdapterTest {
     void rejectsKrigStartWhenPlayerCountIsNotExactlyTwo() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
-        GameLoopService service = new GameLoopService(store, adapter);
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
 
         String roomCode = store.createRoom("krig", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
 
         GameLoopService.LoopResult result = service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode()));
 
@@ -139,11 +139,11 @@ class HighCardEnginePortAdapterTest {
     void startsKrigAndPublishesPrivateHandsForBothPlayers() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
-        GameLoopService service = new GameLoopService(store, adapter);
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
 
         String roomCode = store.createRoom("krig", false, "p1");
-        store.joinRoom(roomCode, "p1", "token-p1");
-        store.joinRoom(roomCode, "p2", "token-p2");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
+        store.joinRoom(roomCode, "p2", null, "token-p2");
 
         GameLoopService.LoopResult result = service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode()));
 

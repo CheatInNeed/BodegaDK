@@ -2,6 +2,64 @@ import type { ClientToServerMessage } from '../net/protocol.js';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
+export type TableLayoutMode = 'duel' | 'ring';
+export type TableVariant = 'green-felt';
+export type CenterBoardMode = 'focus' | 'battle' | 'claim';
+export type SeatRenderMode = 'label-only' | 'stack' | 'revealed-card' | 'mixed';
+export type SeatPositionClass =
+    | 'seat-bottom'
+    | 'seat-bottom-right'
+    | 'seat-right'
+    | 'seat-top-right'
+    | 'seat-top'
+    | 'seat-top-left'
+    | 'seat-left'
+    | 'seat-bottom-left';
+
+export type CardDisplayModel = {
+    kind: 'face' | 'back' | 'stack' | 'empty';
+    cardCode?: string;
+    count?: number;
+    selected?: boolean;
+    interactive?: boolean;
+    label?: string;
+    size?: 'sm' | 'md' | 'lg';
+};
+
+export type SeatViewModel = {
+    playerId: string;
+    label: string;
+    isSelf: boolean;
+    isCurrentTurn: boolean;
+    badges?: string[];
+    meta?: string | null;
+    stackCount?: number;
+    tableCard?: CardDisplayModel | null;
+    positionClass?: SeatPositionClass;
+};
+
+export type GameRoomLayoutSpec = {
+    maxPlayers: number;
+    preferredLayout: TableLayoutMode;
+    tableVariant: TableVariant;
+    centerBoardMode: CenterBoardMode;
+    hasPrivateTray: boolean;
+    seatRenderMode: SeatRenderMode;
+};
+
+export type GameRoomSectionModel = {
+    layout: GameRoomLayoutSpec;
+    headerPills: string[];
+    seats: SeatViewModel[];
+    centerHtml: string;
+    trayTitle?: string;
+    trayDescription?: string | null;
+    trayBodyHtml?: string;
+    trayFooterHtml?: string;
+    roomClassName?: string;
+    tableClassName?: string;
+};
+
 /**
  * Session state shared between transport, reducer, and UI mapping layers.
  */
@@ -19,7 +77,10 @@ export type RoomSessionState = {
 
 export type UiIntent =
     | { type: 'PLAY_SELECTED'; claimRank: string }
-    | { type: 'CALL_SNYD' };
+    | { type: 'CALL_SNYD' }
+    | { type: 'CASINO_PLAY_MOVE'; handCard: string; captureStackIds: string[]; playedValue?: number }
+    | { type: 'CASINO_BUILD_STACK'; handCard: string; targetStackId: string; playedValue?: number }
+    | { type: 'CASINO_MERGE_STACKS'; stackIds: string[] };
 
 /**
  * Game-specific bridge that maps generic room state to concrete UI behavior.
@@ -27,6 +88,7 @@ export type UiIntent =
 export type GameAdapter<TPublic extends Record<string, unknown>, TPrivate extends Record<string, unknown>, TViewModel> = {
     id: string;
     canHandle(game: string): boolean;
+    ui?: GameRoomLayoutSpec;
     toViewModel(input: {
         publicState: TPublic | null;
         privateState: TPrivate | null;

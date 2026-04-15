@@ -7,7 +7,8 @@ deployment model for the BodegaDK web-based game platform.
 
 Detaljer om den konkrete web game-room implementation findes i:
 
--   `docs/WEB_CLIENT_GAME_ROOM.md`
+-   `docs/design/WEB_CLIENT_GAME_ROOM.md`
+-   `docs/contracts/gameroom_ui_contract.md`
 
 Platform goals:
 
@@ -173,6 +174,10 @@ Key principle remains unchanged:
 
 -   server is authoritative for rules and outcomes
 -   client only renders state and sends intents
+
+UI-side source of truth for active live card rooms:
+
+-   `docs/contracts/gameroom_ui_contract.md`
 
 ------------------------------------------------------------------------
 

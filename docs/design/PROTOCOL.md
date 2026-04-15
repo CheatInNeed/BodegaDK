@@ -36,6 +36,18 @@ Base path (dev): http://localhost:8080/
 
 Opretter et nyt room.
 
+### Request
+
+``` json
+{
+  "gameType": "highcard",
+  "isPrivate": false,
+  "playerId": "supabase-user-id-or-guest-id",
+  "username": "Alice",
+  "token": "session-token"
+}
+```
+
 ### Response
 
 ``` json
@@ -49,6 +61,16 @@ Opretter et nyt room.
 ## POST /rooms/{roomCode}/join
 
 Joiner et eksisterende room.
+
+### Request
+
+``` json
+{
+  "playerId": "supabase-user-id-or-guest-id",
+  "username": "Alice",
+  "token": "session-token"
+}
+```
 
 ### Response
 
@@ -86,10 +108,23 @@ Alle WebSocket messages har format:
   "type": "CONNECT",
   "payload": {
     "roomCode": "ABC123",
-    "token": "jwt-or-session-token"
+    "token": "jwt-or-session-token",
+    "game": "casino",
+    "setup": {
+      "casinoRules": {
+        "valueMap": {
+          "HA": [1, 14]
+        }
+      }
+    }
   }
 }
 ```
+
+For non-Casino games, `game` and `setup` are optional.
+
+For `casino`, `setup.casinoRules.valueMap` must define all 52 cards or the
+server rejects connect/start.
 
 ------------------------------------------------------------------------
 
@@ -135,6 +170,51 @@ Example (`highcard`):
 
 ------------------------------------------------------------------------
 
+## CASINO_PLAY_MOVE
+
+``` json
+{
+  "type": "CASINO_PLAY_MOVE",
+  "payload": {
+    "handCard": "HA",
+    "captureStackIds": ["s1", "s2"],
+    "playedValue": 14
+  }
+}
+```
+
+`captureStackIds` empty means trail card to table.
+
+------------------------------------------------------------------------
+
+## CASINO_BUILD_STACK
+
+``` json
+{
+  "type": "CASINO_BUILD_STACK",
+  "payload": {
+    "handCard": "H4",
+    "targetStackId": "s1",
+    "playedValue": 4
+  }
+}
+```
+
+------------------------------------------------------------------------
+
+## CASINO_MERGE_STACKS
+
+``` json
+{
+  "type": "CASINO_MERGE_STACKS",
+  "payload": {
+    "stackIds": ["s1", "s2", "s3"]
+  }
+}
+```
+
+------------------------------------------------------------------------
+
 # Server → Client
 
 ## STATE_SNAPSHOT
@@ -147,7 +227,10 @@ Sendes ved connect eller re-sync.
   "payload": {
     "publicState": {
       "roomCode": "ABC123",
-      "players": ["p1", "p2"],
+      "players": [
+        { "playerId": "p1", "username": "Alice" },
+        { "playerId": "p2", "username": "Bob" }
+      ],
       "turnPlayerId": "p1",
       "pileCount": 8,
       "lastClaim": {
@@ -164,6 +247,10 @@ Sendes ved connect eller re-sync.
 }
 ```
 
+For `casino`, `publicState` includes `dealerPlayerId`, `tableStacks`,
+`deckCount`, `capturedCounts`, `lastCapturePlayerId`, `started`,
+`rules.valueMap`, and `privateState` includes `capturedCards`.
+
 ------------------------------------------------------------------------
 
 ## PUBLIC_UPDATE
@@ -174,6 +261,10 @@ Broadcast til alle spillere.
 {
   "type": "PUBLIC_UPDATE",
   "payload": {
+    "players": [
+      { "playerId": "p1", "username": "Alice" },
+      { "playerId": "p2", "username": "Bob" }
+    ],
     "turnPlayerId": "p2",
     "pileCount": 10
   }
@@ -221,6 +312,8 @@ Sendes kun til én spiller.
   }
 }
 ```
+
+For Casino draws, `winnerPlayerId` may be `null`.
 
 ------------------------------------------------------------------------
 

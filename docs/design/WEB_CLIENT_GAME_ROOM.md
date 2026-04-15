@@ -3,6 +3,10 @@
 Dette dokument beskriver den implementerede game-room client layer i
 `apps/web`.
 
+UI-kontrakten for aktive game rooms findes i:
+
+-   `docs/contracts/gameroom_ui_contract.md`
+
 ------------------------------------------------------------------------
 
 ## Formål
@@ -15,6 +19,10 @@ clienten:
 -   håndterer adskilt `publicState` og `privateState`
 -   mapper state til UI via per-game adapters
 -   sender intents som protocol messages
+
+Dette dokument dækker runtime/session flow.
+Det nye UI contract dokument dækker den delte struktur for aktive game-room
+views, seats, table surface, center board og private tray.
 
 ------------------------------------------------------------------------
 
@@ -63,6 +71,12 @@ Valgfri:
     -   intent → `PLAY_CARDS` / `CALL_SNYD`
 -   `apps/web/src/games/snyd/view.ts`
     -   Snyd specifik rendering
+-   `apps/web/src/games/casino/adapter.ts`
+    -   mapning fra protocol state til Casino view model
+-   `apps/web/src/games/casino/actions.ts`
+    -   intent → `CASINO_PLAY_MOVE` / `CASINO_BUILD_STACK` / `CASINO_MERGE_STACKS`
+-   `apps/web/src/games/casino/view.ts`
+    -   Casino specifik rendering
 -   `apps/web/src/index.ts`
     -   app shell integration og room event binding
 
@@ -104,6 +118,8 @@ State rules:
 -   `PRIVATE_UPDATE` accepteres kun for current player
 -   `ERROR` vises som non-blocking banner
 -   `GAME_FINISHED` sætter winner og låser actions
+-   `casino` bruger single-select for håndkort og separat lokal selection for
+    table stacks
 
 ------------------------------------------------------------------------
 
@@ -115,7 +131,7 @@ State rules:
 -   `toViewModel(...)` mappper protocol shape → UI shape
 -   `buildAction(...)` mapper UI intent → outbound protocol message
 
-Første adapter er `snydAdapter`.
+Aktive adapters er `snydAdapter`, `casinoAdapter` og `highcardAdapter`.
 
 ------------------------------------------------------------------------
 
@@ -141,6 +157,24 @@ Disse knapper disables når:
 -   spillet er afsluttet
 -   det ikke er spillerens tur
 -   ingen kort er valgt (for `Play selected`)
+
+------------------------------------------------------------------------
+
+## UI behavior (Casino v1)
+
+Room view viser:
+
+-   Dealer / non-dealer roller
+-   Table stacks med `stackId`, total og locked/open status
+-   Private hånd som single-select kort
+-   Captured counts per spiller
+-   Deck count og waiting-state før spiller 2 forbinder
+
+Actions:
+
+-   `Capture / Trail`
+-   `Build stack`
+-   Quick merge når ingen håndkort er valgt og 2+ stacks matcher en håndværdi
 
 ------------------------------------------------------------------------
 
@@ -182,7 +216,7 @@ Clienten er allerede wired til dette format.
 
 ## Non-goals i denne iteration
 
--   Ingen server-side game engine implementation i repo endnu
+-   Casino og HighCard har server-authoritative engine integration
 -   Ingen persistence/history integration
 -   Ingen reconnect replay/resync strategi ud over reconnecting status
 

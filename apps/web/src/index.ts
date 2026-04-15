@@ -1,8 +1,9 @@
-import { applyI18n, getInitialLang, setLang, type Lang } from './i18n.js';
+import { applyI18n, getInitialLang, setLang, t, type Lang } from './i18n.js';
 import { readRoute, writeRoute, type AppRoute, type View } from './app/router.js';
 import { renderLobbyBrowser, renderLobbyRoom, type LobbyRoomViewModel } from './app/lobby-view.js';
 import { createGameRoomSession } from './game-room/session.js';
 import type { GameAdapter } from './game-room/types.js';
+import { createLayoutSpec } from './game-room/ui.js';
 import { renderRoomError, renderRoomFrame } from './game-room/view.js';
 import { highcardAdapter } from './games/highcard/adapter.js';
 import { krigAdapter } from './games/krig/adapter.js';
@@ -10,6 +11,8 @@ import { renderKrigRoom } from './games/krig/view.js';
 import { renderSingleCardHighestWinsRoom } from './games/single-card-highest-wins/view.js';
 import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
+import { casinoAdapter } from './games/casino/adapter.js';
+import { renderCasinoRoom } from './games/casino/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
@@ -26,8 +29,19 @@ import {
 type GenericAdapter = GameAdapter<Record<string, unknown>, Record<string, unknown>, unknown>;
 const adapters: GenericAdapter[] = [
     snydAdapter as GenericAdapter,
+    casinoAdapter as GenericAdapter,
     highcardAdapter as GenericAdapter,
     krigAdapter as GenericAdapter,
+];
+
+type ThemeId = 'bodega' | 'harbor' | 'parlor';
+
+const THEME_STORAGE_KEY = 'ui-theme';
+
+const THEMES: Array<{ id: ThemeId; labelKey: string; toneKey: string }> = [
+    { id: 'bodega', labelKey: 'theme.bodega.label', toneKey: 'theme.bodega.tone' },
+    { id: 'harbor', labelKey: 'theme.harbor.label', toneKey: 'theme.harbor.tone' },
+    { id: 'parlor', labelKey: 'theme.parlor.label', toneKey: 'theme.parlor.tone' },
 ];
 
 const state = {
@@ -35,6 +49,7 @@ const state = {
     view: readRoute().view as View,
     sidebarCollapsed: false,
     route: readRoute() as AppRoute,
+    theme: getInitialTheme() as ThemeId,
 };
 
 const lobbyBrowserState = {
@@ -49,7 +64,7 @@ const lobbyBrowserState = {
 
 const authUiState = {
     initialized: false,
-    user: null as { id: string } | null,
+    user: null as { id: string; username: string | null } | null,
     avatar: null as { color: string; shape: string } | null,
 };
 
@@ -62,6 +77,22 @@ let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
 let highCardAutoStartKey: string | null = null;
 
+function getInitialTheme(): ThemeId {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return THEMES.some((theme) => theme.id === stored) ? stored as ThemeId : 'bodega';
+}
+
+function setTheme(theme: ThemeId) {
+    state.theme = theme;
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    applyTheme(theme);
+}
+
+function applyTheme(theme: ThemeId) {
+    document.documentElement.dataset.theme = theme;
+}
+let casinoSelectedStackIds: string[] = [];
+
 function iconSvg(pathD: string) {
     return `
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -72,6 +103,7 @@ function iconSvg(pathD: string) {
 
 function renderApp() {
     const path = window.location.pathname;
+    applyTheme(state.theme);
 
     if (path === '/login') {
         renderLogin();
@@ -181,15 +213,50 @@ function renderView() {
         cleanupRoomSession();
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.settings"></h1>
-      <div class="card">
-        <p class="card-desc">
-          (Placeholder) Her kan I senere have lyd, tema, sprog, kontoindstillinger osv.
-        </p>
-        <div class="card-row">
-          <span class="pill">Tema: Default</span>
-          <button class="btn" id="fakeThemeBtn">Skift tema (senere)</button>
-        </div>
-      </div>
+      <section class="settings-layout">
+        <article class="card settings-card">
+          <div class="settings-card-header">
+            <div>
+              <p class="home-eyebrow" data-i18n="settings.theme.kicker"></p>
+              <div class="card-title" data-i18n="settings.theme.title"></div>
+            </div>
+            <span class="pill" data-i18n="settings.theme.badge"></span>
+          </div>
+          <p class="card-desc" data-i18n="settings.theme.desc"></p>
+          <label class="settings-field" for="themeSelect">
+            <span data-i18n="settings.theme.selectLabel"></span>
+            <select class="select settings-select" id="themeSelect" aria-label="${t(state.lang, 'settings.theme.ariaLabel')}">
+              ${THEMES.map((theme) => `
+                <option value="${theme.id}" data-i18n="${theme.labelKey}"></option>
+              `).join('')}
+            </select>
+          </label>
+        </article>
+        <article class="card settings-card">
+          <div class="settings-card-header">
+            <div>
+              <p class="home-eyebrow" data-i18n="settings.preview.kicker"></p>
+              <div class="card-title" data-i18n="settings.preview.title"></div>
+            </div>
+          </div>
+          <div class="theme-preview-grid">
+            ${THEMES.map((theme) => `
+              <button class="theme-preview ${theme.id === state.theme ? 'active' : ''}" type="button" data-theme-preview="${theme.id}">
+                <span class="theme-preview-swatches">
+                  <span class="theme-swatch accent"></span>
+                  <span class="theme-swatch secondary"></span>
+                  <span class="theme-swatch tertiary"></span>
+                  <span class="theme-swatch surface"></span>
+                </span>
+                <span class="theme-preview-copy">
+                  <strong data-i18n="${theme.labelKey}"></strong>
+                  <span data-i18n="${theme.toneKey}"></span>
+                </span>
+              </button>
+            `).join('')}
+          </div>
+        </article>
+      </section>
     `;
     } else if (state.view === 'help') {
         cleanupRoomSession();
@@ -299,19 +366,42 @@ function renderRoomContent(): string {
     }
 
     const disableByConnection = roomState.connection !== 'connected' || !!roomState.winnerPlayerId;
+    const layoutSpec = adapter.ui ?? createLayoutSpec({
+        maxPlayers: 8,
+        preferredLayout: 'ring',
+    });
     let bodyHtml = '';
 
-    if (adapter.id === highcardAdapter.id) {
-        bodyHtml = renderSingleCardHighestWinsRoom(viewModel as Parameters<typeof renderSingleCardHighestWinsRoom>[0]);
-    } else if (adapter.id === krigAdapter.id) {
-        bodyHtml = renderKrigRoom(viewModel as Parameters<typeof renderKrigRoom>[0]);
-    } else {
-        bodyHtml = renderSnydRoom(viewModel as Parameters<typeof renderSnydRoom>[0], {
-            disablePlay: disableByConnection
-                || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn
-                || (viewModel as Parameters<typeof renderSnydRoom>[0]).selectedCount === 0,
-            disableCallSnyd: disableByConnection || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn,
+    if (adapter.id === casinoAdapter.id) {
+        const casinoViewModel = viewModel as Parameters<typeof renderCasinoRoom>[0];
+        const validStackIds = new Set(casinoViewModel.tableStacks.map((stack) => stack.stackId));
+        casinoSelectedStackIds = casinoSelectedStackIds.filter((stackId) => validStackIds.has(stackId));
+        bodyHtml = renderCasinoRoom(casinoViewModel, {
+            disablePlay: disableByConnection || !casinoViewModel.isMyTurn || !casinoViewModel.selectedHandCard,
+            disableBuild: disableByConnection || !casinoViewModel.isMyTurn || !casinoViewModel.selectedHandCard || casinoSelectedStackIds.length !== 1,
+            selectedStackIds: casinoSelectedStackIds,
         });
+    } else if (adapter.id === highcardAdapter.id) {
+        bodyHtml = renderSingleCardHighestWinsRoom(
+            viewModel as Parameters<typeof renderSingleCardHighestWinsRoom>[0],
+            layoutSpec,
+        );
+    } else if (adapter.id === krigAdapter.id) {
+        bodyHtml = renderKrigRoom(
+            viewModel as Parameters<typeof renderKrigRoom>[0],
+            layoutSpec,
+        );
+    } else {
+        bodyHtml = renderSnydRoom(
+            viewModel as Parameters<typeof renderSnydRoom>[0],
+            {
+                disablePlay: disableByConnection
+                    || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn
+                    || (viewModel as Parameters<typeof renderSnydRoom>[0]).selectedCount === 0,
+                disableCallSnyd: disableByConnection || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn,
+            },
+            layoutSpec,
+        );
     }
 
     return renderRoomFrame({
@@ -365,6 +455,7 @@ function cleanupRoomSession() {
     roomSession = null;
     roomSessionKey = null;
     highCardAutoStartKey = null;
+    casinoSelectedStackIds = [];
 }
 
 function resolveAdapter(game: string): GenericAdapter | undefined {
@@ -382,6 +473,7 @@ function playCards() {
     </div>
     <div class="grid">
       ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.open')}
+      ${gameCard('casino', '2-player Casino with capture sums and full deck.', 'action.open')}
       ${gameCard('single.card.highest.wins', 'Backend-ready: single player vs dealer high-card game.', 'action.open')}
       ${gameCard('game.500', 'Kortspil med stik og meldinger (placeholder).', 'action.open')}
       ${gameCard('game.dice', 'Terningebaseret spil (placeholder).', 'action.open')}
@@ -398,11 +490,26 @@ function renderHomepage() {
           <span class="pill home-kicker" data-i18n="home.hero.kicker"></span>
           <h1 class="home-hero-title" data-i18n="home.title"></h1>
           <p class="sub home-hero-subtitle" data-i18n="home.subtitle"></p>
+          <div class="home-hero-actions">
+            <span class="pill home-pill-real" data-i18n="home.status.real"></span>
+            <span class="pill home-theme-pill" data-i18n="home.hero.themeReady"></span>
+          </div>
         </div>
 
-        <aside class="home-hero-note">
-          <span class="pill home-pill-real" data-i18n="home.status.real"></span>
-          <p class="card-desc home-note-text" data-i18n="home.hero.note"></p>
+        <aside class="home-hero-note-grid">
+          <div class="home-hero-note home-hero-note-primary">
+            <p class="home-eyebrow" data-i18n="home.hero.noteTitle"></p>
+            <p class="card-desc home-note-text" data-i18n="home.hero.note"></p>
+          </div>
+          <div class="home-hero-note home-hero-note-compact">
+            <p class="home-eyebrow" data-i18n="home.hero.themesTitle"></p>
+            <div class="home-theme-stack" aria-hidden="true">
+              ${THEMES.map((theme) => `
+                <span class="home-theme-dot home-theme-dot-${theme.id}"></span>
+              `).join('')}
+            </div>
+            <p class="card-desc home-note-text" data-i18n="home.hero.themesBody"></p>
+          </div>
         </aside>
       </section>
 
@@ -547,11 +654,36 @@ function wireEvents() {
         renderApp();
     });
 
+    const themeSelect = document.getElementById('themeSelect') as HTMLSelectElement | null;
+    if (themeSelect) {
+        themeSelect.value = state.theme;
+        themeSelect.addEventListener('change', () => {
+            const nextTheme = themeSelect.value;
+            if (!THEMES.some((theme) => theme.id === nextTheme)) {
+                themeSelect.value = state.theme;
+                return;
+            }
+            setTheme(nextTheme as ThemeId);
+            renderApp();
+        });
+    }
+
+    document.querySelectorAll<HTMLButtonElement>('[data-theme-preview]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextTheme = button.dataset.themePreview;
+            if (!nextTheme || !THEMES.some((theme) => theme.id === nextTheme)) {
+                return;
+            }
+            setTheme(nextTheme as ThemeId);
+            renderApp();
+        });
+    });
+
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-game"]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const game = normalizeGameKey(btn.dataset.game ?? '');
-            if (game === HIGHCARD_GAME_ID) {
-                void startHighCardQuickplay();
+            if (game === HIGHCARD_GAME_ID || game === 'casino') {
+                void startRealtimeRoom(game);
                 return;
             }
 
@@ -614,6 +746,46 @@ function wireRoomEvents() {
     callSnydButton?.addEventListener('click', () => {
         roomSession?.sendIntent({ type: 'CALL_SNYD' });
     });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="casino-toggle-table"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const stackId = button.dataset.stackId;
+            if (!stackId) return;
+            if (casinoSelectedStackIds.includes(stackId)) {
+                casinoSelectedStackIds = casinoSelectedStackIds.filter((id) => id !== stackId);
+            } else {
+                casinoSelectedStackIds = [...casinoSelectedStackIds, stackId];
+            }
+            renderView();
+        });
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="casino-play"]')?.addEventListener('click', () => {
+        const casinoViewModel = roomSession?.toViewModel() as { selectedHandCard?: string | null } | undefined;
+        const handCard = casinoViewModel?.selectedHandCard;
+        if (!handCard) return;
+        roomSession?.sendIntent({
+            type: 'CASINO_PLAY_MOVE',
+            handCard,
+            captureStackIds: casinoSelectedStackIds,
+        });
+        casinoSelectedStackIds = [];
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="casino-build"]')?.addEventListener('click', () => {
+        const casinoViewModel = roomSession?.toViewModel() as { selectedHandCard?: string | null } | undefined;
+        const handCard = casinoViewModel?.selectedHandCard;
+        const targetStackId = casinoSelectedStackIds[0];
+        if (!handCard || !targetStackId) return;
+        roomSession?.sendIntent({
+            type: 'CASINO_BUILD_STACK',
+            handCard,
+            targetStackId,
+        });
+        casinoSelectedStackIds = [];
+    });
+
+    triggerCasinoQuickMerge();
 }
 
 function wireLobbyEvents() {
@@ -710,11 +882,13 @@ async function handleCreateLobby() {
     renderView();
 
     try {
+        const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
             gameType: FALLBACK_LOBBY_GAME_ID,
             isPrivate: lobbyBrowserState.createPrivate,
-            playerId: randomToken(),
-            token: randomToken(),
+            playerId: playerIdentity.playerId,
+            username: playerIdentity.username ?? undefined,
+            token: playerIdentity.token,
         });
 
         navigate({
@@ -749,10 +923,12 @@ async function handleJoinByCode(rawRoomCode: string) {
     renderView();
 
     try {
+        const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
-            playerId: randomToken(),
-            token: randomToken(),
+            playerId: playerIdentity.playerId,
+            username: playerIdentity.username ?? undefined,
+            token: playerIdentity.token,
         });
 
         navigate({
@@ -900,7 +1076,12 @@ async function syncAuthState(renderAfter = true) {
         const user = data.session?.user ?? null;
 
         authUiState.initialized = true;
-        authUiState.user = user ? { id: user.id } : null;
+        if (user) {
+            await upsertProfileFromAuth(user);
+        }
+        authUiState.user = user
+            ? { id: user.id, username: await loadProfileUsername(user.id, user.user_metadata?.username) }
+            : null;
         authUiState.avatar = user ? await loadAvatarData(user.id) : null;
     } catch (error) {
         console.error('Failed to sync auth UI', error);
@@ -935,6 +1116,45 @@ async function loadAvatarData(userId: string): Promise<{ color: string; shape: s
     };
 }
 
+async function loadProfileUsername(userId: string, fallbackUsername?: string | null): Promise<string | null> {
+    if (!supabase) {
+        return normalizeUsernameValue(fallbackUsername);
+    }
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .single();
+
+    return normalizeUsernameValue(profile?.username) ?? normalizeUsernameValue(fallbackUsername);
+}
+
+async function upsertProfileFromAuth(user: {
+    id: string;
+    user_metadata?: { username?: string | null; country?: string | null } | null;
+}): Promise<void> {
+    if (!supabase) {
+        return;
+    }
+
+    const username = normalizeUsernameValue(user.user_metadata?.username);
+    const country = normalizeUsernameValue(user.user_metadata?.country);
+    if (!username && !country) {
+        return;
+    }
+
+    await supabase.from('profiles').upsert({
+        id: user.id,
+        username,
+        country,
+    });
+}
+
+function normalizeUsernameValue(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 export function navigate(target: Partial<AppRoute> | string) {
     if (typeof target === 'string') {
         window.history.pushState({}, '', target);
@@ -953,36 +1173,94 @@ function syncStateFromRoute() {
 
 function normalizeGameKey(game: string): string {
     if (game === 'game.cheat') return 'snyd';
+    if (game === 'casino') return 'casino';
     if (game === 'single.card.highest.wins') return HIGHCARD_GAME_ID;
     if (game === 'single-card-highest-wins') return HIGHCARD_GAME_ID;
     return game;
 }
 
-async function startHighCardQuickplay() {
+async function startRealtimeRoom(gameType: string) {
     try {
-        const playerId = randomToken();
         const token = randomToken();
+        const playerId = token;
         const created = await createRoom({
-            gameType: HIGHCARD_GAME_ID,
+            gameType,
             playerId,
             token,
         });
 
         navigate({
             view: 'room',
-            game: HIGHCARD_GAME_ID,
+            game: gameType,
             room: created.roomCode,
             token: created.token,
             mock: false,
         });
     } catch (error) {
-        const message = toErrorMessage(error, 'Failed to start HighCard quickplay');
+        const message = toErrorMessage(error, `Failed to start ${gameType} room`);
         alert(message);
     }
 }
 
+function triggerCasinoQuickMerge() {
+    if (!roomSession) return;
+    const roomState = roomSession.getState();
+    if (roomState.game.toLowerCase() !== 'casino') return;
+    if (roomState.selectedHandCards.length > 0) return;
+    if (casinoSelectedStackIds.length < 2) return;
+
+    const casinoViewModel = roomSession.toViewModel() as {
+        hand?: Array<{ card: string }>;
+        tableStacks?: Array<{ stackId: string; total: number }>;
+    };
+    const selectedStacks = (casinoViewModel.tableStacks ?? []).filter((stack) => casinoSelectedStackIds.includes(stack.stackId));
+    if (selectedStacks.length !== casinoSelectedStackIds.length) return;
+
+    const total = selectedStacks.reduce((sum, stack) => sum + stack.total, 0);
+    const valueMap = readCasinoValueMap(roomState.publicState);
+    const hasMatchingHandCard = (casinoViewModel.hand ?? []).some(({ card }) => matchesCasinoTotal(card, total, valueMap));
+    if (!hasMatchingHandCard) return;
+
+    roomSession.sendIntent({
+        type: 'CASINO_MERGE_STACKS',
+        stackIds: casinoSelectedStackIds,
+    });
+    casinoSelectedStackIds = [];
+}
+
+function matchesCasinoTotal(cardCode: string, total: number, valueMap: Record<string, number[]> | null): boolean {
+    const configured = valueMap?.[cardCode];
+    if (Array.isArray(configured) && configured.every((value) => typeof value === 'number')) {
+        return configured.includes(total);
+    }
+
+    const rank = cardCode.slice(1).toUpperCase();
+    if (rank === 'A') return total === 1 || total === 14;
+    if (rank === 'J') return total === 11;
+    if (rank === 'Q') return total === 12;
+    if (rank === 'K') return total === 13;
+    return Number(rank) === total;
+}
+
+function readCasinoValueMap(publicState: Record<string, unknown> | null): Record<string, number[]> | null {
+    const rules = publicState?.rules;
+    if (!rules || typeof rules !== 'object') return null;
+    const valueMap = (rules as { valueMap?: unknown }).valueMap;
+    if (!valueMap || typeof valueMap !== 'object') return null;
+    return valueMap as Record<string, number[]>;
+}
+
 function randomToken(): string {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getLobbyIdentity() {
+    const authenticatedUserId = authUiState.user?.id?.trim();
+    return {
+        playerId: authenticatedUserId || randomToken(),
+        username: authUiState.user?.username?.trim() || null,
+        token: randomToken(),
+    };
 }
 
 function sanitizeRoomCode(value: string): string {
@@ -1005,16 +1283,30 @@ function readLobbyPlayers(value: unknown, hostPlayerId: string | null, selfPlaye
     return value
         .map((entry) => {
             if (typeof entry === 'string') {
-                return entry;
+                return {
+                    playerId: entry,
+                    username: entry,
+                };
             }
             const record = toRecord(entry);
-            return typeof record.playerId === 'string' ? record.playerId : null;
+            if (typeof record.playerId !== 'string') {
+                return null;
+            }
+            return {
+                playerId: record.playerId,
+                username: typeof record.username === 'string' && record.username.trim()
+                    ? record.username.trim()
+                    : (record.playerId === selfPlayerId && authUiState.user?.username?.trim()
+                        ? authUiState.user.username.trim()
+                        : 'Guest'),
+            };
         })
-        .filter((playerId): playerId is string => typeof playerId === 'string')
-        .map((playerId) => ({
-            playerId,
-            isHost: playerId === hostPlayerId,
-            isSelf: playerId === selfPlayerId,
+        .filter((player): player is { playerId: string; username: string } => player !== null)
+        .map((player) => ({
+            playerId: player.playerId,
+            username: player.username || player.playerId,
+            isHost: player.playerId === hostPlayerId,
+            isSelf: player.playerId === selfPlayerId,
         }));
 }
 
@@ -1025,22 +1317,36 @@ window.addEventListener('popstate', () => {
 
 if (isSupabaseConfigured && supabase) {
     supabase.auth.onAuthStateChange((_event: unknown, session: unknown) => {
-        type AuthSession = { user?: { id: string } | null } | null;
+        type AuthSession = {
+            user?: {
+                id: string;
+                user_metadata?: { username?: string | null; country?: string | null } | null;
+            } | null;
+        } | null;
         const currentSession = session as AuthSession;
         authUiState.initialized = true;
-        authUiState.user = currentSession?.user ? { id: currentSession.user.id } : null;
+        authUiState.user = currentSession?.user ? { id: currentSession.user.id, username: null } : null;
         if (!currentSession?.user) {
             authUiState.avatar = null;
             renderApp();
             return;
         }
 
-        void loadAvatarData(currentSession.user.id)
-            .then((avatar) => {
+        void Promise.all([
+            upsertProfileFromAuth(currentSession.user),
+            loadAvatarData(currentSession.user.id),
+        ])
+            .then(async ([, avatar]) => {
+                const username = await loadProfileUsername(
+                    currentSession.user!.id,
+                    currentSession.user?.user_metadata?.username
+                );
+                authUiState.user = { id: currentSession.user!.id, username };
                 authUiState.avatar = avatar;
                 renderApp();
             })
             .catch(() => {
+                authUiState.user = { id: currentSession.user!.id, username: null };
                 authUiState.avatar = null;
                 renderApp();
             });

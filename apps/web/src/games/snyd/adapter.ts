@@ -1,4 +1,5 @@
 import type { GameAdapter } from '../../game-room/types.js';
+import { createLayoutSpec } from '../../game-room/ui.js';
 import type { SnydPrivateState, SnydPublicState } from '../../net/protocol.js';
 import { buildSnydAction } from './actions.js';
 import type { SnydViewModel } from './view.js';
@@ -8,6 +9,12 @@ import type { SnydViewModel } from './view.js';
  */
 export const snydAdapter: GameAdapter<SnydPublicState, SnydPrivateState, SnydViewModel> = {
     id: 'snyd',
+    ui: createLayoutSpec({
+        maxPlayers: 8,
+        preferredLayout: 'ring',
+        centerBoardMode: 'claim',
+        seatRenderMode: 'stack',
+    }),
 
     canHandle(game: string) {
         return game.toLowerCase() === 'snyd' || game.toLowerCase() === 'game.cheat';

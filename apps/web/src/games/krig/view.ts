@@ -1,3 +1,6 @@
+import type { GameRoomLayoutSpec, SeatViewModel } from '../../game-room/types.js';
+import { fallbackLayoutMode, renderCard, renderGameRoomSections, renderHandCards } from '../../game-room/ui.js';
+
 export type KrigViewModel = {
     roomCode: string;
     round: number;
@@ -16,72 +19,55 @@ export type KrigViewModel = {
     selectedCard: string | null;
 };
 
-export function renderKrigRoom(viewModel: KrigViewModel): string {
-    const handHtml = viewModel.hand.map((item, index) => `
-      <button class="play-card ${item.selected ? 'selected' : ''}" data-action="toggle-card" data-card="${item.card}" style="--card-offset:${index * 16}px">
-        ${renderFaceCard(item.card)}
-      </button>
-    `).join('');
+export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutSpec): string {
+    const layoutForPlayers: GameRoomLayoutSpec = {
+        ...layout,
+        preferredLayout: fallbackLayoutMode(viewModel.players.length),
+    };
 
-    const playersHtml = viewModel.players.map((player) => `
-      <div class="single-card-seat">
-        <span class="pill">${player.isSelf ? 'You' : player.playerId}</span>
-        <span class="pill">Score ${player.score}</span>
-        <span class="pill">${player.isCurrentTurn ? 'Your turn' : 'Waiting'}</span>
-        <div class="single-card-center-card">${player.tableCard ? renderFaceCard(player.tableCard) : '<span class="card-desc">No card yet</span>'}</div>
-      </div>
-    `).join('');
+    const seats: SeatViewModel[] = viewModel.players.map((player) => ({
+        playerId: player.playerId,
+        label: player.isSelf ? 'You' : player.playerId,
+        isSelf: player.isSelf,
+        isCurrentTurn: player.isCurrentTurn,
+        badges: [`Score ${player.score}`],
+        tableCard: player.tableCard
+            ? { kind: 'face', cardCode: player.tableCard, size: 'sm' }
+            : { kind: 'empty', label: 'No card', size: 'sm' },
+    }));
 
-    return `
-    <section class="card room-card room-table-card">
-      <div class="room-header-row">
-        <div class="pill">Room: ${viewModel.roomCode}</div>
-        <div class="pill">Game: Krig</div>
-        <div class="pill">Round: ${viewModel.round}/${viewModel.totalRounds}</div>
-      </div>
-
-      <div class="single-card-board">
-        ${playersHtml}
-      </div>
-
-      <div class="private-panel">
-        <div class="card-title">Quick multiplayer test game</div>
-        <p class="card-desc">${viewModel.lastBattleText}</p>
-        <div class="private-hand-row">
-          ${handHtml}
-        </div>
-
-        <div class="card-row room-actions">
-          <span class="pill">Selected: ${viewModel.selectedCard ?? '-'}</span>
-          <button class="btn primary" data-action="play-selected" ${!viewModel.selectedCard ? 'disabled' : ''}>Play selected card</button>
-        </div>
-      </div>
-    </section>
-  `;
-}
-
-function renderFaceCard(cardCode: string): string {
-    const parsed = parseCardCode(cardCode);
-    const colorClass = parsed.suitColor === 'red' ? 'red' : 'black';
-
-    return `
-    <span class="play-card-face ${colorClass}">
-      <span class="play-card-corner">${parsed.rank}${parsed.suit}</span>
-      <span class="play-card-center">${parsed.suit}</span>
-      <span class="play-card-corner rotate">${parsed.rank}${parsed.suit}</span>
-    </span>
-  `;
-}
-
-function parseCardCode(cardCode: string): { rank: string; suit: string; suitColor: 'red' | 'black' } {
-    const normalized = cardCode.trim().toUpperCase();
-    const suitKey = normalized.charAt(0);
-    const rank = normalized.slice(1) || '?';
-
-    if (suitKey === 'H') return { rank, suit: '♥', suitColor: 'red' };
-    if (suitKey === 'D') return { rank, suit: '♦', suitColor: 'red' };
-    if (suitKey === 'S') return { rank, suit: '♠', suitColor: 'black' };
-    if (suitKey === 'C') return { rank, suit: '♣', suitColor: 'black' };
-
-    return { rank: normalized, suit: '•', suitColor: 'black' };
+    return renderGameRoomSections({
+        layout: layoutForPlayers,
+        roomClassName: 'room-krig',
+        tableClassName: 'table-krig',
+        headerPills: [
+            `Room: ${viewModel.roomCode}`,
+            'Game: Krig',
+            `Round: ${viewModel.round}/${viewModel.totalRounds}`,
+        ],
+        seats,
+        centerHtml: `
+          <div class="table-center-info">
+            <div class="table-title">Krig</div>
+            <div class="table-center-stat-row">
+              <span class="pill table-center-stat">Players ${viewModel.players.length}</span>
+              <span class="pill table-center-stat">${viewModel.turnPlayerId ? `Turn ${viewModel.turnPlayerId}` : 'Waiting for turn'}</span>
+            </div>
+            <div class="table-sub">${viewModel.lastBattleText}</div>
+          </div>
+        `,
+        trayTitle: 'Quick multiplayer test game',
+        trayDescription: viewModel.lastBattleText,
+        trayBodyHtml: `
+          <div class="private-hand-row">
+            ${renderHandCards(viewModel.hand)}
+          </div>
+        `,
+        trayFooterHtml: `
+          <div class="card-row room-actions">
+            <span class="pill">Selected: ${viewModel.selectedCard ?? '-'}</span>
+            <button class="btn primary" data-action="play-selected" ${!viewModel.selectedCard ? 'disabled' : ''}>Play selected card</button>
+          </div>
+        `,
+    });
 }
