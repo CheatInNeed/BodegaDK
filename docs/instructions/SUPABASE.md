@@ -55,5 +55,8 @@ It reads:
 - `PUBLIC_SUPABASE_URL`
 - `PUBLIC_SUPABASE_ANON_KEY`
 
+For VM deploys, `npm run deploy:update` exports the current public
+Supabase URL and anon key before running the web build.
+
 If these values are missing, the web app still builds, but Supabase
 auth/profile features are disabled.
