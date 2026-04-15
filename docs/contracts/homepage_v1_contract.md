@@ -28,6 +28,8 @@ where support is already verified.
     -   query-param app views: `/?view=home|play|settings|help|room`
 -   `/?view=home` already exists, but currently renders the same game grid
     as `/?view=play`
+-   The web client may apply shared visual themes, but theme switching does
+    not change homepage routing, card inventory, or placeholder/real status
 -   Games discovery is already real through the existing game-card grid and
     `button[data-action="open-game"]` event handling
 -   Quick Play and Profile have partial plumbing elsewhere in the app, but
@@ -61,6 +63,7 @@ where support is already verified.
 -   No global stats system
 -   No new quick play flow
 -   No partial feature wiring disguised as real support
+-   No theme-specific homepage behavior differences beyond presentation
 
 ------------------------------------------------------------------------
 

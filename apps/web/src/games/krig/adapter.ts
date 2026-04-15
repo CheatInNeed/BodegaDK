@@ -1,4 +1,5 @@
 import type { GameAdapter, RoomSessionState, UiIntent } from '../../game-room/types.js';
+import { createLayoutSpec } from '../../game-room/ui.js';
 import type { ClientToServerMessage } from '../../net/protocol.js';
 import type { KrigViewModel } from './view.js';
 
@@ -29,6 +30,12 @@ type KrigPrivateState = {
 
 export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigViewModel> = {
     id: 'krig',
+    ui: createLayoutSpec({
+        maxPlayers: 8,
+        preferredLayout: 'duel',
+        centerBoardMode: 'battle',
+        seatRenderMode: 'revealed-card',
+    }),
 
     canHandle(game: string) {
         return game.toLowerCase() === 'krig';

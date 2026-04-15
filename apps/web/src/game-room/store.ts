@@ -48,7 +48,7 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
     }
 
     if (action.type === 'TOGGLE_CARD') {
-        if (state.game.toLowerCase() === 'highcard') {
+        if (state.game.toLowerCase() === 'highcard' || state.game.toLowerCase() === 'casino') {
             const isSelected = state.selectedHandCards.includes(action.card);
             return {
                 ...state,

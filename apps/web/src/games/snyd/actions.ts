@@ -14,6 +14,10 @@ export function buildSnydAction(intent: UiIntent, state: RoomSessionState): Clie
         };
     }
 
+    if (intent.type !== 'PLAY_SELECTED') {
+        return null;
+    }
+
     const cards = state.selectedHandCards;
     if (cards.length === 0) return null;
 
