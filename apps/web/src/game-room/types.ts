@@ -31,11 +31,21 @@ export type SeatViewModel = {
     label: string;
     isSelf: boolean;
     isCurrentTurn: boolean;
+    stateTone?: 'default' | 'winner' | 'loser' | 'waiting';
     badges?: string[];
     meta?: string | null;
+    callout?: string | null;
     stackCount?: number;
     tableCard?: CardDisplayModel | null;
     positionClass?: SeatPositionClass;
+};
+
+export type KrigPresentationPhase = 'idle' | 'suspense' | 'result';
+
+export type KrigPresentationState = {
+    phase: KrigPresentationPhase;
+    activeBattleRound: number | null;
+    completedBattleRound: number | null;
 };
 
 export type GameRoomLayoutSpec = {
@@ -73,10 +83,12 @@ export type RoomSessionState = {
     selectedHandCards: string[];
     lastError: string | null;
     winnerPlayerId: string | null;
+    krigPresentation: KrigPresentationState;
 };
 
 export type UiIntent =
     | { type: 'PLAY_SELECTED'; claimRank: string }
+    | { type: 'REQUEST_REMATCH' }
     | { type: 'CALL_SNYD' }
     | { type: 'CASINO_PLAY_MOVE'; handCard: string; captureStackIds: string[]; playedValue?: number }
     | { type: 'CASINO_BUILD_STACK'; handCard: string; targetStackId: string; playedValue?: number }
@@ -90,6 +102,7 @@ export type GameAdapter<TPublic extends Record<string, unknown>, TPrivate extend
     canHandle(game: string): boolean;
     ui?: GameRoomLayoutSpec;
     toViewModel(input: {
+        sessionState: RoomSessionState;
         publicState: TPublic | null;
         privateState: TPrivate | null;
         selectedCards: string[];

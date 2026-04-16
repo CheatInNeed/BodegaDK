@@ -1411,10 +1411,28 @@ select.input {
     gap: 8px;
     justify-items: center;
     min-width: 96px;
+    transition: opacity 0.18s ease, transform 0.18s ease, filter 0.18s ease;
 }
 
 .table-seat-panel.current-turn {
     transform: translateY(-2px);
+}
+
+.table-seat-panel-waiting .table-seat-card {
+    filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.14));
+}
+
+.table-seat-panel-winner .table-seat-card .play-card-face,
+.table-seat-panel-winner .table-seat-card .play-card-slot-back {
+    border-color: color-mix(in srgb, var(--color-accent) 74%, white);
+    box-shadow:
+            0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent),
+            0 0 24px color-mix(in srgb, var(--color-accent) 42%, transparent),
+            0 12px 26px rgba(0, 0, 0, 0.28);
+}
+
+.table-seat-panel-loser {
+    opacity: 0.68;
 }
 
 .table-seat-badge-row {
@@ -1440,6 +1458,15 @@ select.input {
     color: var(--color-muted);
     font-size: 12px;
     text-align: center;
+}
+
+.table-seat-callout {
+    color: var(--color-accent);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    animation: table-seat-callout-rise 0.8s ease both;
 }
 
 .table-seat-card {
@@ -1674,6 +1701,18 @@ select.input {
     background: rgba(0, 0, 0, 0.2);
 }
 
+.table-center-info-compact {
+    gap: 10px;
+}
+
+.table-center-prompt {
+    max-width: 26ch;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
 .private-panel-copy {
     margin-bottom: 0;
 }
@@ -1740,12 +1779,101 @@ select.input {
     box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
 }
 
+.room-krig .table-seat-card .play-card-slot-back {
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
+}
+
 .room-krig .table-center-info {
     color: color-mix(in srgb, var(--color-text) 58%, transparent);
 }
 
+.room-krig .table-center-prompt {
+    color: color-mix(in srgb, var(--color-text-strong) 82%, transparent);
+}
+
 .room-krig .private-panel {
     border-top: 1px solid color-mix(in srgb, var(--color-danger) 24%, transparent);
+}
+
+.krig-postgame-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(8, 8, 8, 0.44);
+    z-index: 6;
+}
+
+.krig-postgame-card {
+    width: min(100%, 420px);
+    display: grid;
+    gap: 16px;
+    padding: 28px;
+    border-radius: 28px;
+    background:
+            linear-gradient(180deg, rgba(26, 20, 18, 0.96), rgba(14, 11, 10, 0.96));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 26%, transparent);
+    box-shadow: 0 28px 60px rgba(0, 0, 0, 0.38);
+    text-align: left;
+}
+
+.krig-postgame-kicker {
+    color: var(--color-accent);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.krig-postgame-title {
+    color: var(--color-text-strong);
+    font-family: var(--font);
+    font-size: 36px;
+    line-height: 1;
+}
+
+.krig-postgame-scores {
+    display: grid;
+    gap: 10px;
+}
+
+.krig-postgame-score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.krig-postgame-note {
+    margin: 0;
+    color: color-mix(in srgb, var(--color-text) 84%, transparent);
+    line-height: 1.5;
+}
+
+.krig-postgame-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+@keyframes table-seat-callout-rise {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    30% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-12px);
+    }
 }
 
 .table-snyd {

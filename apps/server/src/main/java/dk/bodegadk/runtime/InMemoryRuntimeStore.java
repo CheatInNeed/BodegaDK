@@ -389,6 +389,7 @@ public class InMemoryRuntimeStore {
         }
 
         RoomMutation mutation;
+        boolean resetKrigState = false;
         synchronized (room) {
             int participantIndex = findParticipantIndex(room.participants, playerId);
             if (participantIndex < 0) {
@@ -407,11 +408,18 @@ public class InMemoryRuntimeStore {
                 if (Objects.equals(room.hostPlayerId, playerId)) {
                     room.hostPlayerId = room.participants.getFirst().playerId();
                 }
+                if (room.status == RoomStatus.IN_GAME && "krig".equals(normalizeGameType(room.selectedGame)) && room.participants.size() < 2) {
+                    room.status = RoomStatus.LOBBY;
+                    resetKrigState = true;
+                }
                 mutation = RoomMutation.updated(toSnapshot(room), playerId);
             }
         }
 
         if (!mutation.deleted()) {
+            if (resetKrigState) {
+                krigStatesByRoom.remove(roomCode);
+            }
             refreshPlayers(roomCode);
         }
         return Optional.of(mutation);
@@ -528,6 +536,7 @@ public class InMemoryRuntimeStore {
     private int maxPlayersFor(String gameType) {
         return switch (normalizeGameType(gameType)) {
             case "casino" -> 2;
+            case "krig" -> 2;
             default -> Integer.MAX_VALUE;
         };
     }

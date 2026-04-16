@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dk.bodegadk.server.domain.engine.GameState;
+import dk.bodegadk.server.domain.games.krig.KrigState;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -152,6 +155,95 @@ class HighCardEnginePortAdapterTest {
         assertNotNull(result.privateUpdates().get("p1"));
         assertNotNull(result.privateUpdates().get("p2"));
         assertEquals("krig", result.publicUpdate().path("selectedGame").asText());
+    }
+
+    @Test
+    void krigFirstSubmissionBroadcastsReadyStateWithoutLeakingCardValue() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
+
+        String roomCode = store.createRoom("krig", false, "p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
+        store.joinRoom(roomCode, "p2", null, "token-p2");
+
+        GameLoopService.LoopResult startResult = service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode()));
+        assertFalse(startResult.isError());
+
+        String p1Card = startResult.privateUpdates().get("p1").path("hand").get(0).asText();
+        GameLoopService.LoopResult playResult = service.handleAction(playCommand(roomCode, "p1", p1Card));
+
+        assertFalse(playResult.isError());
+        assertTrue(playResult.publicUpdate().path("submittedPlayerIds").isArray());
+        assertEquals(1, playResult.publicUpdate().path("submittedPlayerIds").size());
+        assertEquals("p1", playResult.publicUpdate().path("submittedPlayerIds").get(0).asText());
+        assertTrue(playResult.publicUpdate().path("revealedCards").isObject());
+        assertTrue(playResult.publicUpdate().path("revealedCards").path("p1").isNull());
+        assertTrue(playResult.publicUpdate().path("lastBattle").isNull());
+    }
+
+    @Test
+    void krigSecondSubmissionRevealsCardsAfterBothPlayersLockIn() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
+
+        String roomCode = store.createRoom("krig", false, "p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
+        store.joinRoom(roomCode, "p2", null, "token-p2");
+
+        GameLoopService.LoopResult startResult = service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode()));
+        assertFalse(startResult.isError());
+
+        String p1Card = startResult.privateUpdates().get("p1").path("hand").get(0).asText();
+        String p2Card = startResult.privateUpdates().get("p2").path("hand").get(0).asText();
+
+        GameLoopService.LoopResult waitingResult = service.handleAction(playCommand(roomCode, "p1", p1Card));
+        assertFalse(waitingResult.isError());
+
+        GameLoopService.LoopResult resolvedResult = service.handleAction(playCommand(roomCode, "p2", p2Card));
+        assertFalse(resolvedResult.isError());
+
+        assertEquals(0, resolvedResult.publicUpdate().path("submittedPlayerIds").size());
+        assertEquals(p1Card, resolvedResult.publicUpdate().path("revealedCards").path("p1").asText());
+        assertEquals(p2Card, resolvedResult.publicUpdate().path("revealedCards").path("p2").asText());
+        assertEquals(1, resolvedResult.publicUpdate().path("lastBattle").path("round").asInt());
+        assertTrue(resolvedResult.publicUpdate().path("lastBattle").has("winnerPlayerId"));
+    }
+
+    @Test
+    void krigRematchVoteWaitsForOpponentAndThenResetsMatch() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
+
+        String roomCode = store.createRoom("krig", false, "p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
+        store.joinRoom(roomCode, "p2", null, "token-p2");
+        store.markRoomInGame(roomCode, "p1");
+
+        KrigState finished = new KrigState(List.of("p1", "p2"));
+        finished.setPhase(GameState.Phase.FINISHED);
+        finished.setRound(5);
+        finished.scores().put("p1", 3);
+        finished.scores().put("p2", 2);
+        finished.setWinnerPlayerId("p1");
+        store.saveKrigState(roomCode, finished);
+
+        GameLoopService.LoopResult firstVote = service.handleAction(command(roomCode, "p1", "REQUEST_REMATCH", JsonNodeFactory.instance.objectNode()));
+        assertFalse(firstVote.isError());
+        assertEquals("GAME_OVER", firstVote.publicUpdate().path("gamePhase").asText());
+        assertEquals(1, firstVote.publicUpdate().path("rematchPlayerIds").size());
+        assertEquals("p1", firstVote.publicUpdate().path("rematchPlayerIds").get(0).asText());
+
+        GameLoopService.LoopResult secondVote = service.handleAction(command(roomCode, "p2", "REQUEST_REMATCH", JsonNodeFactory.instance.objectNode()));
+        assertFalse(secondVote.isError());
+        assertEquals("PLAYING", secondVote.publicUpdate().path("gamePhase").asText());
+        assertEquals(1, secondVote.publicUpdate().path("round").asInt());
+        assertEquals(0, secondVote.publicUpdate().path("scores").path("p1").asInt());
+        assertEquals(0, secondVote.publicUpdate().path("scores").path("p2").asInt());
+        assertEquals(5, secondVote.privateUpdates().get("p1").path("hand").size());
+        assertEquals(5, secondVote.privateUpdates().get("p2").path("hand").size());
     }
 
     private GameLoopService.ActionCommand playCommand(String roomCode, String playerId, String cardCode) {
