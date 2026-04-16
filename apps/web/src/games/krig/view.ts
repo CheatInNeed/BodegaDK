@@ -6,9 +6,11 @@ export type KrigViewModel = {
     round: number;
     totalRounds: number;
     turnPlayerId: string | null;
+    turnPlayerName: string;
     selfPlayerId: string | null;
     players: Array<{
         playerId: string;
+        displayName: string;
         score: number;
         tableCard: string | null;
         isSelf: boolean;
@@ -27,7 +29,7 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
 
     const seats: SeatViewModel[] = viewModel.players.map((player) => ({
         playerId: player.playerId,
-        label: player.isSelf ? 'You' : player.playerId,
+        label: player.isSelf ? 'You' : player.displayName,
         isSelf: player.isSelf,
         isCurrentTurn: player.isCurrentTurn,
         badges: [`Score ${player.score}`],
@@ -51,7 +53,7 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
             <div class="table-title">Krig</div>
             <div class="table-center-stat-row">
               <span class="pill table-center-stat">Players ${viewModel.players.length}</span>
-              <span class="pill table-center-stat">${viewModel.turnPlayerId ? `Turn ${viewModel.turnPlayerId}` : 'Waiting for turn'}</span>
+              <span class="pill table-center-stat">${viewModel.turnPlayerId ? `Turn ${viewModel.turnPlayerName}` : 'Waiting for turn'}</span>
             </div>
             <div class="table-sub">${viewModel.lastBattleText}</div>
           </div>

@@ -1,4 +1,6 @@
+import { resolvePlayerName } from '../../game-room/player-display.js';
 import type { GameAdapter } from '../../game-room/types.js';
+import type { PlayerRef } from '../../net/protocol.js';
 import { buildCasinoAction } from './actions.js';
 import type { CasinoViewModel } from './view.js';
 
@@ -12,7 +14,7 @@ type CasinoTableStack = {
 
 type CasinoPublicState = {
     roomCode?: string;
-    players?: string[];
+    players?: PlayerRef[];
     dealerPlayerId?: string | null;
     turnPlayerId?: string | null;
     tableStacks?: CasinoTableStack[];
@@ -36,7 +38,7 @@ export const casinoAdapter: GameAdapter<CasinoPublicState, CasinoPrivateState, C
         return game.toLowerCase() === 'casino';
     },
 
-    toViewModel({ publicState, privateState, selectedCards, selfPlayerId }) {
+    toViewModel({ publicState, privateState, selectedCards, selfPlayerId, playerNames }) {
         const selectedHandCard = selectedCards[0] ?? null;
         const handCodes = Array.isArray(privateState?.hand)
             ? privateState.hand.filter((card): card is string => typeof card === 'string')
@@ -45,9 +47,14 @@ export const casinoAdapter: GameAdapter<CasinoPublicState, CasinoPrivateState, C
         return {
             roomCode: typeof publicState?.roomCode === 'string' ? publicState.roomCode : '-',
             players: Array.isArray(publicState?.players)
-                ? publicState.players.filter((player): player is string => typeof player === 'string')
+                ? publicState.players
+                    .map((player) => typeof player === 'string'
+                        ? { playerId: player, displayName: resolvePlayerName(playerNames, player) }
+                        : { playerId: player.playerId, displayName: resolvePlayerName(playerNames, player.playerId) })
+                    .filter((player): player is { playerId: string; displayName: string } => typeof player.playerId === 'string')
                 : [],
             turnPlayerId: typeof publicState?.turnPlayerId === 'string' ? publicState.turnPlayerId : null,
+            turnPlayerName: resolvePlayerName(playerNames, publicState?.turnPlayerId),
             dealerPlayerId: typeof publicState?.dealerPlayerId === 'string' ? publicState.dealerPlayerId : null,
             tableStacks: Array.isArray(publicState?.tableStacks)
                 ? publicState.tableStacks.filter(isCasinoStack)

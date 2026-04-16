@@ -4,6 +4,7 @@ import { renderLobbyBrowser, renderLobbyRoom, type LobbyRoomViewModel } from './
 import { createGameRoomSession } from './game-room/session.js';
 import type { GameAdapter } from './game-room/types.js';
 import { createLayoutSpec } from './game-room/ui.js';
+import { buildPlayerNameMap, formatPlayerDisplayName, resolvePlayerName } from './game-room/player-display.js';
 import { renderRoomError, renderRoomFrame } from './game-room/view.js';
 import { highcardAdapter } from './games/highcard/adapter.js';
 import { krigAdapter } from './games/krig/adapter.js';
@@ -310,6 +311,7 @@ function renderLobbyContent(): string {
         roomCode: route.room,
         connectionLabel: roomState?.connection ?? 'connecting',
         hostPlayerId,
+        hostDisplayName: players.find((player) => player.playerId === hostPlayerId)?.username ?? formatPlayerDisplayName(hostPlayerId),
         selfPlayerId: roomState?.playerId ?? null,
         selectedGame,
         status,
@@ -337,13 +339,18 @@ function renderRoomContent(): string {
 
     const session = ensureRoomSession(route.game, route.room, route.token, route.mock, adapter);
     const roomState = session?.getState();
-    const viewModel = session?.toViewModel();
+    const selfUsername = authUiState.user?.username?.trim() || null;
+    const viewModel = session?.toViewModel({ selfUsername });
 
     if (!roomState || !viewModel) {
         return renderRoomError('Unable to initialize room session');
     }
 
     const roomPublicState = toRecord(roomState.publicState);
+    const playerNames = buildPlayerNameMap(roomPublicState.players, {
+        selfPlayerId: roomState.playerId,
+        selfUsername,
+    });
     const status = typeof roomPublicState.status === 'string' ? roomPublicState.status : null;
     const hostPlayerId = typeof roomPublicState.hostPlayerId === 'string' ? roomPublicState.hostPlayerId : null;
     const autoStartKey = `${route.room}|${route.token}|${route.game}`;
@@ -409,6 +416,7 @@ function renderRoomContent(): string {
         gameTitle: route.game,
         errorMessage: roomState.lastError,
         winnerPlayerId: roomState.winnerPlayerId,
+        winnerLabel: resolvePlayerName(playerNames, roomState.winnerPlayerId),
         bodyHtml,
     });
 }
@@ -1285,7 +1293,7 @@ function readLobbyPlayers(value: unknown, hostPlayerId: string | null, selfPlaye
             if (typeof entry === 'string') {
                 return {
                     playerId: entry,
-                    username: entry,
+                    username: formatPlayerDisplayName(entry),
                 };
             }
             const record = toRecord(entry);
@@ -1298,7 +1306,7 @@ function readLobbyPlayers(value: unknown, hostPlayerId: string | null, selfPlaye
                     ? record.username.trim()
                     : (record.playerId === selfPlayerId && authUiState.user?.username?.trim()
                         ? authUiState.user.username.trim()
-                        : 'Guest'),
+                    : formatPlayerDisplayName(record.playerId)),
             };
         })
         .filter((player): player is { playerId: string; username: string } => player !== null)

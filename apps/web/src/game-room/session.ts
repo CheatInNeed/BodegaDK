@@ -1,4 +1,5 @@
 import { createRoomStore } from './store.js';
+import { buildPlayerNameMap } from './player-display.js';
 import type { GameAdapter, RoomBootstrap, RoomSessionState, RoomTransport, UiIntent } from './types.js';
 import { createWebSocketTransport } from './transport/ws-client.js';
 import { createMockServerTransport } from '../net/mock-server.js';
@@ -109,13 +110,17 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         transport?.send(message);
     };
 
-    const toViewModel = () => {
+    const toViewModel = (viewOptions?: { selfUsername?: string | null }) => {
         const state = store.getState();
         return options.adapter.toViewModel({
             publicState: state.publicState as TPublic | null,
             privateState: state.privateState as TPrivate | null,
             selectedCards: state.selectedHandCards,
             selfPlayerId: state.playerId,
+            playerNames: buildPlayerNameMap((state.publicState as { players?: unknown } | null)?.players, {
+                selfPlayerId: state.playerId,
+                selfUsername: viewOptions?.selfUsername ?? null,
+            }),
         });
     };
 
