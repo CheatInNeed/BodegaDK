@@ -93,7 +93,7 @@ export function renderLobbyBrowser(params: {
             <p class="card-desc">Start a new room and become the host right away.</p>
             <label class="lobby-toggle">
               <input type="checkbox" id="createPrivateToggle" ${params.createPrivate ? 'checked' : ''} />
-              <span>${params.createPrivate ? 'Private room' : 'Public room'}</span>
+              <span>Private room</span>
             </label>
             <button class="btn primary full-width" data-action="create-lobby" ${params.busy ? 'disabled' : ''}>Create Lobby</button>
           </div>

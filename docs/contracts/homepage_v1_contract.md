@@ -29,7 +29,7 @@ where support is already verified.
 -   `/?view=home` already exists, but currently renders the same game grid
     as `/?view=play`
 -   The web client may apply shared visual themes, but theme switching does
-    not change homepage routing, card inventory, or placeholder/real status
+    not change homepage routing, card inventory, or behavior
 -   Games discovery is already real through the existing game-card grid and
     `button[data-action="open-game"]` event handling
 -   Lobby creation, join-by-code, and the dedicated lobby-browser route are
@@ -47,7 +47,8 @@ where support is already verified.
 -   Add a dedicated homepage render path
 -   Render a homepage layout composed of cards
 -   Reuse the existing real game grid/card UI for the Games section
--   Add placeholder cards for unsupported features
+-   Add placeholder cards for unsupported features using subtle disabled
+    styling rather than developer-status scaffolding
 -   Promote the homepage matchmaking hub from placeholder to real
 -   Add minimal CSS for homepage layout and responsive behavior
 -   Add homepage-specific i18n strings
@@ -146,9 +147,9 @@ Clarification:
 
 -   The homepage now shows two real cards: `Rooms / Create / Join`
     and `Games`
--   Remaining unsupported cards must still render with placeholder treatment
-    (`home-placeholder-card`, placeholder pill, disabled "coming soon"
-    button)
+-   Remaining unsupported cards must render as subtle disabled cards with a
+    small muted availability label rather than placeholder pills or action
+    buttons
 
 ------------------------------------------------------------------------
 
@@ -169,7 +170,8 @@ Clarification:
     -   navigating to the dedicated lobby browser
 4.  Existing game-card interactions still work from the homepage Games
     section
-5.  Unsupported cards are visibly placeholders
+5.  Unsupported cards are visibly unavailable without showing developer
+    status badges or button-heavy scaffolding
 6.  Layout is responsive
 7.  `/?view=play` remains the existing game-selection view
 8.  No router, API, or protocol changes are introduced
