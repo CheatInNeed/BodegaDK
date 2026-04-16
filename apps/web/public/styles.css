@@ -677,6 +677,65 @@ select.input {
     opacity: 0.9;
 }
 
+.home-matchmaking-card {
+    background:
+            radial-gradient(360px 180px at 85% 0%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 72%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 22%),
+            var(--gradient-card);
+}
+
+.home-matchmaking-grid,
+.home-matchmaking-actions {
+    display: grid;
+    gap: var(--s3);
+}
+
+.home-matchmaking-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.9fr);
+    align-items: end;
+}
+
+.home-matchmaking-panel {
+    display: grid;
+    gap: var(--s2);
+    padding: var(--s3);
+    border-radius: calc(var(--radius) + 2px);
+    border: 1px solid color-mix(in srgb, var(--color-border-strong) 82%, transparent);
+    background:
+            linear-gradient(180deg, var(--color-card-top), transparent 40%),
+            rgba(0, 0, 0, 0.14);
+}
+
+.home-matchmaking-panel-header {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.home-matchmaking-label {
+    color: var(--color-text-strong);
+    font-size: 0.92rem;
+    font-family: var(--font-ui);
+}
+
+.home-join-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--s2);
+    align-items: center;
+}
+
+.home-join-input {
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    text-align: center;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.home-join-input::placeholder {
+    letter-spacing: 0.32em;
+}
+
 /* Settings */
 .settings-layout {
     display: grid;
@@ -785,6 +844,10 @@ select.input {
         grid-column: span 6;
     }
 
+    .home-matchmaking-grid {
+        grid-template-columns: 1fr;
+    }
+
     .theme-preview-grid {
         grid-template-columns: 1fr;
     }
@@ -810,6 +873,10 @@ select.input {
     .settings-card-header {
         grid-template-columns: 1fr;
         display: grid;
+    }
+
+    .home-join-row {
+        grid-template-columns: 1fr;
     }
 }
 

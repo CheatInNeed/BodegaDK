@@ -7,10 +7,10 @@ Implement a dedicated V1 homepage for `/?view=home` in the web client.
 This homepage must reflect the locked design:
 
 -   **Real**
+    -   Matchmaking hub
     -   Games card / game discovery
 -   **Placeholder**
     -   Continue Game
-    -   Quick Play / Create / Join
     -   Leaderboard
     -   Profile
     -   Invite / Friends
@@ -32,9 +32,9 @@ where support is already verified.
     not change homepage routing, card inventory, or placeholder/real status
 -   Games discovery is already real through the existing game-card grid and
     `button[data-action="open-game"]` event handling
--   Quick Play and Profile have partial plumbing elsewhere in the app, but
-    do not have verified homepage-ready end-to-end support and must remain
-    placeholders in V1
+-   Lobby creation, join-by-code, and the dedicated lobby-browser route are
+    already implemented elsewhere in the app and may be surfaced on the
+    homepage as a single matchmaking hub
 -   `styles.css` currently contains a malformed `.full` rule; homepage work
     may fix CSS correctness where needed for reliable layout rendering
 
@@ -48,6 +48,7 @@ where support is already verified.
 -   Render a homepage layout composed of cards
 -   Reuse the existing real game grid/card UI for the Games section
 -   Add placeholder cards for unsupported features
+-   Promote the homepage matchmaking hub from placeholder to real
 -   Add minimal CSS for homepage layout and responsive behavior
 -   Add homepage-specific i18n strings
 -   Fix CSS syntax issues required for homepage styles to render correctly
@@ -61,8 +62,7 @@ where support is already verified.
 -   No profile data wiring beyond placeholder
 -   No invite/friends system
 -   No global stats system
--   No new quick play flow
--   No partial feature wiring disguised as real support
+-   No new quick play flow beyond reusing existing lobby create/join entry points
 -   No theme-specific homepage behavior differences beyond presentation
 
 ------------------------------------------------------------------------
@@ -71,6 +71,10 @@ where support is already verified.
 
 **If a homepage feature does not already have verified end-to-end
 support, render it as a placeholder card.**
+
+The homepage may expose verified lobby entry points as real actions as
+long as they reuse the existing lobby creation, join, and browser flows
+without changing the underlying lobby route behavior.
 
 ------------------------------------------------------------------------
 
@@ -89,9 +93,11 @@ support, render it as a placeholder card.**
 -   Reuse the existing `playCards()` output for the real Games section
 -   Preserve the existing `button[data-action="open-game"]` behavior exactly
     as it works today
+-   The homepage matchmaking hub must reuse existing lobby logic:
+    -   Join by code uses the existing join flow
+    -   Create room uses the existing room creation flow
+    -   Browse lobbies navigates to the existing dedicated lobby-browser route
 -   Do not surface partial plumbing as real homepage features:
-    -   HighCard quickplay exists elsewhere, but homepage Quick Play remains
-        placeholder
     -   Supabase auth/avatar support exists elsewhere, but homepage Profile
         remains placeholder
 
@@ -104,7 +110,7 @@ Home view
   hero/header text
   top action row
     Continue Game (placeholder)
-    Quick Play / Create / Join (placeholder)
+    Rooms / Create / Join (real matchmaking hub)
   content grid
     Games (real)
     Leaderboard (placeholder)
@@ -123,12 +129,12 @@ The homepage currently renders the following visible cards/sections in
 -   Hero/header section: informational only, not an interactive feature
     card
 -   Continue Game card: placeholder
--   Quick Play / Create / Join card: placeholder
-    -   Quick Play chip: placeholder
-    -   Create Room chip: placeholder
-    -   Join Room chip: placeholder
+-   Rooms / Create / Join card: real
+    -   Join via code input + Join button
+    -   Create Room button
+    -   Open Lobby Browser button
 -   Games card: real
-    -   Reuses the existing `playCards()` output unchanged
+    -   Reuses the existing `playCards()` output with the lobby promo removed
     -   The section itself is real because it exposes the existing game
         discovery and `open-game` interactions
 -   Leaderboard card: placeholder
@@ -138,12 +144,11 @@ The homepage currently renders the following visible cards/sections in
 
 Clarification:
 
--   The homepage must show exactly one real homepage card: `Games`
--   All other homepage cards must render with placeholder treatment
+-   The homepage now shows two real cards: `Rooms / Create / Join`
+    and `Games`
+-   Remaining unsupported cards must still render with placeholder treatment
     (`home-placeholder-card`, placeholder pill, disabled "coming soon"
     button)
--   The placeholder status applies even where partial plumbing exists
-    elsewhere in the app
 
 ------------------------------------------------------------------------
 
@@ -152,17 +157,20 @@ Clarification:
 1.  `/?view=home` renders a homepage distinct from `/?view=play`
 2.  The homepage contains:
     -   Continue Game placeholder
-    -   Quick Play / Create / Join placeholder
+    -   Rooms / Create / Join matchmaking hub
     -   Games card with real existing game cards
     -   Leaderboard placeholder
     -   Profile placeholder
     -   Invite/Friends placeholder
     -   Stats placeholder
-3.  Existing game-card interactions still work from the homepage Games
+3.  The homepage matchmaking hub allows:
+    -   joining an existing room by code
+    -   creating a new room using the existing create flow
+    -   navigating to the dedicated lobby browser
+4.  Existing game-card interactions still work from the homepage Games
     section
-4.  Unsupported cards are visibly placeholders
-5.  Layout is responsive
-6.  Homepage placeholder cards do not expose misleading live actions
+5.  Unsupported cards are visibly placeholders
+6.  Layout is responsive
 7.  `/?view=play` remains the existing game-selection view
 8.  No router, API, or protocol changes are introduced
 9.  No new backend logic is added
