@@ -145,6 +145,14 @@ For `highcard`, `PLAY_CARDS` is also used with game-specific validation:
 - `cards` must contain exactly one card code.
 - `claimRank` is accepted but ignored.
 
+For `krig`, `PLAY_CARDS` is also used with game-specific validation:
+
+- `cards` must contain exactly one card code.
+- the server accepts one submission per player per round
+- the first submitted card is kept hidden from public state until both players
+  have submitted
+- `claimRank` is accepted but ignored
+
 Example (`highcard`):
 
 ``` json
@@ -250,6 +258,46 @@ Sendes ved connect eller re-sync.
 For `casino`, `publicState` includes `dealerPlayerId`, `tableStacks`,
 `deckCount`, `capturedCounts`, `lastCapturePlayerId`, `started`,
 `rules.valueMap`, and `privateState` includes `capturedCards`.
+
+For `krig`, `publicState` includes simultaneous-play round fields:
+
+```json
+{
+  "roomCode": "ABC123",
+  "players": [
+    { "playerId": "p1", "username": "Alice" },
+    { "playerId": "p2", "username": "Bob" }
+  ],
+  "round": 1,
+  "totalRounds": 5,
+  "scores": {
+    "p1": 0,
+    "p2": 0
+  },
+  "submittedPlayerIds": ["p1"],
+  "revealedCards": {
+    "p1": null,
+    "p2": null
+  },
+  "lastBattle": null
+}
+```
+
+When both players have submitted, `submittedPlayerIds` becomes empty,
+`revealedCards` contains both actual card codes, and `lastBattle` contains the
+resolved round result:
+
+```json
+{
+  "round": 1,
+  "firstPlayerId": "p1",
+  "firstCard": "HA",
+  "secondPlayerId": "p2",
+  "secondCard": "SK",
+  "winnerPlayerId": "p1",
+  "outcome": "FIRST"
+}
+```
 
 ------------------------------------------------------------------------
 

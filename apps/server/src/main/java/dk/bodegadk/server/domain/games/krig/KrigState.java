@@ -11,7 +11,8 @@ import java.util.Map;
 public class KrigState extends GameState {
     private final Map<String, List<Card>> hands;
     private final Map<String, Integer> scores;
-    private final Map<String, Card> tableCards;
+    private final Map<String, Card> submittedCards;
+    private final Map<String, Card> revealedCards;
     private BattleResult lastBattle;
     private int round;
 
@@ -19,7 +20,8 @@ public class KrigState extends GameState {
         super(playerIds);
         this.hands = new LinkedHashMap<>();
         this.scores = new LinkedHashMap<>();
-        this.tableCards = new LinkedHashMap<>();
+        this.submittedCards = new LinkedHashMap<>();
+        this.revealedCards = new LinkedHashMap<>();
         this.lastBattle = null;
         this.round = 1;
     }
@@ -31,7 +33,8 @@ public class KrigState extends GameState {
             this.hands.put(entry.getKey(), new ArrayList<>(entry.getValue()));
         }
         this.scores = new LinkedHashMap<>(other.scores);
-        this.tableCards = new LinkedHashMap<>(other.tableCards);
+        this.submittedCards = new LinkedHashMap<>(other.submittedCards);
+        this.revealedCards = new LinkedHashMap<>(other.revealedCards);
         this.lastBattle = other.lastBattle;
         this.round = other.round;
     }
@@ -49,8 +52,12 @@ public class KrigState extends GameState {
         return scores;
     }
 
-    public Map<String, Card> tableCards() {
-        return tableCards;
+    public Map<String, Card> submittedCards() {
+        return submittedCards;
+    }
+
+    public Map<String, Card> revealedCards() {
+        return revealedCards;
     }
 
     public BattleResult lastBattle() {
@@ -70,6 +77,7 @@ public class KrigState extends GameState {
     }
 
     public record BattleResult(
+            int round,
             String firstPlayerId,
             String firstCard,
             String secondPlayerId,
