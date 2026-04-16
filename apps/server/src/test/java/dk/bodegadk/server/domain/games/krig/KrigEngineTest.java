@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -92,6 +93,49 @@ class KrigEngineTest {
         assertTrue(resolved.isFinished());
         assertEquals(GameState.Phase.FINISHED, resolved.phase());
         assertEquals("p1", engine.getWinner(resolved));
+    }
+
+    @Test
+    void firstRematchVoteMarksPlayerReadyWithoutResettingGame() {
+        KrigState finished = buildState(
+                List.of(),
+                List.of()
+        );
+        finished.setPhase(GameState.Phase.FINISHED);
+        finished.setWinnerPlayerId("p1");
+        finished.scores().put("p1", 3);
+        finished.scores().put("p2", 2);
+
+        KrigState waiting = engine.requestRematch("p1", finished);
+
+        assertTrue(waiting.isFinished());
+        assertEquals(Set.of("p1"), waiting.rematchPlayerIds());
+        assertEquals(3, waiting.scores().get("p1"));
+        assertEquals(2, waiting.scores().get("p2"));
+    }
+
+    @Test
+    void secondRematchVoteResetsMatchWithFreshHands() {
+        KrigState finished = buildState(
+                List.of(),
+                List.of()
+        );
+        finished.setPhase(GameState.Phase.FINISHED);
+        finished.setWinnerPlayerId("p1");
+        finished.scores().put("p1", 3);
+        finished.scores().put("p2", 2);
+        finished.rematchPlayerIds().add("p1");
+
+        KrigState restarted = engine.requestRematch("p2", finished);
+
+        assertEquals(GameState.Phase.PLAYING, restarted.phase());
+        assertNull(restarted.winnerPlayerId());
+        assertEquals(1, restarted.round());
+        assertEquals(5, restarted.hands().get("p1").size());
+        assertEquals(5, restarted.hands().get("p2").size());
+        assertEquals(0, restarted.scores().get("p1"));
+        assertEquals(0, restarted.scores().get("p2"));
+        assertTrue(restarted.rematchPlayerIds().isEmpty());
     }
 
     private KrigState buildState(List<Card> p1Hand, List<Card> p2Hand) {

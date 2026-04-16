@@ -73,4 +73,19 @@ class InMemoryRuntimeStoreTest {
         assertEquals(1, expired.size());
         assertFalse(store.roomExists(roomCode));
     }
+
+    @Test
+    void krigRoomReturnsToLobbyWhenOpponentLeavesMidMatch() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        String roomCode = store.createRoom("krig", false, "p1");
+        store.joinRoom(roomCode, "p1", "alice", "token-p1");
+        store.joinRoom(roomCode, "p2", "bob", "token-p2");
+        store.markRoomInGame(roomCode, "p1");
+
+        store.leaveRoom(roomCode, "token-p2");
+
+        InMemoryRuntimeStore.RoomSnapshot room = store.roomSnapshot(roomCode).orElseThrow();
+        assertEquals("LOBBY", room.status().name());
+        assertEquals(1, room.participants().size());
+    }
 }

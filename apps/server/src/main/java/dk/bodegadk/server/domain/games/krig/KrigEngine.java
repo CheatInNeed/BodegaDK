@@ -77,6 +77,23 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         return next;
     }
 
+    public KrigState requestRematch(String playerId, KrigState state) {
+        if (!state.isFinished()) {
+            throw new GameRuleException("Game is not over yet.");
+        }
+        if (!state.playerIds().contains(playerId)) {
+            throw new GameRuleException("Player not in game.");
+        }
+
+        KrigState next = state.copy();
+        next.rematchPlayerIds().add(playerId);
+        if (next.rematchPlayerIds().size() < PLAYER_COUNT) {
+            return next;
+        }
+
+        return init(state.playerIds());
+    }
+
     @Override
     public boolean isFinished(KrigState state) {
         return state.isFinished();
@@ -132,12 +149,15 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         boolean finished = state.hands().values().stream().allMatch(List::isEmpty);
         if (finished) {
             state.setPhase(GameState.Phase.FINISHED);
+            state.rematchPlayerIds().clear();
             int firstScore = state.scores().getOrDefault(firstPlayerId, 0);
             int secondScore = state.scores().getOrDefault(secondPlayerId, 0);
             if (firstScore > secondScore) {
                 state.setWinnerPlayerId(firstPlayerId);
             } else if (secondScore > firstScore) {
                 state.setWinnerPlayerId(secondPlayerId);
+            } else {
+                state.setWinnerPlayerId(null);
             }
         }
     }

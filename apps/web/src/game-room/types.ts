@@ -88,6 +88,7 @@ export type RoomSessionState = {
 
 export type UiIntent =
     | { type: 'PLAY_SELECTED'; claimRank: string }
+    | { type: 'REQUEST_REMATCH' }
     | { type: 'CALL_SNYD' }
     | { type: 'CASINO_PLAY_MOVE'; handCard: string; captureStackIds: string[]; playedValue?: number }
     | { type: 'CASINO_BUILD_STACK'; handCard: string; targetStackId: string; playedValue?: number }

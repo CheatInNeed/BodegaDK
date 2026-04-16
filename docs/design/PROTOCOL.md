@@ -178,6 +178,22 @@ Example (`highcard`):
 
 ------------------------------------------------------------------------
 
+## REQUEST_REMATCH
+
+``` json
+{
+  "type": "REQUEST_REMATCH",
+  "payload": {}
+}
+```
+
+For `krig`, this is only valid after the match has reached `GAME_OVER`.
+The server tracks which players have opted in. When both players have
+requested a rematch, the server deals a fresh match and returns to
+`PLAYING`.
+
+------------------------------------------------------------------------
+
 ## CASINO_PLAY_MOVE
 
 ``` json
@@ -270,10 +286,13 @@ For `krig`, `publicState` includes simultaneous-play round fields:
   ],
   "round": 1,
   "totalRounds": 5,
+  "gamePhase": "PLAYING",
   "scores": {
     "p1": 0,
     "p2": 0
   },
+  "matchWinnerPlayerId": null,
+  "rematchPlayerIds": [],
   "submittedPlayerIds": ["p1"],
   "revealedCards": {
     "p1": null,
@@ -298,6 +317,10 @@ resolved round result:
   "outcome": "FIRST"
 }
 ```
+
+When the final round finishes, `gamePhase` becomes `GAME_OVER`,
+`matchWinnerPlayerId` contains the overall winner or `null` for a tie, and
+`rematchPlayerIds` starts empty until players opt into a rematch.
 
 ------------------------------------------------------------------------
 
@@ -362,6 +385,7 @@ Sendes kun til én spiller.
 ```
 
 For Casino draws, `winnerPlayerId` may be `null`.
+For Krig draws, `winnerPlayerId` may also be `null`.
 
 ------------------------------------------------------------------------
 

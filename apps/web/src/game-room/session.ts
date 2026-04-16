@@ -107,7 +107,6 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         const state = store.getState();
         // Guard against client-side actions when room is not actionable.
         if (state.connection !== 'connected') return;
-        if (state.winnerPlayerId) return;
         const message = options.adapter.buildAction?.(intent, state);
         if (!message) return;
         transport?.send(message);

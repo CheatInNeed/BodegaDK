@@ -1795,6 +1795,71 @@ select.input {
     border-top: 1px solid color-mix(in srgb, var(--color-danger) 24%, transparent);
 }
 
+.krig-postgame-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(8, 8, 8, 0.44);
+    z-index: 6;
+}
+
+.krig-postgame-card {
+    width: min(100%, 420px);
+    display: grid;
+    gap: 16px;
+    padding: 28px;
+    border-radius: 28px;
+    background:
+            linear-gradient(180deg, rgba(26, 20, 18, 0.96), rgba(14, 11, 10, 0.96));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 26%, transparent);
+    box-shadow: 0 28px 60px rgba(0, 0, 0, 0.38);
+    text-align: left;
+}
+
+.krig-postgame-kicker {
+    color: var(--color-accent);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.krig-postgame-title {
+    color: var(--color-text-strong);
+    font-family: var(--font);
+    font-size: 36px;
+    line-height: 1;
+}
+
+.krig-postgame-scores {
+    display: grid;
+    gap: 10px;
+}
+
+.krig-postgame-score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.krig-postgame-note {
+    margin: 0;
+    color: color-mix(in srgb, var(--color-text) 84%, transparent);
+    line-height: 1.5;
+}
+
+.krig-postgame-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 @keyframes table-seat-callout-rise {
     0% {
         opacity: 0;

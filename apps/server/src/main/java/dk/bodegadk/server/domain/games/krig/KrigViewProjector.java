@@ -12,9 +12,12 @@ public class KrigViewProjector implements ViewProjector<KrigState> {
     public Map<String, Object> toPublicView(KrigState state) {
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("players", state.playerIds());
+        view.put("gamePhase", state.isFinished() ? "GAME_OVER" : "PLAYING");
         view.put("round", state.round());
         view.put("totalRounds", 5);
         view.put("scores", state.scores());
+        view.put("matchWinnerPlayerId", state.winnerPlayerId());
+        view.put("rematchPlayerIds", List.copyOf(state.rematchPlayerIds()));
         view.put("submittedPlayerIds", List.copyOf(state.submittedCards().keySet()));
 
         Map<String, String> revealedCards = new LinkedHashMap<>();

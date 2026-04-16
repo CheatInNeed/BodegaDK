@@ -354,6 +354,20 @@ function renderRoomContent(): string {
     const status = typeof roomPublicState.status === 'string' ? roomPublicState.status : null;
     const hostPlayerId = typeof roomPublicState.hostPlayerId === 'string' ? roomPublicState.hostPlayerId : null;
     const autoStartKey = `${route.room}|${route.token}|${route.game}`;
+    const suppressWinnerBanner = adapter.id === krigAdapter.id && roomPublicState.gamePhase === 'GAME_OVER';
+
+    if (status === 'LOBBY' && route.room && route.token) {
+        queueMicrotask(() => {
+            navigate({
+                view: 'lobby',
+                game: route.game,
+                room: route.room,
+                token: route.token,
+                mock: route.mock,
+            });
+        });
+        return renderRoomError('Opponent left the match. Returning to lobby...');
+    }
 
     if (
         route.game === HIGHCARD_GAME_ID
@@ -418,6 +432,7 @@ function renderRoomContent(): string {
         winnerPlayerId: roomState.winnerPlayerId,
         winnerLabel: resolvePlayerName(playerNames, roomState.winnerPlayerId),
         bodyHtml,
+        suppressWinnerBanner,
     });
 }
 
@@ -731,8 +746,10 @@ function wireRoomEvents() {
     if (state.view !== 'room') return;
     if (!roomSession) return;
 
-    document.querySelector<HTMLButtonElement>('button[data-action="leave-table"]')?.addEventListener('click', () => {
-        void handleLeaveActiveRoom();
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="leave-table"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleLeaveActiveRoom();
+        });
     });
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="toggle-card"]').forEach((button) => {
@@ -753,6 +770,10 @@ function wireRoomEvents() {
     const callSnydButton = document.querySelector<HTMLButtonElement>('button[data-action="call-snyd"]');
     callSnydButton?.addEventListener('click', () => {
         roomSession?.sendIntent({ type: 'CALL_SNYD' });
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="request-rematch"]')?.addEventListener('click', () => {
+        roomSession?.sendIntent({ type: 'REQUEST_REMATCH' });
     });
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="casino-toggle-table"]').forEach((button) => {

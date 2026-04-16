@@ -96,10 +96,12 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
             ...(state.publicState ?? {}),
             ...msg.payload,
         };
+        const nextGamePhase = typeof nextPublicState.gamePhase === 'string' ? nextPublicState.gamePhase : null;
 
         return {
             ...state,
             publicState: nextPublicState,
+            winnerPlayerId: nextGamePhase === 'PLAYING' ? null : state.winnerPlayerId,
             lastError: null,
         };
     }

@@ -7,12 +7,14 @@ export function renderRoomFrame(params: {
     winnerPlayerId: string | null;
     winnerLabel: string;
     bodyHtml: string;
+    overlayHtml?: string;
+    suppressWinnerBanner?: boolean;
 }): string {
     const notices = [
         params.errorMessage
             ? `<div class="room-banner room-banner-error">${params.errorMessage}</div>`
             : '',
-        params.winnerPlayerId
+        params.winnerPlayerId && !params.suppressWinnerBanner
             ? `<div class="room-banner room-banner-win">Game finished. Winner: ${params.winnerLabel}</div>`
             : '',
     ].join('');
@@ -70,6 +72,7 @@ export function renderRoomFrame(params: {
             <div class="game-room-table-content">
               ${notices}
               <div class="room-layout">${params.bodyHtml}</div>
+              ${params.overlayHtml ?? ''}
             </div>
           </div>
         </div>

@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dk.bodegadk.server.domain.engine.GameState;
+import dk.bodegadk.server.domain.games.krig.KrigState;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -206,6 +209,41 @@ class HighCardEnginePortAdapterTest {
         assertEquals(p2Card, resolvedResult.publicUpdate().path("revealedCards").path("p2").asText());
         assertEquals(1, resolvedResult.publicUpdate().path("lastBattle").path("round").asInt());
         assertTrue(resolvedResult.publicUpdate().path("lastBattle").has("winnerPlayerId"));
+    }
+
+    @Test
+    void krigRematchVoteWaitsForOpponentAndThenResetsMatch() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
+
+        String roomCode = store.createRoom("krig", false, "p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
+        store.joinRoom(roomCode, "p2", null, "token-p2");
+        store.markRoomInGame(roomCode, "p1");
+
+        KrigState finished = new KrigState(List.of("p1", "p2"));
+        finished.setPhase(GameState.Phase.FINISHED);
+        finished.setRound(5);
+        finished.scores().put("p1", 3);
+        finished.scores().put("p2", 2);
+        finished.setWinnerPlayerId("p1");
+        store.saveKrigState(roomCode, finished);
+
+        GameLoopService.LoopResult firstVote = service.handleAction(command(roomCode, "p1", "REQUEST_REMATCH", JsonNodeFactory.instance.objectNode()));
+        assertFalse(firstVote.isError());
+        assertEquals("GAME_OVER", firstVote.publicUpdate().path("gamePhase").asText());
+        assertEquals(1, firstVote.publicUpdate().path("rematchPlayerIds").size());
+        assertEquals("p1", firstVote.publicUpdate().path("rematchPlayerIds").get(0).asText());
+
+        GameLoopService.LoopResult secondVote = service.handleAction(command(roomCode, "p2", "REQUEST_REMATCH", JsonNodeFactory.instance.objectNode()));
+        assertFalse(secondVote.isError());
+        assertEquals("PLAYING", secondVote.publicUpdate().path("gamePhase").asText());
+        assertEquals(1, secondVote.publicUpdate().path("round").asInt());
+        assertEquals(0, secondVote.publicUpdate().path("scores").path("p1").asInt());
+        assertEquals(0, secondVote.publicUpdate().path("scores").path("p2").asInt());
+        assertEquals(5, secondVote.privateUpdates().get("p1").path("hand").size());
+        assertEquals(5, secondVote.privateUpdates().get("p2").path("hand").size());
     }
 
     private GameLoopService.ActionCommand playCommand(String roomCode, String playerId, String cardCode) {
