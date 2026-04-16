@@ -3,6 +3,7 @@ import { renderGameRoomSections, renderHandCards } from '../../game-room/ui.js';
 
 export type SnydPlayerRow = {
     playerId: string;
+    displayName: string;
     handCount: number | null;
     isCurrentTurn: boolean;
     isSelf: boolean;
@@ -11,7 +12,9 @@ export type SnydPlayerRow = {
 export type SnydViewModel = {
     roomCode: string;
     turnPlayerId: string | null;
+    turnPlayerName: string;
     nextPlayerId: string | null;
+    nextPlayerName: string;
     pileCount: number;
     lastClaimText: string;
     claimRankInput: string;
@@ -28,7 +31,7 @@ export function renderSnydRoom(
 ): string {
     const seats: SeatViewModel[] = viewModel.players.map((player) => ({
         playerId: player.playerId,
-        label: player.isSelf ? 'Dig' : player.playerId,
+        label: player.isSelf ? 'Dig' : player.displayName,
         isSelf: player.isSelf,
         isCurrentTurn: player.isCurrentTurn,
         badges: [`${player.handCount ?? 0} kort`],
@@ -41,8 +44,8 @@ export function renderSnydRoom(
         tableClassName: 'table-snyd',
         headerPills: [
             `Room: ${viewModel.roomCode}`,
-            `Tur: ${viewModel.turnPlayerId ?? '-'}`,
-            `Næste: ${viewModel.nextPlayerId ?? '-'}`,
+            `Tur: ${viewModel.turnPlayerId ? viewModel.turnPlayerName : '-'}`,
+            `Næste: ${viewModel.nextPlayerId ? viewModel.nextPlayerName : '-'}`,
             `Bunke: ${viewModel.pileCount}`,
         ],
         seats,

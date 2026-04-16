@@ -94,6 +94,7 @@ export type GameAdapter<TPublic extends Record<string, unknown>, TPrivate extend
         privateState: TPrivate | null;
         selectedCards: string[];
         selfPlayerId: string | null;
+        playerNames: Record<string, string>;
     }): TViewModel;
     buildAction?(intent: UiIntent, state: RoomSessionState): ClientToServerMessage | null;
 };

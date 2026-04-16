@@ -1,7 +1,8 @@
 export type CasinoViewModel = {
     roomCode: string;
-    players: string[];
+    players: Array<{ playerId: string; displayName: string }>;
     turnPlayerId: string | null;
+    turnPlayerName: string;
     dealerPlayerId: string | null;
     tableStacks: Array<{
         stackId: string;
@@ -45,12 +46,13 @@ export function renderCasinoRoom(
       </button>
     `).join('');
 
-    const playerRows = viewModel.players.map((playerId) => {
+    const playerRows = viewModel.players.map((player) => {
+        const playerId = player.playerId;
         const captured = viewModel.capturedCounts[playerId] ?? 0;
         const role = playerId === viewModel.dealerPlayerId ? 'Dealer' : 'Non-dealer';
         const current = playerId === viewModel.turnPlayerId ? ' · Turn' : '';
         const you = playerId === viewModel.selfPlayerId ? ' (You)' : '';
-        return `<div class="pill">${playerId}${you} · ${role} · Captured: ${captured}${current}</div>`;
+        return `<div class="pill">${player.displayName}${you} · ${role} · Captured: ${captured}${current}</div>`;
     }).join('');
 
     return `
@@ -62,6 +64,10 @@ export function renderCasinoRoom(
       </div>
 
       <div class="card-row">${playerRows}</div>
+
+      <div class="card-row">
+        <span class="pill">${viewModel.turnPlayerId ? `Turn: ${viewModel.turnPlayerName}` : 'Waiting for turn'}</span>
+      </div>
 
       <div class="private-panel">
         <div class="card-title">Table stacks</div>

@@ -5,6 +5,7 @@ export function renderRoomFrame(params: {
     gameTitle: string;
     errorMessage: string | null;
     winnerPlayerId: string | null;
+    winnerLabel: string;
     bodyHtml: string;
 }): string {
     const notices = [
@@ -12,7 +13,7 @@ export function renderRoomFrame(params: {
             ? `<div class="room-banner room-banner-error">${params.errorMessage}</div>`
             : '',
         params.winnerPlayerId
-            ? `<div class="room-banner room-banner-win">Game finished. Winner: ${params.winnerPlayerId}</div>`
+            ? `<div class="room-banner room-banner-win">Game finished. Winner: ${params.winnerLabel}</div>`
             : '',
     ].join('');
 
@@ -26,7 +27,7 @@ export function renderRoomFrame(params: {
             label: 'TABLE',
             className: 'primary',
             text: params.winnerPlayerId
-                ? `Round complete. Winner: ${params.winnerPlayerId}.`
+                ? `Round complete. Winner: ${params.winnerLabel}.`
                 : 'Cards are live. Choose a card from your hand to make your move.',
         },
         {

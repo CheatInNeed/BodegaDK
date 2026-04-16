@@ -1,4 +1,5 @@
 import type { LobbyRoomSummary } from '../net/api.js';
+import { formatPlayerDisplayName } from '../game-room/player-display.js';
 
 export type LobbyPlayerSeat = {
     playerId: string;
@@ -11,6 +12,7 @@ export type LobbyRoomViewModel = {
     roomCode: string;
     connectionLabel: string;
     hostPlayerId: string | null;
+    hostDisplayName: string;
     selfPlayerId: string | null;
     selectedGame: string;
     status: string;
@@ -35,7 +37,7 @@ export function renderLobbyBrowser(params: {
               <div class="lobby-list-header">
                 <div>
                   <div class="card-title">Room ${room.roomCode}</div>
-                  <p class="card-desc">Host: ${room.hostPlayerId} · Game: ${room.selectedGame}</p>
+                  <p class="card-desc">Host: ${escapeHtml(resolveLobbyParticipantName(room, room.hostPlayerId))} · Game: ${room.selectedGame}</p>
                 </div>
                 <div class="lobby-badges">
                   <span class="pill">${room.status}</span>
@@ -139,7 +141,6 @@ export function renderLobbyRoom(viewModel: LobbyRoomViewModel): string {
       <div class="card lobby-player-card">
         <div>
           <div class="card-title">${escapeHtml(player.username)}</div>
-          <p class="card-desc">${escapeHtml(player.playerId)}</p>
           <p class="card-desc">${player.isHost ? 'Lobby host' : 'Participant'}${player.isSelf ? ' · You' : ''}</p>
         </div>
         <div class="card-row">
@@ -175,7 +176,7 @@ export function renderLobbyRoom(viewModel: LobbyRoomViewModel): string {
               </div>
               <div>
                 <div class="card-title">Host</div>
-                <p class="card-desc">${viewModel.hostPlayerId ?? '-'}</p>
+                <p class="card-desc">${escapeHtml(viewModel.hostDisplayName)}</p>
               </div>
               <div>
                 <div class="card-title">Players</div>
@@ -209,6 +210,11 @@ export function renderLobbyRoom(viewModel: LobbyRoomViewModel): string {
 
 function gameOption(value: string, current: string): string {
     return `<option value="${value}" ${value === current ? 'selected' : ''}>${value}</option>`;
+}
+
+function resolveLobbyParticipantName(room: LobbyRoomSummary, playerId: string): string {
+    const participant = room.participants.find((player) => player.playerId === playerId);
+    return formatPlayerDisplayName(playerId, participant?.username ?? null);
 }
 
 function escapeAttr(value: string): string {
