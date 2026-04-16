@@ -63,6 +63,12 @@ const lobbyBrowserState = {
     createPrivate: false,
 };
 
+const homeMatchmakingState = {
+    joinCode: '',
+    busy: false,
+    errorMessage: null as string | null,
+};
+
 const authUiState = {
     initialized: false,
     user: null as { id: string; username: string | null } | null,
@@ -487,21 +493,58 @@ function resolveAdapter(game: string): GenericAdapter | undefined {
 
 function playCards() {
     return `
-    <div class="lobby-entry-banner card">
-      <div>
-        <div class="card-title">Multiplayer Lobby System</div>
-        <p class="card-desc">Browse public lobbies, create private tables, and move from waiting room to live match.</p>
-      </div>
-      <button class="btn primary" data-action="open-lobby-browser">Open Lobby Browser</button>
-    </div>
     <div class="grid">
       ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.open')}
       ${gameCard('casino', '2-player Casino with capture sums and full deck.', 'action.open')}
       ${gameCard('single.card.highest.wins', 'Backend-ready: single player vs dealer high-card game.', 'action.open')}
-      ${gameCard('game.500', 'Kortspil med stik og meldinger (placeholder).', 'action.open')}
-      ${gameCard('game.dice', 'Terningebaseret spil (placeholder).', 'action.open')}
+      ${gameCard('game.500', 'Kortspil med stik og meldinger.', 'action.open')}
+      ${gameCard('game.dice', 'Terningebaseret spil.', 'action.open')}
       ${gameCard('game.more', 'Flere spil bliver tilføjet løbende.', 'action.play')}
     </div>
+  `;
+}
+
+function renderHomepageMatchmakingCard() {
+    const errorBanner = homeMatchmakingState.errorMessage
+        ? `<div class="room-banner room-banner-error">${homeMatchmakingState.errorMessage}</div>`
+        : '';
+
+    return `
+    <article class="card home-card home-card-half home-matchmaking-card">
+      <div class="home-card-header">
+        <div>
+          <div class="card-title home-card-title" data-i18n="home.card.quick.title"></div>
+        </div>
+      </div>
+
+      ${errorBanner}
+
+      <div class="home-matchmaking-grid">
+        <div class="home-matchmaking-panel">
+          <label class="home-matchmaking-label" for="homeJoinCodeInput" data-i18n="home.card.quick.join.label"></label>
+          <div class="home-join-row">
+            <input
+              class="input home-join-input"
+              id="homeJoinCodeInput"
+              maxlength="6"
+              inputmode="text"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+              value="${homeMatchmakingState.joinCode}"
+              placeholder="${t(state.lang, 'home.card.quick.join.placeholder')}"
+              aria-label="${t(state.lang, 'home.card.quick.join.label')}"
+            />
+            <button class="btn primary" type="button" data-action="home-join-room" ${homeMatchmakingState.busy ? 'disabled' : ''} data-i18n="home.card.quick.join.action"></button>
+          </div>
+        </div>
+
+        <div class="home-matchmaking-actions">
+          <button class="btn primary full-width" type="button" data-action="home-create-lobby" ${homeMatchmakingState.busy ? 'disabled' : ''} data-i18n="home.card.quick.create.action"></button>
+          <button class="btn full-width" type="button" data-action="open-lobby-browser" ${homeMatchmakingState.busy ? 'disabled' : ''} data-i18n="home.card.quick.browse.action"></button>
+        </div>
+      </div>
+    </article>
   `;
 }
 
@@ -510,48 +553,16 @@ function renderHomepage() {
     <section class="home-layout">
       <section class="card home-hero">
         <div class="home-hero-copy">
-          <span class="pill home-kicker" data-i18n="home.hero.kicker"></span>
           <h1 class="home-hero-title" data-i18n="home.title"></h1>
-          <p class="sub home-hero-subtitle" data-i18n="home.subtitle"></p>
-          <div class="home-hero-actions">
-            <span class="pill home-pill-real" data-i18n="home.status.real"></span>
-            <span class="pill home-theme-pill" data-i18n="home.hero.themeReady"></span>
-          </div>
         </div>
-
-        <aside class="home-hero-note-grid">
-          <div class="home-hero-note home-hero-note-primary">
-            <p class="home-eyebrow" data-i18n="home.hero.noteTitle"></p>
-            <p class="card-desc home-note-text" data-i18n="home.hero.note"></p>
-          </div>
-          <div class="home-hero-note home-hero-note-compact">
-            <p class="home-eyebrow" data-i18n="home.hero.themesTitle"></p>
-            <div class="home-theme-stack" aria-hidden="true">
-              ${THEMES.map((theme) => `
-                <span class="home-theme-dot home-theme-dot-${theme.id}"></span>
-              `).join('')}
-            </div>
-            <p class="card-desc home-note-text" data-i18n="home.hero.themesBody"></p>
-          </div>
-        </aside>
       </section>
 
       <section class="home-actions" aria-label="Homepage action cards">
         ${renderHomepagePlaceholderCard({
             titleKey: 'home.card.continue.title',
-            descKey: 'home.card.continue.desc',
             className: 'home-card-half',
         })}
-        ${renderHomepagePlaceholderCard({
-            titleKey: 'home.card.quick.title',
-            descKey: 'home.card.quick.desc',
-            className: 'home-card-half',
-            chipKeys: [
-                'home.card.quick.item.quick',
-                'home.card.quick.item.create',
-                'home.card.quick.item.join',
-            ],
-        })}
+        ${renderHomepageMatchmakingCard()}
       </section>
 
       <section class="home-content-grid" aria-label="Homepage content cards">
@@ -561,31 +572,25 @@ function renderHomepage() {
               <p class="home-eyebrow" data-i18n="home.section.games.kicker"></p>
               <div class="card-title home-card-title" data-i18n="home.section.games.title"></div>
             </div>
-            <span class="pill home-pill-real" data-i18n="home.status.real"></span>
           </div>
 
-          <p class="card-desc home-card-desc" data-i18n="home.section.games.desc"></p>
           ${playCards()}
         </article>
 
         ${renderHomepagePlaceholderCard({
             titleKey: 'home.section.leaderboard.title',
-            descKey: 'home.section.leaderboard.desc',
             className: 'home-card-narrow',
         })}
         ${renderHomepagePlaceholderCard({
             titleKey: 'home.section.profile.title',
-            descKey: 'home.section.profile.desc',
             className: 'home-card-narrow',
         })}
         ${renderHomepagePlaceholderCard({
             titleKey: 'home.section.friends.title',
-            descKey: 'home.section.friends.desc',
             className: 'home-card-narrow',
         })}
         ${renderHomepagePlaceholderCard({
             titleKey: 'home.section.stats.title',
-            descKey: 'home.section.stats.desc',
             className: 'home-card-narrow',
         })}
       </section>
@@ -595,32 +600,15 @@ function renderHomepage() {
 
 function renderHomepagePlaceholderCard(input: {
     titleKey: string;
-    descKey: string;
     className?: string;
-    chipKeys?: string[];
 }): string {
-    const chips = (input.chipKeys ?? []).map((key) => `
-      <span class="pill home-chip" data-i18n="${key}"></span>
-    `).join('');
-
-    const chipRow = chips
-        ? `<div class="home-chip-row">${chips}</div>`
-        : '';
-
     return `
-    <article class="card home-card home-placeholder-card ${input.className ?? ''}">
+    <article class="card home-card home-placeholder-card ${input.className ?? ''}" aria-disabled="true">
       <div class="home-card-header">
         <div>
           <div class="card-title home-card-title" data-i18n="${input.titleKey}"></div>
         </div>
-        <span class="pill home-pill-placeholder" data-i18n="home.status.placeholder"></span>
-      </div>
-
-      <p class="card-desc home-card-desc" data-i18n="${input.descKey}"></p>
-      ${chipRow}
-
-      <div class="home-placeholder-footer">
-        <button class="btn home-placeholder-btn" type="button" disabled data-i18n="home.action.comingSoon"></button>
+        <span class="home-placeholder-tag" data-i18n="home.action.comingSoon"></span>
       </div>
     </article>
   `;
@@ -632,7 +620,6 @@ function gameCard(titleKey: string, desc: string, actionKey: string) {
       <div class="card-title" data-i18n="${titleKey}"></div>
       <div class="card-desc">${desc}</div>
       <div class="card-row">
-        <span class="pill">Status: Placeholder</span>
         <button class="btn primary" data-i18n="${actionKey}" data-action="open-game" data-game="${titleKey}"></button>
       </div>
     </div>
@@ -724,6 +711,27 @@ function wireEvents() {
         button.addEventListener('click', () => {
             navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
         });
+    });
+
+    const homeJoinCodeInput = document.getElementById('homeJoinCodeInput') as HTMLInputElement | null;
+    homeJoinCodeInput?.addEventListener('input', () => {
+        homeMatchmakingState.joinCode = sanitizeRoomCode(homeJoinCodeInput.value);
+        homeJoinCodeInput.value = homeMatchmakingState.joinCode;
+    });
+    homeJoinCodeInput?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') {
+            return;
+        }
+        event.preventDefault();
+        void handleHomepageJoin();
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="home-join-room"]')?.addEventListener('click', () => {
+        void handleHomepageJoin();
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="home-create-lobby"]')?.addEventListener('click', () => {
+        void handleHomepageCreateLobby();
     });
 
     const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null;
@@ -906,6 +914,7 @@ async function refreshLobbyBrowser() {
 }
 
 async function handleCreateLobby() {
+    homeMatchmakingState.errorMessage = null;
     lobbyBrowserState.busy = true;
     lobbyBrowserState.errorMessage = null;
     renderView();
@@ -973,6 +982,79 @@ async function handleJoinByCode(rawRoomCode: string) {
     } finally {
         lobbyBrowserState.busy = false;
         if (state.view === 'lobby-browser') {
+            renderView();
+        }
+    }
+}
+
+async function handleHomepageCreateLobby() {
+    homeMatchmakingState.busy = true;
+    homeMatchmakingState.errorMessage = null;
+    renderView();
+
+    try {
+        const playerIdentity = getLobbyIdentity();
+        const created = await createRoom({
+            gameType: FALLBACK_LOBBY_GAME_ID,
+            isPrivate: false,
+            playerId: playerIdentity.playerId,
+            username: playerIdentity.username ?? undefined,
+            token: playerIdentity.token,
+        });
+
+        navigate({
+            view: 'lobby',
+            game: created.selectedGame,
+            room: created.roomCode,
+            token: created.token,
+            mock: false,
+        });
+    } catch (error) {
+        homeMatchmakingState.errorMessage = toErrorMessage(error, 'Failed to create lobby');
+        renderView();
+    } finally {
+        homeMatchmakingState.busy = false;
+        if (state.view === 'home') {
+            renderView();
+        }
+    }
+}
+
+async function handleHomepageJoin() {
+    const roomCode = sanitizeRoomCode(homeMatchmakingState.joinCode);
+    if (!roomCode) {
+        homeMatchmakingState.errorMessage = 'Enter a valid room code';
+        renderView();
+        return;
+    }
+
+    homeMatchmakingState.busy = true;
+    homeMatchmakingState.errorMessage = null;
+    homeMatchmakingState.joinCode = roomCode;
+    renderView();
+
+    try {
+        const playerIdentity = getLobbyIdentity();
+        const joined = await joinRoom({
+            roomCode,
+            playerId: playerIdentity.playerId,
+            username: playerIdentity.username ?? undefined,
+            token: playerIdentity.token,
+        });
+
+        navigate({
+            view: 'lobby',
+            game: joined.selectedGame,
+            room: joined.roomCode,
+            token: joined.token,
+            mock: false,
+        });
+    } catch (error) {
+        homeMatchmakingState.errorMessage = toErrorMessage(error, 'Failed to join lobby');
+        renderView();
+    } finally {
+        homeMatchmakingState.busy = false;
+        if (state.view === 'home') {
             renderView();
         }
     }
