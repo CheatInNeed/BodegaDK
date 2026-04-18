@@ -298,6 +298,20 @@ function renderLobbyContent(): string {
         return renderRoomError('Missing query params. Required: view=lobby&room=ABC123&token=yourToken');
     }
 
+    if (route.game && !supportsLobbyLifecycle(route.game)) {
+        cleanupRoomSession();
+        queueMicrotask(() => {
+            navigate({
+                view: 'room',
+                game: route.game,
+                room: route.room,
+                token: route.token,
+                mock: route.mock,
+            });
+        });
+        return renderRoomError('Opening game room...');
+    }
+
     const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.token, route.mock);
     const roomState = session?.getState();
     const publicState = toRecord(roomState?.publicState);
@@ -306,19 +320,6 @@ function renderLobbyContent(): string {
     const status = typeof publicState.status === 'string' ? publicState.status : 'LOBBY';
     const isPrivate = publicState.isPrivate === true;
     const players = readLobbyPlayers(publicState.players, hostPlayerId, roomState?.playerId ?? null);
-
-    if (!supportsLobbyLifecycle(selectedGame) && route.room && route.token) {
-        queueMicrotask(() => {
-            navigate({
-                view: 'room',
-                game: selectedGame,
-                room: route.room,
-                token: route.token,
-                mock: route.mock,
-            });
-        });
-        return renderRoomError('Opening game room...');
-    }
 
     if (status === 'IN_GAME' && route.room && route.token) {
         queueMicrotask(() => {
@@ -381,7 +382,7 @@ function renderRoomContent(): string {
     const autoStartKey = `${route.room}|${route.token}|${route.game}`;
     const suppressWinnerBanner = adapter.id === krigAdapter.id && roomPublicState.gamePhase === 'GAME_OVER';
 
-    if (status === 'LOBBY' && route.room && route.token) {
+    if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room && route.token) {
         queueMicrotask(() => {
             navigate({
                 view: 'lobby',
