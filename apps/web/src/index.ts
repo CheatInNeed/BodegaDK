@@ -77,6 +77,7 @@ const authUiState = {
 
 type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, unknown>>;
 const HIGHCARD_GAME_ID = 'highcard';
+const KRIG_GAME_ID = 'krig';
 const FALLBACK_LOBBY_GAME_ID = HIGHCARD_GAME_ID;
 
 let roomSession: ActiveSession | null = null;
@@ -99,6 +100,11 @@ function applyTheme(theme: ThemeId) {
     document.documentElement.dataset.theme = theme;
 }
 let casinoSelectedStackIds: string[] = [];
+
+function supportsLobbyLifecycle(game: string | null | undefined): boolean {
+    const normalized = (game ?? '').trim().toLowerCase();
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID;
+}
 
 function iconSvg(pathD: string) {
     return `
@@ -300,6 +306,19 @@ function renderLobbyContent(): string {
     const status = typeof publicState.status === 'string' ? publicState.status : 'LOBBY';
     const isPrivate = publicState.isPrivate === true;
     const players = readLobbyPlayers(publicState.players, hostPlayerId, roomState?.playerId ?? null);
+
+    if (!supportsLobbyLifecycle(selectedGame) && route.room && route.token) {
+        queueMicrotask(() => {
+            navigate({
+                view: 'room',
+                game: selectedGame,
+                room: route.room,
+                token: route.token,
+                mock: route.mock,
+            });
+        });
+        return renderRoomError('Opening game room...');
+    }
 
     if (status === 'IN_GAME' && route.room && route.token) {
         queueMicrotask(() => {
@@ -930,7 +949,7 @@ async function handleCreateLobby() {
         });
 
         navigate({
-            view: 'lobby',
+            view: supportsLobbyLifecycle(created.selectedGame) ? 'lobby' : 'room',
             game: created.selectedGame,
             room: created.roomCode,
             token: created.token,
@@ -970,7 +989,7 @@ async function handleJoinByCode(rawRoomCode: string) {
         });
 
         navigate({
-            view: 'lobby',
+            view: supportsLobbyLifecycle(joined.selectedGame) ? 'lobby' : 'room',
             game: joined.selectedGame,
             room: joined.roomCode,
             token: joined.token,
@@ -1003,7 +1022,7 @@ async function handleHomepageCreateLobby() {
         });
 
         navigate({
-            view: 'lobby',
+            view: supportsLobbyLifecycle(created.selectedGame) ? 'lobby' : 'room',
             game: created.selectedGame,
             room: created.roomCode,
             token: created.token,
@@ -1043,7 +1062,7 @@ async function handleHomepageJoin() {
         });
 
         navigate({
-            view: 'lobby',
+            view: supportsLobbyLifecycle(joined.selectedGame) ? 'lobby' : 'room',
             game: joined.selectedGame,
             room: joined.roomCode,
             token: joined.token,
