@@ -36,6 +36,18 @@ Base path (dev): http://localhost:8080/
 
 Opretter et nyt room.
 
+### Request
+
+``` json
+{
+  "gameType": "highcard",
+  "isPrivate": false,
+  "playerId": "supabase-user-id-or-guest-id",
+  "username": "Alice",
+  "token": "session-token"
+}
+```
+
 ### Response
 
 ``` json
@@ -49,6 +61,16 @@ Opretter et nyt room.
 ## POST /rooms/{roomCode}/join
 
 Joiner et eksisterende room.
+
+### Request
+
+``` json
+{
+  "playerId": "supabase-user-id-or-guest-id",
+  "username": "Alice",
+  "token": "session-token"
+}
+```
 
 ### Response
 
@@ -123,6 +145,14 @@ For `highcard`, `PLAY_CARDS` is also used with game-specific validation:
 - `cards` must contain exactly one card code.
 - `claimRank` is accepted but ignored.
 
+For `krig`, `PLAY_CARDS` is also used with game-specific validation:
+
+- `cards` must contain exactly one card code.
+- the server accepts one submission per player per round
+- the first submitted card is kept hidden from public state until both players
+  have submitted
+- `claimRank` is accepted but ignored
+
 Example (`highcard`):
 
 ``` json
@@ -145,6 +175,22 @@ Example (`highcard`):
   "payload": {}
 }
 ```
+
+------------------------------------------------------------------------
+
+## REQUEST_REMATCH
+
+``` json
+{
+  "type": "REQUEST_REMATCH",
+  "payload": {}
+}
+```
+
+For `krig`, this is only valid after the match has reached `GAME_OVER`.
+The server tracks which players have opted in. When both players have
+requested a rematch, the server deals a fresh match and returns to
+`PLAYING`.
 
 ------------------------------------------------------------------------
 
@@ -205,7 +251,10 @@ Sendes ved connect eller re-sync.
   "payload": {
     "publicState": {
       "roomCode": "ABC123",
-      "players": ["p1", "p2"],
+      "players": [
+        { "playerId": "p1", "username": "Alice" },
+        { "playerId": "p2", "username": "Bob" }
+      ],
       "turnPlayerId": "p1",
       "pileCount": 8,
       "lastClaim": {
@@ -226,6 +275,53 @@ For `casino`, `publicState` includes `dealerPlayerId`, `tableStacks`,
 `deckCount`, `capturedCounts`, `lastCapturePlayerId`, `started`,
 `rules.valueMap`, and `privateState` includes `capturedCards`.
 
+For `krig`, `publicState` includes simultaneous-play round fields:
+
+```json
+{
+  "roomCode": "ABC123",
+  "players": [
+    { "playerId": "p1", "username": "Alice" },
+    { "playerId": "p2", "username": "Bob" }
+  ],
+  "round": 1,
+  "totalRounds": 5,
+  "gamePhase": "PLAYING",
+  "scores": {
+    "p1": 0,
+    "p2": 0
+  },
+  "matchWinnerPlayerId": null,
+  "rematchPlayerIds": [],
+  "submittedPlayerIds": ["p1"],
+  "revealedCards": {
+    "p1": null,
+    "p2": null
+  },
+  "lastBattle": null
+}
+```
+
+When both players have submitted, `submittedPlayerIds` becomes empty,
+`revealedCards` contains both actual card codes, and `lastBattle` contains the
+resolved round result:
+
+```json
+{
+  "round": 1,
+  "firstPlayerId": "p1",
+  "firstCard": "HA",
+  "secondPlayerId": "p2",
+  "secondCard": "SK",
+  "winnerPlayerId": "p1",
+  "outcome": "FIRST"
+}
+```
+
+When the final round finishes, `gamePhase` becomes `GAME_OVER`,
+`matchWinnerPlayerId` contains the overall winner or `null` for a tie, and
+`rematchPlayerIds` starts empty until players opt into a rematch.
+
 ------------------------------------------------------------------------
 
 ## PUBLIC_UPDATE
@@ -236,6 +332,10 @@ Broadcast til alle spillere.
 {
   "type": "PUBLIC_UPDATE",
   "payload": {
+    "players": [
+      { "playerId": "p1", "username": "Alice" },
+      { "playerId": "p2", "username": "Bob" }
+    ],
     "turnPlayerId": "p2",
     "pileCount": 10
   }
@@ -285,6 +385,7 @@ Sendes kun til én spiller.
 ```
 
 For Casino draws, `winnerPlayerId` may be `null`.
+For Krig draws, `winnerPlayerId` may also be `null`.
 
 ------------------------------------------------------------------------
 

@@ -44,11 +44,12 @@ public class RoomController {
     @PostMapping
     public CreateRoomResponse createRoom(@RequestBody(required = false) CreateRoomRequest request) {
         String playerId = blank(request == null ? null : request.playerId()) ? "p1" : request.playerId();
+        String username = blank(request == null ? null : request.username()) ? null : request.username().trim();
         String token = blank(request == null ? null : request.token()) ? "dev-" + UUID.randomUUID() : request.token();
         boolean isPrivate = request != null && Boolean.TRUE.equals(request.isPrivate());
 
         String roomCode = runtimeStore.createRoom(request == null ? null : request.gameType(), isPrivate, playerId);
-        runtimeStore.joinRoom(roomCode, playerId, token);
+        runtimeStore.joinRoom(roomCode, playerId, username, token);
 
         return runtimeStore.roomSnapshot(roomCode)
                 .map(room -> new CreateRoomResponse(room.roomCode(), playerId, token, room.hostPlayerId(), room.isPrivate(), room.selectedGame(), room.status().name()))
@@ -65,13 +66,14 @@ public class RoomController {
         String playerId = request == null || blank(request.playerId())
                 ? "p" + (runtimeStore.participants(roomCode).size() + 1)
                 : request.playerId();
+        String username = request == null || blank(request.username()) ? null : request.username().trim();
 
         String token = request == null || blank(request.token())
                 ? "dev-" + UUID.randomUUID()
                 : request.token();
 
         // TEAM-DB-INTEGRATION: replace generated dev token/session registration with durable identity/session persistence.
-        runtimeStore.joinRoom(roomCode, playerId, token);
+        runtimeStore.joinRoom(roomCode, playerId, username, token);
         gameWsHandler.publishLobbyState(roomCode);
 
         InMemoryRuntimeStore.RoomSnapshot room = runtimeStore.roomSnapshot(roomCode)
@@ -115,7 +117,7 @@ public class RoomController {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record CreateRoomRequest(String gameType, Boolean isPrivate, String playerId, String token) {
+    public record CreateRoomRequest(String gameType, Boolean isPrivate, String playerId, String username, String token) {
     }
 
     public record CreateRoomResponse(
@@ -135,12 +137,12 @@ public class RoomController {
             String selectedGame,
             String status,
             int playerCount,
-            List<String> participants
-    ) {
+            List<InMemoryRuntimeStore.PlayerSummary> participants
+        ) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record JoinRoomRequest(String playerId, String token) {
+    public record JoinRoomRequest(String playerId, String username, String token) {
     }
 
     public record JoinRoomResponse(

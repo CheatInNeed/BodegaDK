@@ -12,23 +12,27 @@ public class KrigViewProjector implements ViewProjector<KrigState> {
     public Map<String, Object> toPublicView(KrigState state) {
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("players", state.playerIds());
-        view.put("turnPlayerId", state.currentPlayerId());
+        view.put("gamePhase", state.isFinished() ? "GAME_OVER" : "PLAYING");
         view.put("round", state.round());
         view.put("totalRounds", 5);
         view.put("scores", state.scores());
+        view.put("matchWinnerPlayerId", state.winnerPlayerId());
+        view.put("rematchPlayerIds", List.copyOf(state.rematchPlayerIds()));
+        view.put("submittedPlayerIds", List.copyOf(state.submittedCards().keySet()));
 
-        Map<String, String> tableCards = new LinkedHashMap<>();
+        Map<String, String> revealedCards = new LinkedHashMap<>();
         for (String playerId : state.playerIds()) {
-            Card card = state.tableCards().get(playerId);
-            tableCards.put(playerId, card == null ? null : card.toString());
+            Card card = state.revealedCards().get(playerId);
+            revealedCards.put(playerId, card == null ? null : card.toString());
         }
-        view.put("tableCards", tableCards);
+        view.put("revealedCards", revealedCards);
 
         KrigState.BattleResult battle = state.lastBattle();
         if (battle == null) {
             view.put("lastBattle", null);
         } else {
             Map<String, Object> result = new LinkedHashMap<>();
+            result.put("round", battle.round());
             result.put("firstPlayerId", battle.firstPlayerId());
             result.put("firstCard", battle.firstCard());
             result.put("secondPlayerId", battle.secondPlayerId());

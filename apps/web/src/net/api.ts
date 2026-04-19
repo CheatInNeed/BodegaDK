@@ -1,12 +1,17 @@
 export type RoomStatus = 'LOBBY' | 'IN_GAME';
 
+export type LobbyParticipant = {
+    playerId: string;
+    username: string | null;
+};
+
 export type LobbyRoomSummary = {
     roomCode: string;
     hostPlayerId: string;
     selectedGame: string;
     status: RoomStatus;
     playerCount: number;
-    participants: string[];
+    participants: LobbyParticipant[];
 };
 
 export type CreateRoomResponse = {
@@ -40,6 +45,7 @@ export async function createRoom(input: {
     gameType?: string;
     isPrivate?: boolean;
     playerId?: string;
+    username?: string;
     token?: string;
 }): Promise<CreateRoomResponse> {
     const response = await fetch(`${resolveApiBaseUrl()}/rooms`, {
@@ -53,7 +59,7 @@ export async function createRoom(input: {
     return parseJsonResponse<CreateRoomResponse>(response, 'Failed to create room');
 }
 
-export async function joinRoom(input: { roomCode: string; playerId?: string; token?: string }): Promise<JoinRoomResponse> {
+export async function joinRoom(input: { roomCode: string; playerId?: string; username?: string; token?: string }): Promise<JoinRoomResponse> {
     const response = await fetch(`${resolveApiBaseUrl()}/rooms/${encodeURIComponent(input.roomCode)}/join`, {
         method: 'POST',
         headers: {
@@ -61,6 +67,7 @@ export async function joinRoom(input: { roomCode: string; playerId?: string; tok
         },
         body: JSON.stringify({
             playerId: input.playerId,
+            username: input.username,
             token: input.token,
         }),
     });

@@ -26,6 +26,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String HIGHCARD_GAME_TYPE = "highcard";
     private static final String KRIG_GAME_TYPE = "krig";
     private static final String PLAY_CARDS = "PLAY_CARDS";
+    private static final String REQUEST_REMATCH = "REQUEST_REMATCH";
     private static final String SELECT_GAME = "SELECT_GAME";
     private static final String START_GAME = "START_GAME";
 
@@ -66,6 +67,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             case SELECT_GAME -> handleSelectGame(state, command, room);
             case START_GAME -> handleStartGame(state, command, room);
             case PLAY_CARDS -> handlePlayCards(state, command, room);
+            case REQUEST_REMATCH -> handleRequestRematch(state, command, room);
             default -> GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         };
     }
@@ -86,14 +88,14 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             case HIGHCARD_GAME_TYPE -> {
                 HighCardState current = runtimeStore.loadOrCreateHighCardState(
                         state.roomCode(),
-                        () -> highCardEngine.init(room.participants())
+                        () -> highCardEngine.init(room.participantIds())
                 );
                 yield toHighCardRoomState(state, room, playerId, current);
             }
             case KRIG_GAME_TYPE -> {
                 KrigState current = runtimeStore.loadOrCreateKrigState(
                         state.roomCode(),
-                        () -> krigEngine.init(room.participants())
+                        () -> krigEngine.init(room.participantIds())
                 );
                 yield toKrigRoomState(state, room, playerId, current);
             }
@@ -161,18 +163,18 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
         try {
             GameLoopService.RoomState nextState = switch (selectedGame) {
                 case HIGHCARD_GAME_TYPE -> {
-                    HighCardState highCardState = highCardEngine.init(startedRoom.participants());
+                    HighCardState highCardState = highCardEngine.init(startedRoom.participantIds());
                     runtimeStore.saveHighCardState(command.roomCode(), highCardState);
                     yield toHighCardRoomState(state, startedRoom, command.playerId(), highCardState);
                 }
                 case KRIG_GAME_TYPE -> {
-                    KrigState krigState = krigEngine.init(startedRoom.participants());
+                    KrigState krigState = krigEngine.init(startedRoom.participantIds());
                     runtimeStore.saveKrigState(command.roomCode(), krigState);
                     yield toKrigRoomState(state, startedRoom, command.playerId(), krigState);
                 }
                 default -> throw new IllegalStateException("Unsupported game type");
             };
-            return GameLoopService.LoopResult.success(nextState, nextState.publicState(), privateUpdatesForAllPlayers(nextState, startedRoom.participants()), false, null);
+            return GameLoopService.LoopResult.success(nextState, nextState.publicState(), privateUpdatesForAllPlayers(nextState, startedRoom.participantIds()), false, null);
         } catch (GameEngine.GameRuleException ruleException) {
             runtimeStore.resetRoomToLobby(command.roomCode());
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + ruleException.getMessage());
@@ -199,6 +201,51 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
         };
     }
 
+    private GameLoopService.LoopResult handleRequestRematch(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        String selectedGame = normalizedGame(room.selectedGame());
+        if (!KRIG_GAME_TYPE.equals(selectedGame)) {
+            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        }
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        KrigState current = runtimeStore.loadOrCreateKrigState(
+                command.roomCode(),
+                () -> krigEngine.init(room.participantIds())
+        );
+
+        KrigState next;
+        try {
+            next = krigEngine.requestRematch(command.playerId(), current);
+        } catch (GameEngine.GameRuleException ruleException) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + ruleException.getMessage());
+        }
+
+        runtimeStore.saveKrigState(command.roomCode(), next);
+        GameLoopService.RoomState nextRoomState = toKrigRoomState(state, room, command.playerId(), next);
+
+        Map<String, JsonNode> privateUpdates = new HashMap<>();
+        for (String playerId : room.participantIds()) {
+            JsonNode privateState = nextRoomState.privateStateFor(playerId);
+            if (privateState != null) {
+                privateUpdates.put(playerId, privateState);
+            }
+        }
+
+        return GameLoopService.LoopResult.success(
+                nextRoomState,
+                nextRoomState.publicState(),
+                privateUpdates,
+                false,
+                null
+        );
+    }
+
     private GameLoopService.LoopResult applyHighCard(
             GameLoopService.RoomState state,
             GameLoopService.ActionCommand command,
@@ -215,7 +262,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
 
         HighCardState current = runtimeStore.loadOrCreateHighCardState(
                 command.roomCode(),
-                () -> highCardEngine.init(room.participants())
+                () -> highCardEngine.init(room.participantIds())
         );
         if (!isAllowedActor(current, command.playerId())) {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: highcard supports exactly one active player");
@@ -258,7 +305,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
 
         KrigState current = runtimeStore.loadOrCreateKrigState(
                 command.roomCode(),
-                () -> krigEngine.init(room.participants())
+                () -> krigEngine.init(room.participantIds())
         );
 
         KrigState next;
@@ -272,7 +319,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
         GameLoopService.RoomState nextRoomState = toKrigRoomState(state, room, command.playerId(), next);
 
         Map<String, JsonNode> privateUpdates = new HashMap<>();
-        for (String playerId : room.participants()) {
+        for (String playerId : room.participantIds()) {
             JsonNode privateState = nextRoomState.privateStateFor(playerId);
             if (privateState != null) {
                 privateUpdates.put(playerId, privateState);
@@ -314,7 +361,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
         enrichPublicState(publicState, base.version(), room);
 
         Map<String, ObjectNode> privateStateByPlayer = new HashMap<>();
-        for (String playerId : room.participants()) {
+        for (String playerId : room.participantIds()) {
             ObjectNode privateState = objectMapper.valueToTree(krigProjector.toPrivateView(gameState, playerId));
             privateStateByPlayer.put(playerId, privateState);
         }
@@ -335,7 +382,16 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
         publicState.put("isPrivate", room.isPrivate());
 
         ArrayNode players = objectMapper.createArrayNode();
-        room.participants().forEach(players::add);
+        room.participants().forEach(player -> {
+            ObjectNode playerPayload = objectMapper.createObjectNode();
+            playerPayload.put("playerId", player.playerId());
+            if (player.username() == null) {
+                playerPayload.putNull("username");
+            } else {
+                playerPayload.put("username", player.username());
+            }
+            players.add(playerPayload);
+        });
         publicState.set("players", players);
     }
 

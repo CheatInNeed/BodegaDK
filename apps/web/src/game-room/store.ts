@@ -1,10 +1,11 @@
-import type { ConnectionStatus, RoomSessionState } from './types.js';
+import type { ConnectionStatus, KrigPresentationState, RoomSessionState } from './types.js';
 import type { ServerToClientMessage, SnydPrivateState } from '../net/protocol.js';
 
 type RoomStoreAction =
     | { type: 'SET_CONNECTION'; connection: ConnectionStatus }
     | { type: 'SET_ERROR'; message: string }
     | { type: 'TOGGLE_CARD'; card: string }
+    | { type: 'SET_KRIG_PRESENTATION'; presentation: KrigPresentationState }
     | { type: 'SERVER_MESSAGE'; message: ServerToClientMessage };
 
 type Listener = (state: RoomSessionState) => void;
@@ -66,6 +67,13 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
         return { ...state, selectedHandCards: [...selected] };
     }
 
+    if (action.type === 'SET_KRIG_PRESENTATION') {
+        return {
+            ...state,
+            krigPresentation: action.presentation,
+        };
+    }
+
     if (action.type !== 'SERVER_MESSAGE') return state;
 
     const msg = action.message;
@@ -88,10 +96,12 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
             ...(state.publicState ?? {}),
             ...msg.payload,
         };
+        const nextGamePhase = typeof nextPublicState.gamePhase === 'string' ? nextPublicState.gamePhase : null;
 
         return {
             ...state,
             publicState: nextPublicState,
+            winnerPlayerId: nextGamePhase === 'PLAYING' ? null : state.winnerPlayerId,
             lastError: null,
         };
     }

@@ -25,9 +25,10 @@
     "supabase:push:dry-run": "npx supabase db push --linked --dry-run",
     "supabase:push": "npx supabase db push --linked",
     "supabase:migration:new": "npx supabase migration new",
-    "deploy:update": "npm install && npm run web:build && cd infra && (docker compose up -d --build || docker-compose up -d --build)",
-    "deploy:main": "git fetch && git checkout main && git pull && npm run deploy:update",
-    "deploy:dev": "git fetch && git checkout dev && git pull && npm run deploy:update"
+    "deploy:update": "export PUBLIC_SUPABASE_URL=\"https://awdhzmyieafhfpjmzwsh.supabase.co\" PUBLIC_SUPABASE_ANON_KEY=\"sb_publishable_9e9yYV-9LVB4l7_tsBU8tw_hyPtg3tu\" && npm install && npm run web:build && cd infra && (docker compose up -d --build || docker-compose up -d --build)",
+    "deploy:master": "git fetch && git checkout master && git pull --ff-only origin master && npm run deploy:update",
+    "deploy:main": "npm run deploy:master",
+    "deploy:dev": "git fetch && git checkout dev && git pull --ff-only origin dev && npm run deploy:update"
   },
   "devDependencies": {
     "typescript": "^5.4.0"
