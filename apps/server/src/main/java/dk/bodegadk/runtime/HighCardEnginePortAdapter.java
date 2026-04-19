@@ -25,6 +25,7 @@ import java.util.Optional;
 public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String HIGHCARD_GAME_TYPE = "highcard";
     private static final String KRIG_GAME_TYPE = "krig";
+    private static final String CASINO_GAME_TYPE = "casino";
     private static final String PLAY_CARDS = "PLAY_CARDS";
     private static final String REQUEST_REMATCH = "REQUEST_REMATCH";
     private static final String SELECT_GAME = "SELECT_GAME";
@@ -122,7 +123,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             InMemoryRuntimeStore.RoomSnapshot room
     ) {
         String requestedGame = normalizedGame(command.payloadRaw().path("game").asText(""));
-        if (!isSupportedGame(requestedGame)) {
+        if (!supportsLobbySelection(requestedGame)) {
             return GameLoopService.LoopResult.error("ENGINE_NOT_READY: no engine available for room/game type");
         }
 
@@ -420,6 +421,10 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
 
     private boolean isSupportedGame(String gameType) {
         return HIGHCARD_GAME_TYPE.equals(gameType) || KRIG_GAME_TYPE.equals(gameType);
+    }
+
+    private boolean supportsLobbySelection(String gameType) {
+        return isSupportedGame(gameType) || CASINO_GAME_TYPE.equals(gameType);
     }
 
     private String normalizedGame(String gameType) {

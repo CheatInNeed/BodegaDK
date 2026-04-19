@@ -28,7 +28,12 @@ export function renderLobbyBrowser(params: {
     errorMessage: string | null;
     joinCode: string;
     createPrivate: boolean;
+    createGame: string;
     busy: boolean;
+    gameLabel: string;
+    visibilityLabel: string;
+    joinLobbyLabel: string;
+    joinRunningLabel: string;
 }): string {
     const roomsHtml = params.rooms.length === 0
         ? `<div class="card lobby-empty"><div class="card-title">No public lobbies</div><p class="card-desc">Create one below or join via code.</p></div>`
@@ -49,7 +54,7 @@ export function renderLobbyBrowser(params: {
               </div>
               <div class="card-row">
                 <span class="pill">Public lobby</span>
-                <button class="btn primary" data-action="join-public-room" data-room-code="${room.roomCode}">Join Lobby</button>
+                <button class="btn primary" data-action="join-public-room" data-room-code="${room.roomCode}">${room.status === 'IN_GAME' ? params.joinRunningLabel : params.joinLobbyLabel}</button>
               </div>
             </article>
         `).join('');
@@ -91,9 +96,17 @@ export function renderLobbyBrowser(params: {
           <div class="card lobby-panel">
             <div class="card-title">Create Lobby</div>
             <p class="card-desc">Start a new room and become the host right away.</p>
+            <label class="claim-label" for="createGameInput">
+              ${escapeHtml(params.gameLabel)}
+              <select class="select" id="createGameInput">
+                ${gameOption('highcard', params.createGame)}
+                ${gameOption('krig', params.createGame)}
+                ${gameOption('casino', params.createGame)}
+              </select>
+            </label>
             <label class="lobby-toggle">
               <input type="checkbox" id="createPrivateToggle" ${params.createPrivate ? 'checked' : ''} />
-              <span>Private room</span>
+              <span>${escapeHtml(params.visibilityLabel)}</span>
             </label>
             <button class="btn primary full-width" data-action="create-lobby" ${params.busy ? 'disabled' : ''}>Create Lobby</button>
           </div>
@@ -121,6 +134,7 @@ export function renderLobbyRoom(viewModel: LobbyRoomViewModel): string {
               <select class="select" id="selectedGameInput">
                 ${gameOption('highcard', viewModel.selectedGame)}
                 ${gameOption('krig', viewModel.selectedGame)}
+                ${gameOption('casino', viewModel.selectedGame)}
               </select>
             </label>
             <button class="btn primary full-width" data-action="start-lobby-game">Start Game</button>

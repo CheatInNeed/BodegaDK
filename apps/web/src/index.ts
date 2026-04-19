@@ -19,12 +19,16 @@ import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
+    cancelMatchmakingTicket,
     createRoom,
+    enqueueMatchmaking,
+    getMatchmakingTicket,
     joinRoom,
     kickPlayer,
     leaveRoom,
     listRooms,
     type LobbyRoomSummary,
+    type MatchmakingResponse,
 } from './net/api.js';
 
 type GenericAdapter = GameAdapter<Record<string, unknown>, Record<string, unknown>, unknown>;
@@ -60,6 +64,7 @@ const lobbyBrowserState = {
     busy: false,
     errorMessage: null as string | null,
     joinCode: '',
+    createGame: 'highcard',
     createPrivate: false,
 };
 
@@ -67,6 +72,13 @@ const homeMatchmakingState = {
     joinCode: '',
     busy: false,
     errorMessage: null as string | null,
+};
+
+const quickPlayState = {
+    loading: false,
+    errorMessage: null as string | null,
+    activeGame: null as string | null,
+    ticket: null as MatchmakingResponse | null,
 };
 
 const authUiState = {
@@ -84,6 +96,7 @@ let roomSession: ActiveSession | null = null;
 let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
 let highCardAutoStartKey: string | null = null;
+let quickPlayPollTimer: number | null = null;
 
 function getInitialTheme(): ThemeId {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -103,7 +116,26 @@ let casinoSelectedStackIds: string[] = [];
 
 function supportsLobbyLifecycle(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
-    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID;
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino';
+}
+
+function supportsRealtimeQuickPlay(game: string | null | undefined): boolean {
+    const normalized = (game ?? '').trim().toLowerCase();
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino';
+}
+
+function clearQuickPlayPolling() {
+    if (quickPlayPollTimer === null) return;
+    window.clearTimeout(quickPlayPollTimer);
+    quickPlayPollTimer = null;
+}
+
+function resetQuickPlayState() {
+    clearQuickPlayPolling();
+    quickPlayState.loading = false;
+    quickPlayState.errorMessage = null;
+    quickPlayState.activeGame = null;
+    quickPlayState.ticket = null;
 }
 
 function iconSvg(pathD: string) {
@@ -207,6 +239,7 @@ function renderView() {
         main.innerHTML = `
       <h1 class="h1" data-i18n="play.title"></h1>
       <p class="sub" data-i18n="play.subtitle"></p>
+      ${renderQuickPlayPanel()}
       ${playCards()}
     `;
     } else if (state.view === 'lobby-browser') {
@@ -217,8 +250,13 @@ function renderView() {
             loading: lobbyBrowserState.loading,
             errorMessage: lobbyBrowserState.errorMessage,
             joinCode: lobbyBrowserState.joinCode,
+            createGame: lobbyBrowserState.createGame,
             createPrivate: lobbyBrowserState.createPrivate,
             busy: lobbyBrowserState.busy,
+            gameLabel: t(state.lang, 'lobby.create.game'),
+            visibilityLabel: t(state.lang, 'lobby.create.visibility'),
+            joinLobbyLabel: t(state.lang, 'lobby.join.lobby'),
+            joinRunningLabel: t(state.lang, 'lobby.join.running'),
         });
     } else if (state.view === 'lobby') {
         main.innerHTML = renderLobbyContent();
@@ -514,13 +552,56 @@ function resolveAdapter(game: string): GenericAdapter | undefined {
 function playCards() {
     return `
     <div class="grid">
-      ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.open')}
-      ${gameCard('casino', '2-player Casino with capture sums and full deck.', 'action.open')}
-      ${gameCard('single.card.highest.wins', 'Backend-ready: single player vs dealer high-card game.', 'action.open')}
-      ${gameCard('game.500', 'Kortspil med stik og meldinger.', 'action.open')}
-      ${gameCard('game.dice', 'Terningebaseret spil.', 'action.open')}
-      ${gameCard('game.more', 'Flere spil bliver tilføjet løbende.', 'action.play')}
+      ${gameCard('game.cheat', 'game.cheat.desc', 'action.play')}
+      ${gameCard('game.krig', 'game.krig.desc', 'action.play')}
+      ${gameCard('casino', 'game.casino.desc', 'action.play')}
+      ${gameCard('single.card.highest.wins', 'single.card.highest.wins.desc', 'action.play')}
+      ${gameCard('game.500', 'game.500.desc', 'action.play')}
+      ${gameCard('game.dice', 'game.dice.desc', 'action.play')}
+      ${gameCard('game.more', 'game.more.desc', 'action.play')}
     </div>
+  `;
+}
+
+function renderQuickPlayPanel() {
+    const ticket = quickPlayState.ticket;
+    const headlineKey = ticket?.status === 'MATCHED' ? 'play.queue.matched' : ticket ? 'play.queue.waiting' : 'play.queue.idle';
+    const errorBanner = quickPlayState.errorMessage
+        ? `<div class="room-banner room-banner-error">${quickPlayState.errorMessage}</div>`
+        : '';
+    const metrics = ticket
+        ? `
+          <div class="home-matchmaking-grid">
+            <div class="home-matchmaking-panel">
+              <div class="card-title" data-i18n="play.queue.players"></div>
+              <p class="card-desc">${ticket.queuedPlayers}</p>
+            </div>
+            <div class="home-matchmaking-panel">
+              <div class="card-title" data-i18n="play.queue.needed"></div>
+              <p class="card-desc">${ticket.playersNeeded}</p>
+            </div>
+            <div class="home-matchmaking-panel">
+              <div class="card-title" data-i18n="play.queue.eta"></div>
+              <p class="card-desc">${ticket.estimatedWaitSeconds} ${t(state.lang, 'play.queue.seconds')}</p>
+            </div>
+          </div>
+        `
+        : '';
+
+    return `
+    <section class="card home-matchmaking-card">
+      <div class="home-card-header">
+        <div>
+          <div class="card-title home-card-title" data-i18n="play.queue.title"></div>
+          <p class="card-desc" data-i18n="${headlineKey}"></p>
+        </div>
+      </div>
+      ${errorBanner}
+      ${metrics}
+      ${ticket && ticket.status === 'WAITING'
+            ? `<button class="btn" type="button" data-action="cancel-quick-play" data-i18n="play.queue.cancel"></button>`
+            : ''}
+    </section>
   `;
 }
 
@@ -634,11 +715,11 @@ function renderHomepagePlaceholderCard(input: {
   `;
 }
 
-function gameCard(titleKey: string, desc: string, actionKey: string) {
+function gameCard(titleKey: string, descKey: string, actionKey: string) {
     return `
     <div class="card">
       <div class="card-title" data-i18n="${titleKey}"></div>
-      <div class="card-desc">${desc}</div>
+      <div class="card-desc" data-i18n="${descKey}"></div>
       <div class="card-row">
         <button class="btn primary" data-i18n="${actionKey}" data-action="open-game" data-game="${titleKey}"></button>
       </div>
@@ -712,8 +793,8 @@ function wireEvents() {
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-game"]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const game = normalizeGameKey(btn.dataset.game ?? '');
-            if (game === HIGHCARD_GAME_ID || game === 'casino') {
-                void startRealtimeRoom(game);
+            if (supportsRealtimeQuickPlay(game)) {
+                void handleQuickPlay(game);
                 return;
             }
 
@@ -725,6 +806,10 @@ function wireEvents() {
                 mock: true,
             });
         });
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="cancel-quick-play"]')?.addEventListener('click', () => {
+        void cancelQuickPlay();
     });
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-lobby-browser"]').forEach((button) => {
@@ -858,6 +943,11 @@ function wireLobbyEvents() {
             lobbyBrowserState.createPrivate = createPrivateToggle.checked;
         });
 
+        const createGameInput = document.getElementById('createGameInput') as HTMLSelectElement | null;
+        createGameInput?.addEventListener('change', () => {
+            lobbyBrowserState.createGame = normalizeGameKey(createGameInput.value);
+        });
+
         document.querySelector<HTMLButtonElement>('button[data-action="refresh-lobbies"]')?.addEventListener('click', () => {
             void refreshLobbyBrowser();
         });
@@ -942,7 +1032,7 @@ async function handleCreateLobby() {
     try {
         const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
-            gameType: FALLBACK_LOBBY_GAME_ID,
+            gameType: lobbyBrowserState.createGame,
             isPrivate: lobbyBrowserState.createPrivate,
             playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
@@ -1304,6 +1394,7 @@ function syncStateFromRoute() {
 
 function normalizeGameKey(game: string): string {
     if (game === 'game.cheat') return 'snyd';
+    if (game === 'game.krig') return KRIG_GAME_ID;
     if (game === 'casino') return 'casino';
     if (game === 'single.card.highest.wins') return HIGHCARD_GAME_ID;
     if (game === 'single-card-highest-wins') return HIGHCARD_GAME_ID;
@@ -1331,6 +1422,96 @@ async function startRealtimeRoom(gameType: string) {
         const message = toErrorMessage(error, `Failed to start ${gameType} room`);
         alert(message);
     }
+}
+
+async function handleQuickPlay(gameType: string) {
+    if (!supportsRealtimeQuickPlay(gameType)) {
+        quickPlayState.errorMessage = t(state.lang, 'play.queue.unsupported');
+        renderView();
+        return;
+    }
+
+    clearQuickPlayPolling();
+    quickPlayState.loading = true;
+    quickPlayState.errorMessage = null;
+    quickPlayState.activeGame = gameType;
+    quickPlayState.ticket = null;
+    renderView();
+
+    try {
+        const identity = getLobbyIdentity();
+        const ticket = await enqueueMatchmaking({
+            gameType,
+            playerId: identity.playerId,
+            username: identity.username ?? undefined,
+            token: identity.token,
+        });
+        quickPlayState.ticket = ticket;
+        quickPlayState.loading = false;
+        renderView();
+        handleQuickPlayTicketUpdate(ticket);
+    } catch (error) {
+        quickPlayState.loading = false;
+        quickPlayState.errorMessage = toErrorMessage(error, 'Failed to join matchmaking queue');
+        renderView();
+    }
+}
+
+function handleQuickPlayTicketUpdate(ticket: MatchmakingResponse) {
+    quickPlayState.ticket = ticket;
+    quickPlayState.activeGame = ticket.gameType;
+    if (ticket.status === 'MATCHED' && ticket.roomCode) {
+        resetQuickPlayState();
+        navigate({
+            view: 'room',
+            game: ticket.gameType,
+            room: ticket.roomCode,
+            token: ticket.token,
+            mock: false,
+        });
+        return;
+    }
+    if (ticket.status !== 'WAITING') {
+        clearQuickPlayPolling();
+        renderView();
+        return;
+    }
+    scheduleQuickPlayPoll(ticket.ticketId);
+}
+
+function scheduleQuickPlayPoll(ticketId: string) {
+    clearQuickPlayPolling();
+    quickPlayPollTimer = window.setTimeout(async () => {
+        try {
+            const nextTicket = await getMatchmakingTicket(ticketId);
+            handleQuickPlayTicketUpdate(nextTicket);
+            renderView();
+        } catch (error) {
+            quickPlayState.errorMessage = toErrorMessage(error, 'Failed to refresh matchmaking queue');
+            clearQuickPlayPolling();
+            renderView();
+        }
+    }, 1500);
+}
+
+async function cancelQuickPlay() {
+    const ticketId = quickPlayState.ticket?.ticketId;
+    if (!ticketId) {
+        resetQuickPlayState();
+        renderView();
+        return;
+    }
+
+    try {
+        await cancelMatchmakingTicket(ticketId);
+    } catch (error) {
+        quickPlayState.errorMessage = toErrorMessage(error, 'Failed to cancel matchmaking queue');
+        renderView();
+        return;
+    }
+
+    resetQuickPlayState();
+    renderView();
 }
 
 function triggerCasinoQuickMerge() {

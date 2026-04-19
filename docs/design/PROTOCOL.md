@@ -52,7 +52,13 @@ Opretter et nyt room.
 
 ``` json
 {
-  "roomCode": "ABC123"
+  "roomCode": "ABC123",
+  "playerId": "supabase-user-id-or-guest-id",
+  "token": "session-token",
+  "hostPlayerId": "supabase-user-id-or-guest-id",
+  "isPrivate": false,
+  "selectedGame": "highcard",
+  "status": "LOBBY"
 }
 ```
 
@@ -76,9 +82,66 @@ Joiner et eksisterende room.
 
 ``` json
 {
-  "ok": true
+  "ok": true,
+  "roomCode": "ABC123",
+  "playerId": "supabase-user-id-or-guest-id",
+  "token": "session-token",
+  "hostPlayerId": "supabase-user-id-or-guest-id",
+  "selectedGame": "highcard",
+  "status": "LOBBY"
 }
 ```
+
+------------------------------------------------------------------------
+
+## POST /matchmaking/queue
+
+Sætter en spiller i quick-play kø.
+
+### Request
+
+``` json
+{
+  "gameType": "casino",
+  "playerId": "supabase-user-id-or-guest-id",
+  "username": "Alice",
+  "token": "session-token"
+}
+```
+
+### Response
+
+``` json
+{
+  "ticketId": "uuid",
+  "gameType": "casino",
+  "status": "WAITING",
+  "roomCode": null,
+  "playerId": "supabase-user-id-or-guest-id",
+  "token": "session-token",
+  "queuedPlayers": 1,
+  "playersNeeded": 1,
+  "minPlayers": 2,
+  "maxPlayers": 2,
+  "strictCount": true,
+  "estimatedWaitSeconds": 12
+}
+```
+
+------------------------------------------------------------------------
+
+## GET /matchmaking/queue/{ticketId}
+
+Henter status for en quick-play ticket.
+
+Når `status` bliver `MATCHED`, vil `roomCode` være udfyldt og klienten
+skal navigere direkte til `view=room`.
+
+------------------------------------------------------------------------
+
+## DELETE /matchmaking/queue/{ticketId}
+
+Annullerer en quick-play ticket.
 
 ------------------------------------------------------------------------
 
@@ -236,6 +299,24 @@ requested a rematch, the server deals a fresh match and returns to
   }
 }
 ```
+
+------------------------------------------------------------------------
+
+## START_GAME
+
+``` json
+{
+  "type": "START_GAME",
+  "payload": {}
+}
+```
+
+`START_GAME` er nu den fælles room lifecycle-besked for alle realtime
+spil:
+
+- private lobbies bruger den når værten trykker start
+- quick play bruger den server-side, straks efter matchmaking har samlet
+  nok spillere
 
 ------------------------------------------------------------------------
 
