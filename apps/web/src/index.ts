@@ -552,12 +552,13 @@ function resolveAdapter(game: string): GenericAdapter | undefined {
 function playCards() {
     return `
     <div class="grid">
-      ${gameCard('game.cheat', 'Et klassisk bluff-spil (Snyd).', 'action.play')}
-      ${gameCard('casino', '2-player Casino with capture sums and full deck.', 'action.play')}
-      ${gameCard('single.card.highest.wins', 'Backend-ready: single player vs dealer high-card game.', 'action.play')}
-      ${gameCard('game.500', 'Kortspil med stik og meldinger.', 'action.play')}
-      ${gameCard('game.dice', 'Terningebaseret spil.', 'action.play')}
-      ${gameCard('game.more', 'Flere spil bliver tilføjet løbende.', 'action.play')}
+      ${gameCard('game.cheat', 'game.cheat.desc', 'action.play')}
+      ${gameCard('game.krig', 'game.krig.desc', 'action.play')}
+      ${gameCard('casino', 'game.casino.desc', 'action.play')}
+      ${gameCard('single.card.highest.wins', 'single.card.highest.wins.desc', 'action.play')}
+      ${gameCard('game.500', 'game.500.desc', 'action.play')}
+      ${gameCard('game.dice', 'game.dice.desc', 'action.play')}
+      ${gameCard('game.more', 'game.more.desc', 'action.play')}
     </div>
   `;
 }
@@ -714,11 +715,11 @@ function renderHomepagePlaceholderCard(input: {
   `;
 }
 
-function gameCard(titleKey: string, desc: string, actionKey: string) {
+function gameCard(titleKey: string, descKey: string, actionKey: string) {
     return `
     <div class="card">
       <div class="card-title" data-i18n="${titleKey}"></div>
-      <div class="card-desc">${desc}</div>
+      <div class="card-desc" data-i18n="${descKey}"></div>
       <div class="card-row">
         <button class="btn primary" data-i18n="${actionKey}" data-action="open-game" data-game="${titleKey}"></button>
       </div>
@@ -1393,6 +1394,7 @@ function syncStateFromRoute() {
 
 function normalizeGameKey(game: string): string {
     if (game === 'game.cheat') return 'snyd';
+    if (game === 'game.krig') return KRIG_GAME_ID;
     if (game === 'casino') return 'casino';
     if (game === 'single.card.highest.wins') return HIGHCARD_GAME_ID;
     if (game === 'single-card-highest-wins') return HIGHCARD_GAME_ID;
