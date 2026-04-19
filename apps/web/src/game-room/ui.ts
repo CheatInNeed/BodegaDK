@@ -150,6 +150,7 @@ function renderCardStack(count: number): string {
 
 function renderSeat(seat: SeatViewModel): string {
     const badgeClass = seat.isSelf ? 'seat-badge self' : 'seat-badge';
+    const toneClass = seat.stateTone && seat.stateTone !== 'default' ? ` table-seat-panel-${seat.stateTone}` : '';
     const tags = [
         ...(seat.badges ?? []),
         seat.isCurrentTurn ? 'Current turn' : '',
@@ -162,13 +163,14 @@ function renderSeat(seat: SeatViewModel): string {
 
     return `
     <div class="table-seat ${seat.positionClass ?? 'seat-top'}">
-      <div class="table-seat-panel ${seat.isCurrentTurn ? 'current-turn' : ''}">
+      <div class="table-seat-panel ${seat.isCurrentTurn ? 'current-turn' : ''}${toneClass}">
         <div class="table-seat-badge-row">
           <div class="${badgeClass}">${seat.label}</div>
           ${tags}
         </div>
         ${seat.meta ? `<div class="table-seat-meta">${seat.meta}</div>` : ''}
         ${bodyHtml}
+        ${seat.callout ? `<div class="table-seat-callout">${seat.callout}</div>` : ''}
       </div>
     </div>
   `;

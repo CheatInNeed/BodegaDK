@@ -120,6 +120,22 @@ export function renderSignup() {
                     return;
                 }
 
+                const { data: userData } = await supabase.auth.getUser();
+                const user = userData.user;
+                if (user) {
+                    const { error: profileError } = await supabase.from('profiles').upsert({
+                        id: user.id,
+                        username: username.trim() || null,
+                        country: country.trim() || null,
+                    });
+
+                    if (profileError) {
+                        msg.textContent = "Account created, but profile setup failed";
+                        msg.classList.add('error');
+                        return;
+                    }
+                }
+
                 setTimeout(() => navigate('/'), 800);
             }
         }

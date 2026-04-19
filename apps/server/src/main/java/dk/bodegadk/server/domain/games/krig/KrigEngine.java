@@ -35,7 +35,6 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         }
 
         state.setPhase(GameState.Phase.PLAYING);
-        state.setTurnToPlayer(playerIds.getFirst());
         return state;
     }
 
@@ -44,13 +43,15 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         if (state.isFinished()) {
             throw new GameRuleException("Game is already finished.");
         }
-        if (!action.playerId().equals(state.currentPlayerId())) {
-            throw new GameRuleException("Not your turn.");
-        }
+
         List<Card> hand = state.hands().get(action.playerId());
         if (hand == null) {
             throw new GameRuleException("Player not in game.");
         }
+        if (state.submittedCards().containsKey(action.playerId())) {
+            throw new GameRuleException("You have already locked in a card this round.");
+        }
+
         Card played = Card.parse(action.cardCode());
         if (!hand.contains(played)) {
             throw new GameRuleException("You do not own card: " + action.cardCode());
@@ -61,18 +62,36 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
     public KrigState apply(KrigAction action, KrigState state) {
         validate(action, state);
         KrigState next = state.copy();
+        prepareNextRound(next);
+
         Card played = Card.parse(action.cardCode());
         List<Card> hand = next.hands().get(action.playerId());
         hand.remove(played);
-        next.tableCards().put(action.playerId(), played);
+        next.submittedCards().put(action.playerId(), played);
 
-        if (next.tableCards().size() < PLAYER_COUNT) {
-            next.advanceTurn();
+        if (next.submittedCards().size() < PLAYER_COUNT) {
             return next;
         }
 
         resolveRound(next);
         return next;
+    }
+
+    public KrigState requestRematch(String playerId, KrigState state) {
+        if (!state.isFinished()) {
+            throw new GameRuleException("Game is not over yet.");
+        }
+        if (!state.playerIds().contains(playerId)) {
+            throw new GameRuleException("Player not in game.");
+        }
+
+        KrigState next = state.copy();
+        next.rematchPlayerIds().add(playerId);
+        if (next.rematchPlayerIds().size() < PLAYER_COUNT) {
+            return next;
+        }
+
+        return init(state.playerIds());
     }
 
     @Override
@@ -85,11 +104,19 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         return state.winnerPlayerId();
     }
 
+    private void prepareNextRound(KrigState state) {
+        if (!state.revealedCards().isEmpty()) {
+            state.revealedCards().clear();
+            state.setLastBattle(null);
+            state.setRound(state.round() + 1);
+        }
+    }
+
     private void resolveRound(KrigState state) {
         String firstPlayerId = state.playerIds().get(0);
         String secondPlayerId = state.playerIds().get(1);
-        Card firstCard = state.tableCards().get(firstPlayerId);
-        Card secondCard = state.tableCards().get(secondPlayerId);
+        Card firstCard = state.submittedCards().get(firstPlayerId);
+        Card secondCard = state.submittedCards().get(secondPlayerId);
 
         String winnerPlayerId = null;
         String outcome = "TIE";
@@ -105,7 +132,11 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
             state.scores().put(winnerPlayerId, state.scores().getOrDefault(winnerPlayerId, 0) + 1);
         }
 
+        state.revealedCards().clear();
+        state.revealedCards().put(firstPlayerId, firstCard);
+        state.revealedCards().put(secondPlayerId, secondCard);
         state.setLastBattle(new KrigState.BattleResult(
+                state.round(),
                 firstPlayerId,
                 firstCard.toString(),
                 secondPlayerId,
@@ -113,22 +144,21 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
                 winnerPlayerId,
                 outcome
         ));
-        state.tableCards().clear();
+        state.submittedCards().clear();
 
         boolean finished = state.hands().values().stream().allMatch(List::isEmpty);
         if (finished) {
             state.setPhase(GameState.Phase.FINISHED);
+            state.rematchPlayerIds().clear();
             int firstScore = state.scores().getOrDefault(firstPlayerId, 0);
             int secondScore = state.scores().getOrDefault(secondPlayerId, 0);
             if (firstScore > secondScore) {
                 state.setWinnerPlayerId(firstPlayerId);
             } else if (secondScore > firstScore) {
                 state.setWinnerPlayerId(secondPlayerId);
+            } else {
+                state.setWinnerPlayerId(null);
             }
-            return;
         }
-
-        state.setRound(state.round() + 1);
-        state.setTurnToPlayer(firstPlayerId);
     }
 }

@@ -1,7 +1,9 @@
 import type { LobbyRoomSummary } from '../net/api.js';
+import { formatPlayerDisplayName } from '../game-room/player-display.js';
 
 export type LobbyPlayerSeat = {
     playerId: string;
+    username: string;
     isHost: boolean;
     isSelf: boolean;
 };
@@ -10,6 +12,7 @@ export type LobbyRoomViewModel = {
     roomCode: string;
     connectionLabel: string;
     hostPlayerId: string | null;
+    hostDisplayName: string;
     selfPlayerId: string | null;
     selectedGame: string;
     status: string;
@@ -34,7 +37,7 @@ export function renderLobbyBrowser(params: {
               <div class="lobby-list-header">
                 <div>
                   <div class="card-title">Room ${room.roomCode}</div>
-                  <p class="card-desc">Host: ${room.hostPlayerId} · Game: ${room.selectedGame}</p>
+                  <p class="card-desc">Host: ${escapeHtml(resolveLobbyParticipantName(room, room.hostPlayerId))} · Game: ${room.selectedGame}</p>
                 </div>
                 <div class="lobby-badges">
                   <span class="pill">${room.status}</span>
@@ -42,7 +45,7 @@ export function renderLobbyBrowser(params: {
                 </div>
               </div>
               <div class="lobby-player-strip">
-                ${room.participants.map((playerId) => `<span class="pill">${playerId}</span>`).join('')}
+                ${room.participants.map((player) => `<span class="pill">${escapeHtml(player.username ?? player.playerId)}</span>`).join('')}
               </div>
               <div class="card-row">
                 <span class="pill">Public lobby</span>
@@ -90,7 +93,7 @@ export function renderLobbyBrowser(params: {
             <p class="card-desc">Start a new room and become the host right away.</p>
             <label class="lobby-toggle">
               <input type="checkbox" id="createPrivateToggle" ${params.createPrivate ? 'checked' : ''} />
-              <span>${params.createPrivate ? 'Private room' : 'Public room'}</span>
+              <span>Private room</span>
             </label>
             <button class="btn primary full-width" data-action="create-lobby" ${params.busy ? 'disabled' : ''}>Create Lobby</button>
           </div>
@@ -137,7 +140,7 @@ export function renderLobbyRoom(viewModel: LobbyRoomViewModel): string {
     const playersHtml = viewModel.players.map((player) => `
       <div class="card lobby-player-card">
         <div>
-          <div class="card-title">${player.playerId}</div>
+          <div class="card-title">${escapeHtml(player.username)}</div>
           <p class="card-desc">${player.isHost ? 'Lobby host' : 'Participant'}${player.isSelf ? ' · You' : ''}</p>
         </div>
         <div class="card-row">
@@ -173,7 +176,7 @@ export function renderLobbyRoom(viewModel: LobbyRoomViewModel): string {
               </div>
               <div>
                 <div class="card-title">Host</div>
-                <p class="card-desc">${viewModel.hostPlayerId ?? '-'}</p>
+                <p class="card-desc">${escapeHtml(viewModel.hostDisplayName)}</p>
               </div>
               <div>
                 <div class="card-title">Players</div>
@@ -209,6 +212,20 @@ function gameOption(value: string, current: string): string {
     return `<option value="${value}" ${value === current ? 'selected' : ''}>${value}</option>`;
 }
 
+function resolveLobbyParticipantName(room: LobbyRoomSummary, playerId: string): string {
+    const participant = room.participants.find((player) => player.playerId === playerId);
+    return formatPlayerDisplayName(playerId, participant?.username ?? null);
+}
+
 function escapeAttr(value: string): string {
     return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
 }
