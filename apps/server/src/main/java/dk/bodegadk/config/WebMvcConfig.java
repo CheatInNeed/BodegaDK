@@ -20,5 +20,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedOrigins("http://localhost:5173")
                 .allowedMethods("GET", "OPTIONS")
                 .allowedHeaders("*");
+        registry.addMapping("/matchmaking/queue")
+                .allowedOrigins("http://localhost:5173")
+                .allowedMethods("POST", "OPTIONS")
+                .allowedHeaders("*");
+        registry.addMapping("/matchmaking/queue/**")
+                .allowedOrigins("http://localhost:5173")
+                .allowedMethods("GET", "DELETE", "OPTIONS")
+                .allowedHeaders("*");
     }
 }

@@ -20,6 +20,7 @@ import java.util.Optional;
 @Component
 public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String CASINO_GAME_TYPE = "casino";
+    private static final String START_GAME = "START_GAME";
 
     private final InMemoryRuntimeStore runtimeStore;
     private final ObjectMapper objectMapper;
@@ -46,12 +47,26 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("SESSION_NOT_READY: session validation unavailable");
         }
 
+        Optional<InMemoryRuntimeStore.RoomSnapshot> roomOptional = runtimeStore.roomSnapshot(command.roomCode());
+        if (roomOptional.isEmpty()) {
+            return GameLoopService.LoopResult.error("SESSION_NOT_READY: session validation unavailable");
+        }
+        InMemoryRuntimeStore.RoomSnapshot room = roomOptional.get();
+
+        if (START_GAME.equals(command.type())) {
+            return handleStartGame(state, command, room);
+        }
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
         CasinoAction action = parseAction(command);
         if (action == null) {
             return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         }
 
-        CasinoState current = loadCasinoState(command.roomCode());
+        CasinoState current = loadCasinoState(command.roomCode())
+                .orElseThrow(() -> new GameEngine.GameRuleException("Casino state missing"));
         CasinoState next;
         try {
             next = engine.apply(action, current);
@@ -60,7 +75,7 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
         }
 
         runtimeStore.saveCasinoState(command.roomCode(), next);
-        GameLoopService.RoomState nextRoomState = toRoomState(state.version(), command.roomCode(), next);
+        GameLoopService.RoomState nextRoomState = toRoomState(state.version(), room, next);
 
         return GameLoopService.LoopResult.success(
                 nextRoomState,
@@ -77,31 +92,76 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
             return state;
         }
 
-        CasinoState current = loadCasinoState(state.roomCode());
-        return toRoomState(state.version(), state.roomCode(), current);
+        Optional<InMemoryRuntimeStore.RoomSnapshot> roomOptional = runtimeStore.roomSnapshot(state.roomCode());
+        if (roomOptional.isEmpty()) {
+            return state;
+        }
+        InMemoryRuntimeStore.RoomSnapshot room = roomOptional.get();
+        if (room.status() == InMemoryRuntimeStore.RoomStatus.LOBBY) {
+            return toLobbyRoomState(runtimeStore.refreshPlayers(state.roomCode()), playerId);
+        }
+
+        return loadCasinoState(state.roomCode())
+                .map(current -> toRoomState(state.version(), room, current))
+                .orElse(state);
     }
 
-    private CasinoState loadCasinoState(String roomCode) {
-        CasinoState state = runtimeStore.loadOrCreateCasinoState(roomCode, () -> {
-            List<String> participants = runtimeStore.participants(roomCode);
-            if (participants.size() < 2) {
-                Map<String, List<Integer>> rules = runtimeStore.casinoValueMap(roomCode).orElse(CasinoEngine.defaultValueMap());
-                String dealer = participants.size() > 1 ? participants.get(1) : "p2";
-                return new CasinoState(roomCode, List.of("p1", "p2"), dealer, rules);
-            }
-            Map<String, List<Integer>> rules = runtimeStore.casinoValueMap(roomCode)
-                    .orElseThrow(() -> new GameEngine.GameRuleException("Missing setup.casinoRules.valueMap"));
-            return engine.init(roomCode, List.copyOf(participants), participants.get(1), rules);
-        });
+    private GameLoopService.RoomState toLobbyRoomState(GameLoopService.RoomState base, String playerId) {
+        Map<String, ObjectNode> privateStateByPlayer = new HashMap<>();
+        ObjectNode privateState = objectMapper.createObjectNode();
+        privateState.put("playerId", playerId);
+        privateStateByPlayer.put(playerId, privateState);
+        return new GameLoopService.RoomState(base.roomCode(), base.version(), base.publicState().deepCopy(), privateStateByPlayer);
+    }
 
-        List<String> participants = runtimeStore.participants(roomCode);
-        if (!state.started() && participants.size() == 2) {
-            Map<String, List<Integer>> rules = runtimeStore.casinoValueMap(roomCode)
-                    .orElseThrow(() -> new GameEngine.GameRuleException("Missing setup.casinoRules.valueMap"));
-            state = engine.init(roomCode, List.copyOf(participants), participants.get(1), rules);
-            runtimeStore.saveCasinoState(roomCode, state);
+    private Optional<CasinoState> loadCasinoState(String roomCode) {
+        try {
+            return Optional.of(runtimeStore.loadOrCreateCasinoState(roomCode, () -> {
+                throw new GameEngine.GameRuleException("Casino state missing");
+            }));
+        } catch (GameEngine.GameRuleException exception) {
+            return Optional.empty();
         }
-        return state;
+    }
+
+    private GameLoopService.LoopResult handleStartGame(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        try {
+            runtimeStore.markRoomInGame(command.roomCode(), command.playerId())
+                    .orElseThrow(() -> new IllegalStateException("Room not found"));
+        } catch (IllegalStateException exception) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + exception.getMessage());
+        }
+
+        Optional<InMemoryRuntimeStore.RoomSnapshot> startedRoomOptional = runtimeStore.roomSnapshot(command.roomCode());
+        if (startedRoomOptional.isEmpty()) {
+            return GameLoopService.LoopResult.error("SESSION_NOT_READY: session validation unavailable");
+        }
+        InMemoryRuntimeStore.RoomSnapshot startedRoom = startedRoomOptional.get();
+
+        try {
+            List<String> participants = startedRoom.participantIds();
+            Map<String, List<Integer>> rules = runtimeStore.casinoValueMap(command.roomCode())
+                    .orElse(CasinoEngine.defaultValueMap());
+            String dealer = participants.size() > 1 ? participants.get(1) : "p2";
+            CasinoState next = engine.init(command.roomCode(), List.copyOf(participants), dealer, rules);
+            runtimeStore.saveCasinoState(command.roomCode(), next);
+
+            GameLoopService.RoomState nextRoomState = toRoomState(state.version(), startedRoom, next);
+            return GameLoopService.LoopResult.success(
+                    nextRoomState,
+                    nextRoomState.publicState(),
+                    new HashMap<>(nextRoomState.privateStateByPlayer()),
+                    engine.isFinished(next),
+                    engine.getWinner(next)
+            );
+        } catch (GameEngine.GameRuleException exception) {
+            runtimeStore.resetRoomToLobby(command.roomCode());
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + exception.getMessage());
+        }
     }
 
     private CasinoAction parseAction(GameLoopService.ActionCommand command) {
@@ -143,17 +203,21 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
         };
     }
 
-    private GameLoopService.RoomState toRoomState(long version, String roomCode, CasinoState gameState) {
+    private GameLoopService.RoomState toRoomState(long version, InMemoryRuntimeStore.RoomSnapshot room, CasinoState gameState) {
         ObjectNode publicState = objectMapper.valueToTree(projector.toPublicView(gameState));
-        publicState.put("roomCode", roomCode);
+        publicState.put("roomCode", room.roomCode());
         publicState.put("version", version);
+        publicState.put("hostPlayerId", room.hostPlayerId());
+        publicState.put("selectedGame", room.selectedGame());
+        publicState.put("status", room.status().name());
+        publicState.put("isPrivate", room.isPrivate());
 
         Map<String, ObjectNode> privateStateByPlayer = new LinkedHashMap<>();
-        for (String playerId : runtimeStore.participants(roomCode)) {
+        for (String playerId : room.participantIds()) {
             privateStateByPlayer.put(playerId, objectMapper.valueToTree(projector.toPrivateView(gameState, playerId)));
         }
 
-        return new GameLoopService.RoomState(roomCode, version, publicState, privateStateByPlayer);
+        return new GameLoopService.RoomState(room.roomCode(), version, publicState, privateStateByPlayer);
     }
 
     private String readText(JsonNode payload, String field) {

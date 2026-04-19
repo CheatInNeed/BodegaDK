@@ -5,6 +5,9 @@ Supabase is currently used by the web client for:
 - email/password auth
 - signup metadata
 - avatar/profile data in `public.avatars`
+- persisted room metadata in `public.rooms`
+- room participants in `public.room_players`
+- quick-play queue tickets in `public.matchmaking_tickets`
 
 It is not the game backend. Gameplay, lobby state, and rules stay in the
 Spring Boot server.
@@ -15,7 +18,11 @@ Current Supabase files in the repo:
 
 - `supabase/config.toml`
 - `supabase/migrations/202604081410_init.sql`
+- `supabase/migrations/202604191100_room_matchmaking.sql`
 - `.github/workflows/supabase-migrations.yml`
+
+Room/session metadata now lives in Supabase/Postgres, while live
+engine-specific game state still remains inside the Spring runtime.
 
 ## Migration workflow
 
