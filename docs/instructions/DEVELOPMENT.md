@@ -192,6 +192,16 @@ docker compose up --build
 
 Åbn: - http://localhost (nginx)
 
+Bemærk om database:
+
+- hvis `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` og
+  `SPRING_DATASOURCE_PASSWORD` ikke er sat i shell environment, bruger
+  compose-stacken den lokale Docker Postgres service `db`
+- hvis de er sat til Supabase Postgres værdier, vil backend skrive rooms,
+  room players og matchmaking tickets til Supabase i stedet
+- `PUBLIC_SUPABASE_URL` og `PUBLIC_SUPABASE_ANON_KEY` påvirker kun web
+  klientens auth/profile integration og ændrer ikke backendens datasource
+
 Nginx: - serverer web (static) - proxyer `/api/*` til backend - proxyer
 `/ws` til backend (WebSocket)
 

@@ -70,6 +70,33 @@ Supabase URL and anon key before running the web build.
 If these values are missing, the web app still builds, but Supabase
 auth/profile features are disabled.
 
+## Backend datasource
+
+The Spring backend does not read `PUBLIC_SUPABASE_URL` or
+`PUBLIC_SUPABASE_ANON_KEY`.
+
+Those public values are only for the browser client. The backend writes
+room metadata and matchmaking tickets through the Spring datasource:
+
+- `SPRING_DATASOURCE_URL`
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+
+In the Docker deploy stack, `infra/docker-compose.yml` now reads those
+values from the host environment with a fallback to the local Docker
+Postgres container:
+
+- default/fallback: `jdbc:postgresql://db:5432/bodegadk`
+- override for Supabase: set the three Spring datasource env vars on the
+  VM before `docker compose up`
+
+Typical Supabase JDBC value shape:
+
+- `jdbc:postgresql://<project-db-host>:5432/postgres?sslmode=require`
+
+The exact host, username, and password must come from the Supabase
+project database connection settings. Do not commit them to the repo.
+
 ## Live deploy note
 
 Hosted Supabase migrations and web runtime config are separate concerns.
@@ -77,6 +104,8 @@ Hosted Supabase migrations and web runtime config are separate concerns.
 - `supabase/migrations/` controls the hosted database schema
 - `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` control whether the
   built web app can use Supabase auth/profile features
+- `SPRING_DATASOURCE_*` controls whether the Spring backend persists
+  rooms/matchmaking into Supabase or into the fallback Docker Postgres
 
 For live deploys, the machine or CI job that runs `npm run web:build` or
 `npm run deploy:update` must provide those public values either through:
@@ -87,3 +116,7 @@ For live deploys, the machine or CI job that runs `npm run web:build` or
 
 Pushing migrations alone does not populate `apps/web/public/app-config.js`
 for a live build.
+
+Likewise, applying Supabase migrations alone does not move backend writes
+to Supabase. The live server must be started with Supabase-backed
+`SPRING_DATASOURCE_*` values.
