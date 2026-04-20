@@ -47,6 +47,13 @@ Required GitHub secrets:
 The workflow runs `supabase db push --linked --dry-run` and then
 `supabase db push --linked`.
 
+When the Spring backend is pointed at an existing Supabase schema that
+already contains app tables but does not yet contain
+`public.flyway_schema_history`, Flyway must baseline that schema before
+normal migrations can continue. The app now enables
+`spring.flyway.baseline-on-migrate=true` so the backend can boot cleanly
+against a pre-populated Supabase `public` schema.
+
 ## Frontend config
 
 The web client reads public Supabase config from generated runtime config:
