@@ -1,23 +1,20 @@
 package dk.bodegadk.runtime;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.ObjectProvider;
 
 @Configuration
 public class RoomMetadataStoreConfiguration {
 
     @Bean
-    @ConditionalOnBean(JdbcTemplate.class)
-    RoomMetadataStore jdbcRoomMetadataStore(JdbcTemplate jdbcTemplate) {
-        return new JdbcRoomMetadataStore(jdbcTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(RoomMetadataStore.class)
-    RoomMetadataStore inMemoryRoomMetadataStore() {
+    RoomMetadataStore roomMetadataStore(ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
+        JdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
+        if (jdbcTemplate != null) {
+            return new JdbcRoomMetadataStore(jdbcTemplate);
+        }
         return new InMemoryRoomMetadataStore();
     }
 }
