@@ -19,6 +19,7 @@ Current Supabase files in the repo:
 - `supabase/config.toml`
 - `supabase/migrations/202604081410_init.sql`
 - `supabase/migrations/202604191100_room_matchmaking.sql`
+- `supabase/migrations/202604201130_profiles_auth_trigger.sql`
 - `.github/workflows/supabase-migrations.yml`
 
 Room/session metadata now lives in Supabase/Postgres, while live
@@ -27,6 +28,12 @@ engine-specific game state still remains inside the Spring runtime.
 ## Migration workflow
 
 Schema changes live in `supabase/migrations/`.
+
+Profile creation is now database-driven:
+
+- a trigger on `auth.users` creates or updates the matching row in `public.profiles`
+- signup metadata (`username`, `country`) is copied from `raw_user_meta_data`
+- `public.profiles` uses RLS policies so authenticated users can read and update only their own row
 
 GitHub Actions applies migrations on:
 
