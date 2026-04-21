@@ -4,41 +4,49 @@ import { createLayoutSpec } from '../../game-room/ui.js';
 import type { ClientToServerMessage, PlayerRef } from '../../net/protocol.js';
 import type { KrigViewModel } from './view.js';
 
-type KrigBattle = {
-    round?: number;
+type KrigTrick = {
+    trickNumber?: number;
     firstPlayerId?: string;
-    firstCard?: string;
+    firstCard?: string | null;
     secondPlayerId?: string;
-    secondCard?: string;
+    secondCard?: string | null;
     winnerPlayerId?: string | null;
     outcome?: string;
+    cardsWon?: number;
+    warDepth?: number;
 };
 
 type KrigPublicState = {
     roomCode?: string;
     gamePhase?: 'PLAYING' | 'GAME_OVER' | string;
-    round?: number;
-    totalRounds?: number;
+    trickNumber?: number;
     players?: PlayerRef[];
-    scores?: Record<string, number>;
+    drawPileCounts?: Record<string, number>;
+    drawPileCountsBeforeTrick?: Record<string, number>;
+    stakeCardCounts?: Record<string, number>;
     matchWinnerPlayerId?: string | null;
     rematchPlayerIds?: string[];
-    submittedPlayerIds?: string[];
-    revealedCards?: Record<string, string | null>;
-    lastBattle?: KrigBattle | null;
+    readyPlayerIds?: string[];
+    currentFaceUpCards?: Record<string, string | null>;
+    warActive?: boolean;
+    warDepth?: number;
+    warPileSize?: number;
+    centerPileSize?: number;
+    statusText?: string;
+    lastTrick?: KrigTrick | null;
     [key: string]: unknown;
 };
 
 type KrigPrivateState = {
     playerId?: string;
-    hand?: string[];
+    drawPileCount?: number;
     [key: string]: unknown;
 };
 
 export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigViewModel> = {
     id: 'krig',
     ui: createLayoutSpec({
-        maxPlayers: 8,
+        maxPlayers: 2,
         preferredLayout: 'duel',
         centerBoardMode: 'battle',
         seatRenderMode: 'revealed-card',
@@ -48,88 +56,90 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
         return game.toLowerCase() === 'krig';
     },
 
-    toViewModel({ sessionState, publicState, privateState, selectedCards, selfPlayerId, playerNames }) {
+    toViewModel({ sessionState, publicState, selfPlayerId, playerNames }) {
         const playerIds = Array.isArray(publicState?.players)
             ? publicState.players
                 .map((player) => typeof player === 'string' ? player : player.playerId)
                 .filter((playerId): playerId is string => typeof playerId === 'string')
             : [];
-        const handCodes = Array.isArray(privateState?.hand)
-            ? privateState.hand.filter((card): card is string => typeof card === 'string')
-            : [];
-        const submittedPlayerIds = readStringArray(publicState?.submittedPlayerIds);
+        const readyPlayerIds = readStringArray(publicState?.readyPlayerIds);
         const rematchPlayerIds = readStringArray(publicState?.rematchPlayerIds);
-        const submittedPlayerSet = new Set(submittedPlayerIds);
+        const readyPlayerSet = new Set(readyPlayerIds);
         const rematchPlayerSet = new Set(rematchPlayerIds);
-        const revealedCards = readCardMap(publicState?.revealedCards);
+        const currentFaceUpCards = readCardMap(publicState?.currentFaceUpCards);
         const presentation = sessionState.krigPresentation;
-        const battle = readBattle(publicState?.lastBattle);
+        const trick = readTrick(publicState?.lastTrick);
         const gamePhase = publicState?.gamePhase === 'GAME_OVER' ? 'GAME_OVER' : 'PLAYING';
-        const revealVisible = !!battle
-            && battle.round === presentation.activeBattleRound
+        const revealVisible = !!trick
+            && trick.trickNumber === presentation.activeBattleRound
             && presentation.phase === 'result';
-        const suspenseVisible = !!battle
-            && battle.round === presentation.activeBattleRound
+        const suspenseVisible = !!trick
+            && trick.trickNumber === presentation.activeBattleRound
             && presentation.phase === 'suspense';
-        const hideCompletedBattle = !!battle
-            && presentation.phase === 'idle'
-            && presentation.completedBattleRound === battle.round;
-        const selfHasSubmitted = submittedPlayerSet.has(selfPlayerId ?? '');
-        const isRoundLocked = gamePhase === 'GAME_OVER' || selfHasSubmitted || suspenseVisible || revealVisible;
+        const selfIsReady = readyPlayerSet.has(selfPlayerId ?? '');
+        const isRoundLocked = gamePhase === 'GAME_OVER' || selfIsReady || suspenseVisible || revealVisible;
         const opponentLeft = playerIds.length < 2;
         const postGameVisible = gamePhase === 'GAME_OVER' && presentation.phase === 'idle';
         const winnerPlayerId = typeof publicState?.matchWinnerPlayerId === 'string' ? publicState.matchWinnerPlayerId : null;
         const selfRequestedRematch = rematchPlayerSet.has(selfPlayerId ?? '');
         const rematchDisabled = opponentLeft || selfRequestedRematch;
+        const warDepth = typeof publicState?.warDepth === 'number' ? publicState.warDepth : trick?.warDepth ?? 0;
+        const cardsInCenter = typeof publicState?.centerPileSize === 'number' ? publicState.centerPileSize : trick?.cardsWon ?? 0;
+        const warPileSize = typeof publicState?.warPileSize === 'number' ? publicState.warPileSize : Math.max(0, cardsInCenter - 2);
+        const warPresentationActive = !!trick
+            && warDepth > 0
+            && trick.trickNumber !== presentation.completedBattleRound
+            && !postGameVisible;
+        const drawPileCounts = suspenseVisible && publicState?.drawPileCountsBeforeTrick
+            ? publicState.drawPileCountsBeforeTrick
+            : publicState?.drawPileCounts;
 
         return {
             roomCode: typeof publicState?.roomCode === 'string' ? publicState.roomCode : '-',
-            round: typeof publicState?.round === 'number' ? publicState.round : 1,
-            totalRounds: typeof publicState?.totalRounds === 'number' ? publicState.totalRounds : 5,
+            trickNumber: typeof publicState?.trickNumber === 'number' ? publicState.trickNumber : 1,
             selfPlayerId,
             isGameOver: gamePhase === 'GAME_OVER',
             statusText: describeStatus({
                 selfPlayerId,
-                submittedPlayerSet,
-                battle,
+                readyPlayerSet,
+                trick,
                 suspenseVisible,
                 revealVisible,
-                hideCompletedBattle,
                 gamePhase,
                 opponentLeft,
                 playerNames,
+                fallback: typeof publicState?.statusText === 'string' ? publicState.statusText : null,
             }),
-            canPlayCard: !isRoundLocked && !sessionState.winnerPlayerId,
+            canFlip: !isRoundLocked && !sessionState.winnerPlayerId && !opponentLeft,
+            warActive: warPresentationActive,
+            warDepth,
+            warPileSize,
+            centerPileSize: cardsInCenter,
             players: playerIds.map((playerId) => {
-                const isWinner = revealVisible && battle?.winnerPlayerId === playerId;
-                const isLoser = revealVisible && !!battle?.winnerPlayerId && battle.winnerPlayerId !== playerId;
+                const isWinner = revealVisible && trick?.winnerPlayerId === playerId;
+                const isLoser = revealVisible && !!trick?.winnerPlayerId && trick.winnerPlayerId !== playerId;
                 const tableCard = buildTableCard({
                     playerId,
-                    submittedPlayerSet,
-                    revealedCards,
+                    currentFaceUpCards,
                     suspenseVisible,
                     revealVisible,
-                    hideCompletedBattle,
                     postGameVisible,
+                    isReady: readyPlayerSet.has(playerId),
                 });
 
                 return {
                     playerId,
                     displayName: resolvePlayerName(playerNames, playerId),
-                    score: typeof publicState?.scores?.[playerId] === 'number' ? publicState.scores[playerId] : 0,
+                    pileCount: typeof drawPileCounts?.[playerId] === 'number' ? drawPileCounts[playerId] : 0,
+                    stakeCount: typeof publicState?.stakeCardCounts?.[playerId] === 'number' ? publicState.stakeCardCounts[playerId] : 0,
                     tableCard,
                     isSelf: selfPlayerId === playerId,
-                    isWaiting: submittedPlayerSet.has(playerId),
+                    isReady: readyPlayerSet.has(playerId),
                     isRoundWinner: isWinner,
                     isRoundLoser: isLoser,
-                    scoreDeltaText: isWinner ? '+1 point' : null,
+                    callout: isWinner ? `+${trick?.cardsWon ?? cardsInCenter} cards` : null,
                 };
             }),
-            hand: handCodes.map((card) => ({
-                card,
-                selected: selectedCards.includes(card),
-            })),
-            selectedCard: selectedCards[0] ?? null,
             postGame: postGameVisible
                 ? {
                     winnerLabel: winnerPlayerId ? resolvePlayerName(playerNames, winnerPlayerId) : 'Tie Game',
@@ -145,10 +155,10 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
                         : selfRequestedRematch
                             ? 'Your rematch vote is locked in.'
                             : 'Both players must press rematch to deal a new game.',
-                    scores: playerIds.map((playerId) => ({
+                    piles: playerIds.map((playerId) => ({
                         playerId,
                         displayName: resolvePlayerName(playerNames, playerId),
-                        score: typeof publicState?.scores?.[playerId] === 'number' ? publicState.scores[playerId] : 0,
+                    pileCount: typeof publicState?.drawPileCounts?.[playerId] === 'number' ? publicState.drawPileCounts[playerId] : 0,
                     })),
                 }
                 : null,
@@ -176,100 +186,91 @@ function buildKrigAction(intent: UiIntent, state: RoomSessionState): ClientToSer
         };
     }
 
-    if (intent.type !== 'PLAY_SELECTED') return null;
+    if (intent.type !== 'FLIP_CARD') return null;
     if (state.winnerPlayerId) return null;
-    if (state.selectedHandCards.length !== 1) return null;
 
-    const submittedPlayerIds = readStringArray(publicState?.submittedPlayerIds);
-    const selfAlreadySubmitted = !!state.playerId && submittedPlayerIds.includes(state.playerId);
-    const roundLocked = gamePhase === 'GAME_OVER' || selfAlreadySubmitted || state.krigPresentation.phase !== 'idle';
+    const readyPlayerIds = readStringArray(publicState?.readyPlayerIds);
+    const selfAlreadyReady = !!state.playerId && readyPlayerIds.includes(state.playerId);
+    const roundLocked = gamePhase === 'GAME_OVER' || selfAlreadyReady || state.krigPresentation.phase !== 'idle';
     if (roundLocked) return null;
 
     return {
-        type: 'PLAY_CARDS',
-        payload: {
-            cards: [state.selectedHandCards[0]],
-            claimRank: 'A',
-        },
+        type: 'FLIP_CARD',
+        payload: {},
     };
 }
 
 function buildTableCard(input: {
     playerId: string;
-    submittedPlayerSet: Set<string>;
-    revealedCards: Record<string, string | null>;
+    currentFaceUpCards: Record<string, string | null>;
     suspenseVisible: boolean;
     revealVisible: boolean;
-    hideCompletedBattle: boolean;
     postGameVisible: boolean;
+    isReady: boolean;
 }): CardDisplayModel {
     if (input.postGameVisible) {
         return { kind: 'empty', label: '', size: 'sm' };
     }
 
-    if (input.hideCompletedBattle) {
-        return { kind: 'empty', label: 'No card', size: 'sm' };
-    }
-
     if (input.revealVisible) {
-        const revealedCard = input.revealedCards[input.playerId];
-        if (typeof revealedCard === 'string') {
-            return { kind: 'face', cardCode: revealedCard, size: 'sm' };
+        const card = input.currentFaceUpCards[input.playerId];
+        if (typeof card === 'string') {
+            return { kind: 'face', cardCode: card, size: 'sm' };
         }
     }
 
-    if (input.suspenseVisible || input.submittedPlayerSet.has(input.playerId)) {
+    if (input.suspenseVisible || input.isReady) {
         return { kind: 'back', label: 'Ready', size: 'sm' };
     }
 
-    return { kind: 'empty', label: 'No card', size: 'sm' };
+    return { kind: 'back', label: 'Draw pile', size: 'sm' };
 }
 
 function describeStatus(input: {
     selfPlayerId: string | null;
-    submittedPlayerSet: Set<string>;
-    battle: KrigBattle | null;
+    readyPlayerSet: Set<string>;
+    trick: KrigTrick | null;
     suspenseVisible: boolean;
     revealVisible: boolean;
-    hideCompletedBattle: boolean;
     gamePhase: 'PLAYING' | 'GAME_OVER';
     opponentLeft: boolean;
     playerNames: Record<string, string>;
+    fallback: string | null;
 }): string {
     if (input.gamePhase === 'GAME_OVER') {
         if (input.opponentLeft) {
             return 'Opponent left the table.';
         }
-        if (input.battle?.winnerPlayerId) {
-            return `${resolvePlayerName(input.playerNames, input.battle.winnerPlayerId)} wins the game.`;
+        if (input.trick?.winnerPlayerId) {
+            return `${resolvePlayerName(input.playerNames, input.trick.winnerPlayerId)} wins the game.`;
         }
         return 'Final result: tie game.';
     }
 
     if (input.suspenseVisible) {
-        return 'Cards are down. Reveal incoming...';
+        return input.trick?.warDepth && input.trick.warDepth > 0 ? 'Krig!' : 'Cards are flipping...';
     }
 
-    if (input.revealVisible && input.battle) {
-        if (input.battle.winnerPlayerId) {
-            return `${resolvePlayerName(input.playerNames, input.battle.winnerPlayerId)} wins the round.`;
+    if (input.revealVisible && input.trick) {
+        if (input.trick.winnerPlayerId) {
+            const winner = resolvePlayerName(input.playerNames, input.trick.winnerPlayerId);
+            const cardsWon = input.trick.cardsWon ?? 2;
+            return input.trick.warDepth && input.trick.warDepth > 0
+                ? `${winner} wins the war and takes ${cardsWon} cards.`
+                : `${winner} wins the trick and takes ${cardsWon} cards.`;
         }
-        return 'Round tied.';
+        return 'War ended in a tie.';
     }
 
-    if (input.hideCompletedBattle) {
-        return 'Pick your next card.';
+    if (input.selfPlayerId && input.readyPlayerSet.has(input.selfPlayerId)) {
+        return 'Flip locked in. Waiting for opponent...';
     }
 
-    if (input.selfPlayerId && input.submittedPlayerSet.has(input.selfPlayerId)) {
-        return 'Card locked in. Waiting for opponent...';
+    if (input.readyPlayerSet.size > 0) {
+        return 'Opponent is ready. Flip your top card.';
     }
 
-    if (input.submittedPlayerSet.size > 0) {
-        return 'Opponent is ready. Pick your card.';
-    }
-
-    return 'Pick one card.';
+    return input.fallback ?? 'Flip your top card.';
 }
 
 function readStringArray(value: unknown): string[] {
@@ -285,6 +286,6 @@ function readCardMap(value: unknown): Record<string, string | null> {
     }, {});
 }
 
-function readBattle(value: unknown): KrigBattle | null {
-    return typeof value === 'object' && value !== null ? value as KrigBattle : null;
+function readTrick(value: unknown): KrigTrick | null {
+    return typeof value === 'object' && value !== null ? value as KrigTrick : null;
 }

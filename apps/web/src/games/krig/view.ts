@@ -1,26 +1,28 @@
 import type { CardDisplayModel, GameRoomLayoutSpec, SeatViewModel } from '../../game-room/types.js';
-import { fallbackLayoutMode, renderGameRoomSections, renderHandCards } from '../../game-room/ui.js';
+import { fallbackLayoutMode, renderGameRoomSections } from '../../game-room/ui.js';
 
 export type KrigViewModel = {
     roomCode: string;
-    round: number;
-    totalRounds: number;
+    trickNumber: number;
     selfPlayerId: string | null;
     statusText: string;
-    canPlayCard: boolean;
+    canFlip: boolean;
+    warActive: boolean;
+    warDepth: number;
+    warPileSize: number;
+    centerPileSize: number;
     players: Array<{
         playerId: string;
         displayName: string;
-        score: number;
+        pileCount: number;
+        stakeCount: number;
         tableCard: CardDisplayModel;
         isSelf: boolean;
-        isWaiting: boolean;
+        isReady: boolean;
         isRoundWinner: boolean;
         isRoundLoser: boolean;
-        scoreDeltaText: string | null;
+        callout: string | null;
     }>;
-    hand: Array<{ card: string; selected: boolean }>;
-    selectedCard: string | null;
     isGameOver: boolean;
     postGame: {
         winnerLabel: string;
@@ -28,10 +30,10 @@ export type KrigViewModel = {
         rematchButtonLabel: string;
         rematchDisabled: boolean;
         rematchStatusText: string;
-        scores: Array<{
+        piles: Array<{
             playerId: string;
             displayName: string;
-            score: number;
+            pileCount: number;
         }>;
     } | null;
 };
@@ -47,10 +49,12 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
         label: player.isSelf ? 'You' : player.displayName,
         isSelf: player.isSelf,
         isCurrentTurn: false,
-        stateTone: player.isRoundWinner ? 'winner' : player.isRoundLoser ? 'loser' : player.isWaiting ? 'waiting' : 'default',
-        badges: [`Score ${player.score}`, ...(player.isWaiting && !player.isRoundWinner && !player.isRoundLoser ? ['Ready'] : [])],
-        callout: player.scoreDeltaText,
+        stateTone: player.isRoundWinner ? 'winner' : player.isRoundLoser ? 'loser' : player.isReady ? 'waiting' : 'default',
+        badges: [`${player.pileCount} cards`],
+        callout: player.callout,
+        stackCount: player.pileCount,
         tableCard: player.tableCard,
+        tableExtraHtml: viewModel.warActive && player.stakeCount > 0 ? renderStakeCards(player.stakeCount) : '',
     }));
 
     return renderGameRoomSections({
@@ -60,35 +64,43 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
         headerPills: [
             `Room: ${viewModel.roomCode}`,
             'Game: Krig',
-            `Round: ${viewModel.round}/${viewModel.totalRounds}`,
+            `Trick: ${viewModel.trickNumber}`,
         ],
         seats,
         centerHtml: viewModel.isGameOver
             ? `${viewModel.postGame ? renderPostGameOverlay(viewModel.postGame) : ''}`
-            : `
-          <div class="table-center-info table-center-info-compact">
-            <div class="table-title">Krig</div>
-            <div class="table-center-prompt">${viewModel.statusText}</div>
-          </div>
-        `,
-        trayTitle: viewModel.isGameOver ? 'Match complete' : 'Quick multiplayer test game',
-        trayDescription: viewModel.statusText,
+            : renderCenter(viewModel),
+        trayTitle: viewModel.isGameOver ? 'Match complete' : '',
+        trayDescription: null,
         trayBodyHtml: viewModel.isGameOver
             ? ''
-            : `
-          <div class="private-hand-row">
-            ${renderHandCards(viewModel.hand)}
-          </div>
-        `,
+            : '',
         trayFooterHtml: viewModel.isGameOver
             ? ''
             : `
-          <div class="card-row room-actions">
-            <span class="pill">Selected: ${viewModel.selectedCard ?? '-'}</span>
-            <button class="btn primary" data-action="play-selected" ${!viewModel.selectedCard || !viewModel.canPlayCard ? 'disabled' : ''}>Play selected card</button>
+          <div class="card-row room-actions krig-minimal-actions">
+            <button class="btn primary" data-action="flip-card" ${!viewModel.canFlip ? 'disabled' : ''}>Flip card</button>
           </div>
         `,
     });
+}
+
+function renderCenter(viewModel: KrigViewModel): string {
+    return `
+      <div class="table-center-info table-center-info-compact krig-center">
+        <div class="table-title">${viewModel.warActive ? 'KRIG!' : 'Krig'}</div>
+        <div class="table-center-prompt">${viewModel.statusText}</div>
+      </div>
+    `;
+}
+
+function renderStakeCards(count: number): string {
+    const visibleCount = Math.max(1, Math.min(count, 6));
+    let cards = '';
+    for (let i = 0; i < visibleCount; i++) {
+        cards += `<span class="krig-stake-card" style="--stake-offset:${i * 18}px"></span>`;
+    }
+    return `<div class="krig-stake-row" aria-hidden="true">${cards}</div>`;
 }
 
 function renderPostGameOverlay(postGame: NonNullable<KrigViewModel['postGame']>): string {
@@ -98,10 +110,10 @@ function renderPostGameOverlay(postGame: NonNullable<KrigViewModel['postGame']>)
           <div class="krig-postgame-kicker">Game Over</div>
           <div class="krig-postgame-title">${postGame.isTie ? 'It is a tie' : `${postGame.winnerLabel} wins`}</div>
           <div class="krig-postgame-scores">
-            ${postGame.scores.map((entry) => `
+            ${postGame.piles.map((entry) => `
               <div class="krig-postgame-score-row">
                 <span>${entry.displayName}</span>
-                <strong>${entry.score}</strong>
+                <strong>${entry.pileCount}</strong>
               </div>
             `).join('')}
           </div>

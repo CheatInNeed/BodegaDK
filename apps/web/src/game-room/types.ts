@@ -37,6 +37,7 @@ export type SeatViewModel = {
     callout?: string | null;
     stackCount?: number;
     tableCard?: CardDisplayModel | null;
+    tableExtraHtml?: string;
     positionClass?: SeatPositionClass;
 };
 
@@ -88,6 +89,7 @@ export type RoomSessionState = {
 
 export type UiIntent =
     | { type: 'PLAY_SELECTED'; claimRank: string }
+    | { type: 'FLIP_CARD' }
     | { type: 'REQUEST_REMATCH' }
     | { type: 'CALL_SNYD' }
     | { type: 'CASINO_PLAY_MOVE'; handCard: string; captureStackIds: string[]; playedValue?: number }

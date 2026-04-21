@@ -159,10 +159,10 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         if (nextState.game.toLowerCase() !== 'krig') return;
 
         const publicState = nextState.publicState;
-        const revealedCards = readStringRecord(publicState?.revealedCards);
-        const lastBattle = readRecord(publicState?.lastBattle);
-        const battleRound = typeof lastBattle?.round === 'number' ? lastBattle.round : null;
-        const hasVisibleReveal = Object.values(revealedCards).some((card) => typeof card === 'string' && card.length > 0);
+        const faceUpCards = readStringRecord(publicState?.currentFaceUpCards);
+        const lastTrick = readRecord(publicState?.lastTrick);
+        const battleRound = typeof lastTrick?.trickNumber === 'number' ? lastTrick.trickNumber : null;
+        const hasVisibleReveal = Object.values(faceUpCards).some((card) => typeof card === 'string' && card.length > 0);
         const presentation = nextState.krigPresentation;
 
         if (!hasVisibleReveal || battleRound === null) {

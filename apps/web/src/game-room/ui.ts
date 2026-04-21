@@ -170,6 +170,7 @@ function renderSeat(seat: SeatViewModel): string {
         </div>
         ${seat.meta ? `<div class="table-seat-meta">${seat.meta}</div>` : ''}
         ${bodyHtml}
+        ${seat.tableExtraHtml ?? ''}
         ${seat.callout ? `<div class="table-seat-callout">${seat.callout}</div>` : ''}
       </div>
     </div>

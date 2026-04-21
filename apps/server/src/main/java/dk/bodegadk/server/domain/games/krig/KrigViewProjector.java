@@ -13,33 +13,56 @@ public class KrigViewProjector implements ViewProjector<KrigState> {
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("players", state.playerIds());
         view.put("gamePhase", state.isFinished() ? "GAME_OVER" : "PLAYING");
-        view.put("round", state.round());
-        view.put("totalRounds", 5);
-        view.put("scores", state.scores());
+        view.put("trickNumber", state.trickNumber());
+        view.put("statusText", state.statusText());
         view.put("matchWinnerPlayerId", state.winnerPlayerId());
         view.put("rematchPlayerIds", List.copyOf(state.rematchPlayerIds()));
-        view.put("submittedPlayerIds", List.copyOf(state.submittedCards().keySet()));
+        view.put("readyPlayerIds", List.copyOf(state.readyPlayerIds()));
+        view.put("warActive", state.warDepth() > 0);
+        view.put("warDepth", state.warDepth());
+        view.put("warPileSize", Math.max(0, state.centerPile().size() - state.currentFaceUpCards().size()));
+        view.put("centerPileSize", state.centerPile().size());
 
-        Map<String, String> revealedCards = new LinkedHashMap<>();
+        Map<String, Integer> drawPileCounts = new LinkedHashMap<>();
         for (String playerId : state.playerIds()) {
-            Card card = state.revealedCards().get(playerId);
-            revealedCards.put(playerId, card == null ? null : card.toString());
+            drawPileCounts.put(playerId, state.drawPiles().getOrDefault(playerId, List.of()).size());
         }
-        view.put("revealedCards", revealedCards);
+        view.put("drawPileCounts", drawPileCounts);
+        view.put("drawPileCountsBeforeTrick", state.drawPileCountsBeforeTrick());
 
-        KrigState.BattleResult battle = state.lastBattle();
-        if (battle == null) {
-            view.put("lastBattle", null);
+        Map<String, Integer> stakeCardCounts = new LinkedHashMap<>();
+        for (String playerId : state.playerIds()) {
+            stakeCardCounts.put(playerId, 0);
+        }
+        for (KrigState.CenterCard centerCard : state.centerPile()) {
+            if (!centerCard.faceUp()) {
+                stakeCardCounts.put(centerCard.playerId(), stakeCardCounts.getOrDefault(centerCard.playerId(), 0) + 1);
+            }
+        }
+        view.put("stakeCardCounts", stakeCardCounts);
+
+        Map<String, String> currentFaceUpCards = new LinkedHashMap<>();
+        for (String playerId : state.playerIds()) {
+            Card card = state.currentFaceUpCards().get(playerId);
+            currentFaceUpCards.put(playerId, card == null ? null : card.toString());
+        }
+        view.put("currentFaceUpCards", currentFaceUpCards);
+
+        KrigState.TrickResult trick = state.lastTrick();
+        if (trick == null) {
+            view.put("lastTrick", null);
         } else {
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("round", battle.round());
-            result.put("firstPlayerId", battle.firstPlayerId());
-            result.put("firstCard", battle.firstCard());
-            result.put("secondPlayerId", battle.secondPlayerId());
-            result.put("secondCard", battle.secondCard());
-            result.put("winnerPlayerId", battle.winnerPlayerId());
-            result.put("outcome", battle.outcome());
-            view.put("lastBattle", result);
+            result.put("trickNumber", trick.trickNumber());
+            result.put("firstPlayerId", trick.firstPlayerId());
+            result.put("firstCard", trick.firstCard());
+            result.put("secondPlayerId", trick.secondPlayerId());
+            result.put("secondCard", trick.secondCard());
+            result.put("winnerPlayerId", trick.winnerPlayerId());
+            result.put("outcome", trick.outcome());
+            result.put("cardsWon", trick.cardsWon());
+            result.put("warDepth", trick.warDepth());
+            view.put("lastTrick", result);
         }
 
         return view;
@@ -47,13 +70,9 @@ public class KrigViewProjector implements ViewProjector<KrigState> {
 
     @Override
     public Map<String, Object> toPrivateView(KrigState state, String playerId) {
-        List<String> hand = state.hands().getOrDefault(playerId, List.of()).stream()
-                .map(Card::toString)
-                .toList();
-
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("playerId", playerId);
-        view.put("hand", hand);
+        view.put("drawPileCount", state.drawPiles().getOrDefault(playerId, List.of()).size());
         return view;
     }
 }
