@@ -208,14 +208,6 @@ For `highcard`, `PLAY_CARDS` is also used with game-specific validation:
 - `cards` must contain exactly one card code.
 - `claimRank` is accepted but ignored.
 
-For `krig`, `PLAY_CARDS` is also used with game-specific validation:
-
-- `cards` must contain exactly one card code.
-- the server accepts one submission per player per round
-- the first submitted card is kept hidden from public state until both players
-  have submitted
-- `claimRank` is accepted but ignored
-
 Example (`highcard`):
 
 ``` json
@@ -227,6 +219,31 @@ Example (`highcard`):
   }
 }
 ```
+
+------------------------------------------------------------------------
+
+## FLIP_CARD
+
+``` json
+{
+  "type": "FLIP_CARD",
+  "payload": {}
+}
+```
+
+For `krig`, this marks the player ready to flip the top card of their
+face-down draw pile. When both players have sent `FLIP_CARD`, the server
+resolves the trick:
+
+- each player flips the top card from their draw pile
+- higher value wins all center cards
+- equal values trigger War: each player stakes up to 3 face-down cards while
+  preserving 1 card to flip, then flips the next available card
+- repeated ties continue War until one player wins or no player can continue
+- the winner places all center cards at the bottom of their draw pile
+- the game ends when a player has 0 cards after a resolved trick
+
+Players never send or receive their draw-pile card identities before reveal.
 
 ------------------------------------------------------------------------
 
@@ -356,7 +373,8 @@ For `casino`, `publicState` includes `dealerPlayerId`, `tableStacks`,
 `deckCount`, `capturedCounts`, `lastCapturePlayerId`, `started`,
 `rules.valueMap`, and `privateState` includes `capturedCards`.
 
-For `krig`, `publicState` includes simultaneous-play round fields:
+For `krig`, `publicState` includes classic War draw-pile and center-pile
+fields:
 
 ```json
 {
@@ -365,43 +383,60 @@ For `krig`, `publicState` includes simultaneous-play round fields:
     { "playerId": "p1", "username": "Alice" },
     { "playerId": "p2", "username": "Bob" }
   ],
-  "round": 1,
-  "totalRounds": 5,
+  "trickNumber": 1,
   "gamePhase": "PLAYING",
-  "scores": {
-    "p1": 0,
-    "p2": 0
+  "drawPileCounts": {
+    "p1": 26,
+    "p2": 26
   },
+  "drawPileCountsBeforeTrick": {},
   "matchWinnerPlayerId": null,
   "rematchPlayerIds": [],
-  "submittedPlayerIds": ["p1"],
-  "revealedCards": {
+  "readyPlayerIds": ["p1"],
+  "currentFaceUpCards": {
     "p1": null,
     "p2": null
   },
-  "lastBattle": null
+  "warActive": false,
+  "warDepth": 0,
+  "warPileSize": 0,
+  "centerPileSize": 0,
+  "stakeCardCounts": {
+    "p1": 0,
+    "p2": 0
+  },
+  "statusText": "Waiting for both players to flip.",
+  "lastTrick": null
 }
 ```
 
-When both players have submitted, `submittedPlayerIds` becomes empty,
-`revealedCards` contains both actual card codes, and `lastBattle` contains the
-resolved round result:
+When both players have flipped, `readyPlayerIds` becomes empty,
+`currentFaceUpCards` contains the active revealed card codes, and `lastTrick`
+contains the resolved trick result:
 
 ```json
 {
-  "round": 1,
+  "trickNumber": 1,
   "firstPlayerId": "p1",
   "firstCard": "HA",
   "secondPlayerId": "p2",
   "secondCard": "SK",
   "winnerPlayerId": "p1",
-  "outcome": "FIRST"
+  "outcome": "FIRST",
+  "cardsWon": 2,
+  "warDepth": 0
 }
 ```
 
-When the final round finishes, `gamePhase` becomes `GAME_OVER`,
-`matchWinnerPlayerId` contains the overall winner or `null` for a tie, and
-`rematchPlayerIds` starts empty until players opt into a rematch.
+During War, `warDepth` is greater than `0`, `warPileSize` counts face-down
+stake cards in the center, `stakeCardCounts` splits those face-down cards by
+player for table rendering, and `centerPileSize` counts all cards currently in
+the center. While a resolved trick reveal is being presented, clients may use
+`drawPileCountsBeforeTrick` to avoid visually applying the won cards before the
+reveal animation. When the game finishes, `gamePhase` becomes `GAME_OVER`,
+`matchWinnerPlayerId` contains the player who collected the deck or `null` if
+neither player can continue a tied War, and `rematchPlayerIds` starts empty
+until players opt into a rematch.
 
 ------------------------------------------------------------------------
 

@@ -27,6 +27,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String KRIG_GAME_TYPE = "krig";
     private static final String CASINO_GAME_TYPE = "casino";
     private static final String PLAY_CARDS = "PLAY_CARDS";
+    private static final String FLIP_CARD = "FLIP_CARD";
     private static final String REQUEST_REMATCH = "REQUEST_REMATCH";
     private static final String SELECT_GAME = "SELECT_GAME";
     private static final String START_GAME = "START_GAME";
@@ -68,6 +69,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             case SELECT_GAME -> handleSelectGame(state, command, room);
             case START_GAME -> handleStartGame(state, command, room);
             case PLAY_CARDS -> handlePlayCards(state, command, room);
+            case FLIP_CARD -> handleFlipCard(state, command, room);
             case REQUEST_REMATCH -> handleRequestRematch(state, command, room);
             default -> GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         };
@@ -195,11 +197,27 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
         }
 
-        return switch (selectedGame) {
-            case HIGHCARD_GAME_TYPE -> applyHighCard(state, command, room);
-            case KRIG_GAME_TYPE -> applyKrig(state, command, room);
-            default -> GameLoopService.LoopResult.error("ENGINE_NOT_READY: no engine available for room/game type");
-        };
+        if (!HIGHCARD_GAME_TYPE.equals(selectedGame)) {
+            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        }
+
+        return applyHighCard(state, command, room);
+    }
+
+    private GameLoopService.LoopResult handleFlipCard(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        String selectedGame = normalizedGame(room.selectedGame());
+        if (!KRIG_GAME_TYPE.equals(selectedGame)) {
+            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        }
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        return applyKrig(state, command, room);
     }
 
     private GameLoopService.LoopResult handleRequestRematch(
@@ -311,7 +329,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
 
         KrigState next;
         try {
-            next = krigEngine.apply(new KrigAction(command.playerId(), cardCode), current);
+            next = krigEngine.apply(new KrigAction(command.playerId()), current);
         } catch (GameEngine.GameRuleException ruleException) {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + ruleException.getMessage());
         }
@@ -423,10 +441,8 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
         return HIGHCARD_GAME_TYPE.equals(gameType) || KRIG_GAME_TYPE.equals(gameType);
     }
 
-    private static final String SNYD_GAME_TYPE = "snyd";
-
     private boolean supportsLobbySelection(String gameType) {
-        return isSupportedGame(gameType) || CASINO_GAME_TYPE.equals(gameType) || SNYD_GAME_TYPE.equals(gameType);
+        return isSupportedGame(gameType) || CASINO_GAME_TYPE.equals(gameType);
     }
 
     private String normalizedGame(String gameType) {

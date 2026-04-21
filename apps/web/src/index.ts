@@ -913,6 +913,11 @@ function wireRoomEvents() {
         roomSession?.sendIntent({ type: 'PLAY_SELECTED', claimRank });
     });
 
+    const flipButton = document.querySelector<HTMLButtonElement>('button[data-action="flip-card"]');
+    flipButton?.addEventListener('click', () => {
+        roomSession?.sendIntent({ type: 'FLIP_CARD' });
+    });
+
     const callSnydButton = document.querySelector<HTMLButtonElement>('button[data-action="call-snyd"]');
     callSnydButton?.addEventListener('click', () => {
         roomSession?.sendIntent({ type: 'CALL_SNYD' });

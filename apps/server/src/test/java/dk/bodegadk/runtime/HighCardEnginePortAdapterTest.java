@@ -139,7 +139,7 @@ class HighCardEnginePortAdapterTest {
     }
 
     @Test
-    void startsKrigAndPublishesPrivateHandsForBothPlayers() {
+    void startsKrigAndPublishesPrivatePileCountsForBothPlayers() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
         GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
@@ -155,10 +155,13 @@ class HighCardEnginePortAdapterTest {
         assertNotNull(result.privateUpdates().get("p1"));
         assertNotNull(result.privateUpdates().get("p2"));
         assertEquals("krig", result.publicUpdate().path("selectedGame").asText());
+        assertEquals(26, result.publicUpdate().path("drawPileCounts").path("p1").asInt());
+        assertEquals(26, result.publicUpdate().path("drawPileCounts").path("p2").asInt());
+        assertEquals(26, result.privateUpdates().get("p1").path("drawPileCount").asInt());
     }
 
     @Test
-    void krigFirstSubmissionBroadcastsReadyStateWithoutLeakingCardValue() {
+    void krigFirstFlipBroadcastsReadyStateWithoutLeakingCardValue() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
         GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
@@ -170,20 +173,20 @@ class HighCardEnginePortAdapterTest {
         GameLoopService.LoopResult startResult = service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode()));
         assertFalse(startResult.isError());
 
-        String p1Card = startResult.privateUpdates().get("p1").path("hand").get(0).asText();
-        GameLoopService.LoopResult playResult = service.handleAction(playCommand(roomCode, "p1", p1Card));
+        GameLoopService.LoopResult playResult = service.handleAction(flipCommand(roomCode, "p1"));
 
         assertFalse(playResult.isError());
-        assertTrue(playResult.publicUpdate().path("submittedPlayerIds").isArray());
-        assertEquals(1, playResult.publicUpdate().path("submittedPlayerIds").size());
-        assertEquals("p1", playResult.publicUpdate().path("submittedPlayerIds").get(0).asText());
-        assertTrue(playResult.publicUpdate().path("revealedCards").isObject());
-        assertTrue(playResult.publicUpdate().path("revealedCards").path("p1").isNull());
-        assertTrue(playResult.publicUpdate().path("lastBattle").isNull());
+        assertTrue(playResult.publicUpdate().path("readyPlayerIds").isArray());
+        assertEquals(1, playResult.publicUpdate().path("readyPlayerIds").size());
+        assertEquals("p1", playResult.publicUpdate().path("readyPlayerIds").get(0).asText());
+        assertTrue(playResult.publicUpdate().path("currentFaceUpCards").isObject());
+        assertTrue(playResult.publicUpdate().path("currentFaceUpCards").path("p1").isNull());
+        assertTrue(playResult.publicUpdate().path("lastTrick").isNull());
+        assertEquals(26, playResult.publicUpdate().path("drawPileCounts").path("p1").asInt());
     }
 
     @Test
-    void krigSecondSubmissionRevealsCardsAfterBothPlayersLockIn() {
+    void krigSecondFlipRevealsCardsAfterBothPlayersLockIn() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
         GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
@@ -195,20 +198,19 @@ class HighCardEnginePortAdapterTest {
         GameLoopService.LoopResult startResult = service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode()));
         assertFalse(startResult.isError());
 
-        String p1Card = startResult.privateUpdates().get("p1").path("hand").get(0).asText();
-        String p2Card = startResult.privateUpdates().get("p2").path("hand").get(0).asText();
-
-        GameLoopService.LoopResult waitingResult = service.handleAction(playCommand(roomCode, "p1", p1Card));
+        GameLoopService.LoopResult waitingResult = service.handleAction(flipCommand(roomCode, "p1"));
         assertFalse(waitingResult.isError());
 
-        GameLoopService.LoopResult resolvedResult = service.handleAction(playCommand(roomCode, "p2", p2Card));
+        GameLoopService.LoopResult resolvedResult = service.handleAction(flipCommand(roomCode, "p2"));
         assertFalse(resolvedResult.isError());
 
-        assertEquals(0, resolvedResult.publicUpdate().path("submittedPlayerIds").size());
-        assertEquals(p1Card, resolvedResult.publicUpdate().path("revealedCards").path("p1").asText());
-        assertEquals(p2Card, resolvedResult.publicUpdate().path("revealedCards").path("p2").asText());
-        assertEquals(1, resolvedResult.publicUpdate().path("lastBattle").path("round").asInt());
-        assertTrue(resolvedResult.publicUpdate().path("lastBattle").has("winnerPlayerId"));
+        assertEquals(0, resolvedResult.publicUpdate().path("readyPlayerIds").size());
+        assertTrue(resolvedResult.publicUpdate().path("currentFaceUpCards").path("p1").isTextual());
+        assertTrue(resolvedResult.publicUpdate().path("currentFaceUpCards").path("p2").isTextual());
+        assertEquals(1, resolvedResult.publicUpdate().path("lastTrick").path("trickNumber").asInt());
+        assertTrue(resolvedResult.publicUpdate().path("lastTrick").has("winnerPlayerId"));
+        assertEquals(52, resolvedResult.publicUpdate().path("drawPileCounts").path("p1").asInt()
+                + resolvedResult.publicUpdate().path("drawPileCounts").path("p2").asInt());
     }
 
     @Test
@@ -224,9 +226,9 @@ class HighCardEnginePortAdapterTest {
 
         KrigState finished = new KrigState(List.of("p1", "p2"));
         finished.setPhase(GameState.Phase.FINISHED);
-        finished.setRound(5);
-        finished.scores().put("p1", 3);
-        finished.scores().put("p2", 2);
+        finished.drawPiles().put("p1", new java.util.ArrayList<>());
+        finished.drawPiles().put("p2", new java.util.ArrayList<>());
+        finished.drawPiles().get("p1").add(new dk.bodegadk.server.domain.primitives.Card("H", "A"));
         finished.setWinnerPlayerId("p1");
         store.saveGameState(roomCode, finished);
 
@@ -239,11 +241,15 @@ class HighCardEnginePortAdapterTest {
         GameLoopService.LoopResult secondVote = service.handleAction(command(roomCode, "p2", "REQUEST_REMATCH", JsonNodeFactory.instance.objectNode()));
         assertFalse(secondVote.isError());
         assertEquals("PLAYING", secondVote.publicUpdate().path("gamePhase").asText());
-        assertEquals(1, secondVote.publicUpdate().path("round").asInt());
-        assertEquals(0, secondVote.publicUpdate().path("scores").path("p1").asInt());
-        assertEquals(0, secondVote.publicUpdate().path("scores").path("p2").asInt());
-        assertEquals(5, secondVote.privateUpdates().get("p1").path("hand").size());
-        assertEquals(5, secondVote.privateUpdates().get("p2").path("hand").size());
+        assertEquals(1, secondVote.publicUpdate().path("trickNumber").asInt());
+        assertEquals(26, secondVote.publicUpdate().path("drawPileCounts").path("p1").asInt());
+        assertEquals(26, secondVote.publicUpdate().path("drawPileCounts").path("p2").asInt());
+        assertEquals(26, secondVote.privateUpdates().get("p1").path("drawPileCount").asInt());
+        assertEquals(26, secondVote.privateUpdates().get("p2").path("drawPileCount").asInt());
+    }
+
+    private GameLoopService.ActionCommand flipCommand(String roomCode, String playerId) {
+        return command(roomCode, playerId, "FLIP_CARD", JsonNodeFactory.instance.objectNode());
     }
 
     private GameLoopService.ActionCommand playCommand(String roomCode, String playerId, String cardCode) {
