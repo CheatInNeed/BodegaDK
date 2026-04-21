@@ -11,7 +11,7 @@ class MatchmakingServiceTest {
     void casinoQuickPlayMatchesTwoPlayersAndCreatesRoom() {
         RoomMetadataStore roomMetadataStore = new InMemoryRoomMetadataStore();
         GameCatalogService gameCatalogService = new GameCatalogService();
-        InMemoryRuntimeStore runtimeStore = new InMemoryRuntimeStore(roomMetadataStore, gameCatalogService);
+        InMemoryRuntimeStore runtimeStore = new InMemoryRuntimeStore();
         ObjectMapper objectMapper = new ObjectMapper();
         GameLoopService gameLoopService = new GameLoopService(
                 runtimeStore,

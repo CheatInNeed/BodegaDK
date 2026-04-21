@@ -423,8 +423,10 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
         return HIGHCARD_GAME_TYPE.equals(gameType) || KRIG_GAME_TYPE.equals(gameType);
     }
 
+    private static final String SNYD_GAME_TYPE = "snyd";
+
     private boolean supportsLobbySelection(String gameType) {
-        return isSupportedGame(gameType) || CASINO_GAME_TYPE.equals(gameType);
+        return isSupportedGame(gameType) || CASINO_GAME_TYPE.equals(gameType) || SNYD_GAME_TYPE.equals(gameType);
     }
 
     private String normalizedGame(String gameType) {

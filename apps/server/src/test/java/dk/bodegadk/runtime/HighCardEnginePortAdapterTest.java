@@ -228,7 +228,7 @@ class HighCardEnginePortAdapterTest {
         finished.scores().put("p1", 3);
         finished.scores().put("p2", 2);
         finished.setWinnerPlayerId("p1");
-        store.saveKrigState(roomCode, finished);
+        store.saveGameState(roomCode, finished);
 
         GameLoopService.LoopResult firstVote = service.handleAction(command(roomCode, "p1", "REQUEST_REMATCH", JsonNodeFactory.instance.objectNode()));
         assertFalse(firstVote.isError());
