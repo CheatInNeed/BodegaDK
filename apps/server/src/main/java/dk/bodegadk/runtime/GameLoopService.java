@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class GameLoopService {
@@ -69,6 +70,14 @@ public class GameLoopService {
         return prepared;
     }
 
+    public Optional<String> handleConnect(String roomCode, JsonNode connectPayload) {
+        EnginePort port = resolveEngine(roomCode);
+        if (port == null) {
+            return Optional.empty();
+        }
+        return port.onConnect(roomCode, connectPayload);
+    }
+
     private EnginePort resolveEngine(String roomCode) {
         return enginePorts.stream()
                 .filter(enginePort -> enginePort.supports(roomCode))
@@ -91,6 +100,10 @@ public class GameLoopService {
 
         default RoomState prepareSnapshot(RoomState state, String playerId) {
             return state;
+        }
+
+        default Optional<String> onConnect(String roomCode, JsonNode connectPayload) {
+            return Optional.empty();
         }
     }
 

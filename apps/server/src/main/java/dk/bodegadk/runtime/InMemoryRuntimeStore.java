@@ -5,9 +5,7 @@ package dk.bodegadk.runtime;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import dk.bodegadk.server.domain.games.krig.KrigState;
-import dk.bodegadk.server.domain.games.casino.CasinoState;
-import dk.bodegadk.server.domain.games.highcard.HighCardState;
+import dk.bodegadk.server.domain.engine.GameState;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
 
@@ -37,9 +35,8 @@ public class InMemoryRuntimeStore {
     private final ConcurrentMap<String, SessionRecord> sessionsByToken = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, GameLoopService.RoomState> statesByRoom = new ConcurrentHashMap<>();
     // TEAM-DB-INTEGRATION: replace in-memory domain state map with durable game-state persistence.
-    private final ConcurrentMap<String, HighCardState> highCardStatesByRoom = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, KrigState> krigStatesByRoom = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, CasinoState> casinoStatesByRoom = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, GameState> gameStatesByRoom = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Integer> maxPlayersByGame = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ExecutorService> roomExecutors = new ConcurrentHashMap<>();
 
     public String createRoom(String gameType) {
@@ -255,20 +252,23 @@ public class InMemoryRuntimeStore {
         statesByRoom.put(roomCode, state);
     }
 
-    public HighCardState loadOrCreateHighCardState(String roomCode, Supplier<HighCardState> initializer) {
-        return highCardStatesByRoom.computeIfAbsent(roomCode, key -> initializer.get());
+    @SuppressWarnings("unchecked")
+    public <S extends GameState> S loadOrInitGameState(String roomCode, Class<S> type, Supplier<S> initializer) {
+        GameState existing = gameStatesByRoom.get(roomCode);
+        if (existing != null && type.isInstance(existing)) {
+            return (S) existing;
+        }
+        S state = initializer.get();
+        gameStatesByRoom.put(roomCode, state);
+        return state;
     }
 
-    public void saveHighCardState(String roomCode, HighCardState state) {
-        highCardStatesByRoom.put(roomCode, state);
+    public void saveGameState(String roomCode, GameState state) {
+        gameStatesByRoom.put(roomCode, state);
     }
 
-    public KrigState loadOrCreateKrigState(String roomCode, Supplier<KrigState> initializer) {
-        return krigStatesByRoom.computeIfAbsent(roomCode, key -> initializer.get());
-    }
-
-    public void saveKrigState(String roomCode, KrigState state) {
-        krigStatesByRoom.put(roomCode, state);
+    public void removeGameState(String roomCode) {
+        gameStatesByRoom.remove(roomCode);
     }
 
     public Optional<RoomMutation> selectGame(String roomCode, String hostPlayerId, String selectedGame) {
@@ -331,34 +331,33 @@ public class InMemoryRuntimeStore {
         return Optional.of(mutation);
     }
 
-    public CasinoState loadOrCreateCasinoState(String roomCode, Supplier<CasinoState> initializer) {
-        return casinoStatesByRoom.computeIfAbsent(roomCode, key -> initializer.get());
-    }
-
-    public void saveCasinoState(String roomCode, CasinoState state) {
-        casinoStatesByRoom.put(roomCode, state);
-    }
-
-    public void saveCasinoValueMap(String roomCode, Map<String, List<Integer>> valueMap) {
+    public void putGameConfig(String roomCode, String key, Object value) {
         RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             return;
         }
         synchronized (room) {
-            room.casinoValueMap = new ConcurrentHashMap<>(valueMap);
+            room.gameConfig.put(key, value);
         }
     }
 
-    public Optional<Map<String, List<Integer>>> casinoValueMap(String roomCode) {
+    @SuppressWarnings("unchecked")
+    public <T> Optional<T> getGameConfig(String roomCode, String key, Class<T> type) {
         RoomRecord room = rooms.get(roomCode);
-        if (room == null || room.casinoValueMap == null) {
+        if (room == null) {
             return Optional.empty();
         }
         synchronized (room) {
-            Map<String, List<Integer>> copy = new ConcurrentHashMap<>();
-            room.casinoValueMap.forEach((card, values) -> copy.put(card, List.copyOf(values)));
-            return Optional.of(copy);
+            Object value = room.gameConfig.get(key);
+            if (value != null && type.isInstance(value)) {
+                return Optional.of((T) value);
+            }
+            return Optional.empty();
         }
+    }
+
+    public void registerMaxPlayers(String gameType, int maxPlayers) {
+        maxPlayersByGame.put(normalizeGameType(gameType), maxPlayers);
     }
 
     public void submit(String roomCode, Runnable command) {
@@ -497,15 +496,13 @@ public class InMemoryRuntimeStore {
     }
 
     private void clearGameStates(String roomCode) {
-        highCardStatesByRoom.remove(roomCode);
-        krigStatesByRoom.remove(roomCode);
-        casinoStatesByRoom.remove(roomCode);
+        gameStatesByRoom.remove(roomCode);
         RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             return;
         }
         synchronized (room) {
-            room.casinoValueMap = null;
+            room.gameConfig.clear();
         }
     }
 
@@ -526,10 +523,7 @@ public class InMemoryRuntimeStore {
     }
 
     private int maxPlayersFor(String gameType) {
-        return switch (normalizeGameType(gameType)) {
-            case "casino" -> 2;
-            default -> Integer.MAX_VALUE;
-        };
+        return maxPlayersByGame.getOrDefault(normalizeGameType(gameType), Integer.MAX_VALUE);
     }
 
     private String normalizeUsername(String username) {
@@ -622,7 +616,7 @@ public class InMemoryRuntimeStore {
         private final boolean isPrivate;
         private String selectedGame;
         private RoomStatus status;
-        private Map<String, List<Integer>> casinoValueMap;
+        private final Map<String, Object> gameConfig = new ConcurrentHashMap<>();
 
         private RoomRecord(String roomCode, String hostPlayerId, boolean isPrivate, String selectedGame, RoomStatus status) {
             this.roomCode = roomCode;
