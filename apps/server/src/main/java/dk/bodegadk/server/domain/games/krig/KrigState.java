@@ -16,6 +16,7 @@ public class KrigState extends GameState {
     private final Set<String> rematchPlayerIds;
     private final List<CenterCard> centerPile;
     private final Map<String, Card> currentFaceUpCards;
+    private final Map<String, Integer> drawPileCountsBeforeTrick;
     private TrickResult lastTrick;
     private int trickNumber;
     private int warDepth;
@@ -28,6 +29,7 @@ public class KrigState extends GameState {
         this.rematchPlayerIds = new LinkedHashSet<>();
         this.centerPile = new ArrayList<>();
         this.currentFaceUpCards = new LinkedHashMap<>();
+        this.drawPileCountsBeforeTrick = new LinkedHashMap<>();
         this.lastTrick = null;
         this.trickNumber = 1;
         this.warDepth = 0;
@@ -44,6 +46,7 @@ public class KrigState extends GameState {
         this.rematchPlayerIds = new LinkedHashSet<>(other.rematchPlayerIds);
         this.centerPile = new ArrayList<>(other.centerPile);
         this.currentFaceUpCards = new LinkedHashMap<>(other.currentFaceUpCards);
+        this.drawPileCountsBeforeTrick = new LinkedHashMap<>(other.drawPileCountsBeforeTrick);
         this.lastTrick = other.lastTrick;
         this.trickNumber = other.trickNumber;
         this.warDepth = other.warDepth;
@@ -73,6 +76,10 @@ public class KrigState extends GameState {
 
     public Map<String, Card> currentFaceUpCards() {
         return currentFaceUpCards;
+    }
+
+    public Map<String, Integer> drawPileCountsBeforeTrick() {
+        return drawPileCountsBeforeTrick;
     }
 
     public TrickResult lastTrick() {

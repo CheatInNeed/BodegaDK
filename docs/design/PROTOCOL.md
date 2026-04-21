@@ -389,6 +389,7 @@ fields:
     "p1": 26,
     "p2": 26
   },
+  "drawPileCountsBeforeTrick": {},
   "matchWinnerPlayerId": null,
   "rematchPlayerIds": [],
   "readyPlayerIds": ["p1"],
@@ -400,6 +401,10 @@ fields:
   "warDepth": 0,
   "warPileSize": 0,
   "centerPileSize": 0,
+  "stakeCardCounts": {
+    "p1": 0,
+    "p2": 0
+  },
   "statusText": "Waiting for both players to flip.",
   "lastTrick": null
 }
@@ -424,8 +429,11 @@ contains the resolved trick result:
 ```
 
 During War, `warDepth` is greater than `0`, `warPileSize` counts face-down
-stake cards in the center, and `centerPileSize` counts all cards currently in
-the center. When the game finishes, `gamePhase` becomes `GAME_OVER`,
+stake cards in the center, `stakeCardCounts` splits those face-down cards by
+player for table rendering, and `centerPileSize` counts all cards currently in
+the center. While a resolved trick reveal is being presented, clients may use
+`drawPileCountsBeforeTrick` to avoid visually applying the won cards before the
+reveal animation. When the game finishes, `gamePhase` becomes `GAME_OVER`,
 `matchWinnerPlayerId` contains the player who collected the deck or `null` if
 neither player can continue a tied War, and `rematchPlayerIds` starts empty
 until players opt into a rematch.

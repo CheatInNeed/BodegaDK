@@ -2061,37 +2061,51 @@ select.input {
     gap: 10px;
 }
 
-.krig-center-stakes,
-.krig-pile-summary {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-}
-
-.krig-pile-summary {
-    align-items: stretch;
-}
-
-.krig-pile-row {
-    min-width: 150px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--color-text);
-}
-
-.krig-pile-row strong {
+.room-krig .table-title {
     color: var(--color-text-strong);
+    text-shadow:
+            0 0 18px color-mix(in srgb, var(--color-danger) 34%, transparent),
+            0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.room-krig .krig-center .table-title:first-child {
+    transform: scale(1.04);
+}
+
+.krig-stake-row {
+    position: relative;
+    width: 132px;
+    height: 46px;
+    margin-top: -2px;
+}
+
+.krig-stake-card {
+    position: absolute;
+    left: var(--stake-offset);
+    top: 0;
+    width: 34px;
+    height: 46px;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--color-tertiary) 72%, white);
+    background:
+            linear-gradient(135deg, color-mix(in srgb, var(--color-danger) 26%, #2f2a3d), #15131f),
+            repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12) 2px, transparent 2px, transparent 6px);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.34);
+    transform: rotate(calc((var(--stake-offset) / 14) * 3deg - 5deg));
+}
+
+.room-krig .krig-minimal-actions {
+    justify-content: center;
+}
+
+.room-krig .krig-minimal-actions .btn {
+    min-width: 180px;
 }
 
 .room-krig .private-panel {
     border-top: 1px solid color-mix(in srgb, var(--color-danger) 24%, transparent);
+    justify-items: center;
+    gap: 0;
 }
 
 .krig-postgame-overlay {

@@ -95,6 +95,7 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
     private void resolveTrick(KrigState state) {
         state.readyPlayerIds().clear();
         prepareNextFlip(state);
+        snapshotDrawPileCounts(state);
 
         String firstPlayerId = state.playerIds().get(0);
         String secondPlayerId = state.playerIds().get(1);
@@ -139,8 +140,16 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
     private void prepareNextFlip(KrigState state) {
         state.centerPile().clear();
         state.currentFaceUpCards().clear();
+        state.drawPileCountsBeforeTrick().clear();
         state.setLastTrick(null);
         state.setWarDepth(0);
+    }
+
+    private void snapshotDrawPileCounts(KrigState state) {
+        state.drawPileCountsBeforeTrick().clear();
+        for (String playerId : state.playerIds()) {
+            state.drawPileCountsBeforeTrick().put(playerId, state.drawPiles().getOrDefault(playerId, List.of()).size());
+        }
     }
 
     private Resolution flipBattleCards(KrigState state, String firstPlayerId, String secondPlayerId) {

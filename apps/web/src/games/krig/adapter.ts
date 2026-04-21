@@ -22,6 +22,8 @@ type KrigPublicState = {
     trickNumber?: number;
     players?: PlayerRef[];
     drawPileCounts?: Record<string, number>;
+    drawPileCountsBeforeTrick?: Record<string, number>;
+    stakeCardCounts?: Record<string, number>;
     matchWinnerPlayerId?: string | null;
     rematchPlayerIds?: string[];
     readyPlayerIds?: string[];
@@ -84,6 +86,9 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
         const warDepth = typeof publicState?.warDepth === 'number' ? publicState.warDepth : trick?.warDepth ?? 0;
         const cardsInCenter = typeof publicState?.centerPileSize === 'number' ? publicState.centerPileSize : trick?.cardsWon ?? 0;
         const warPileSize = typeof publicState?.warPileSize === 'number' ? publicState.warPileSize : Math.max(0, cardsInCenter - 2);
+        const drawPileCounts = suspenseVisible && publicState?.drawPileCountsBeforeTrick
+            ? publicState.drawPileCountsBeforeTrick
+            : publicState?.drawPileCounts;
 
         return {
             roomCode: typeof publicState?.roomCode === 'string' ? publicState.roomCode : '-',
@@ -121,7 +126,8 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
                 return {
                     playerId,
                     displayName: resolvePlayerName(playerNames, playerId),
-                    pileCount: typeof publicState?.drawPileCounts?.[playerId] === 'number' ? publicState.drawPileCounts[playerId] : 0,
+                    pileCount: typeof drawPileCounts?.[playerId] === 'number' ? drawPileCounts[playerId] : 0,
+                    stakeCount: typeof publicState?.stakeCardCounts?.[playerId] === 'number' ? publicState.stakeCardCounts[playerId] : 0,
                     tableCard,
                     isSelf: selfPlayerId === playerId,
                     isReady: readyPlayerSet.has(playerId),
@@ -148,7 +154,7 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
                     piles: playerIds.map((playerId) => ({
                         playerId,
                         displayName: resolvePlayerName(playerNames, playerId),
-                        pileCount: typeof publicState?.drawPileCounts?.[playerId] === 'number' ? publicState.drawPileCounts[playerId] : 0,
+                    pileCount: typeof publicState?.drawPileCounts?.[playerId] === 'number' ? publicState.drawPileCounts[playerId] : 0,
                     })),
                 }
                 : null,
@@ -210,7 +216,7 @@ function buildTableCard(input: {
     }
 
     if (input.suspenseVisible || input.isReady) {
-        return { kind: 'back', label: 'Ready', size: 'sm' };
+        return { kind: 'back', label: '', size: 'sm' };
     }
 
     return { kind: 'stack', count: undefined, label: 'Draw pile', size: 'sm' };
@@ -238,7 +244,7 @@ function describeStatus(input: {
     }
 
     if (input.suspenseVisible) {
-        return 'Cards are flipping...';
+        return input.trick?.warDepth && input.trick.warDepth > 0 ? 'Krig!' : 'Cards are flipping...';
     }
 
     if (input.revealVisible && input.trick) {

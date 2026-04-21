@@ -28,6 +28,18 @@ public class KrigViewProjector implements ViewProjector<KrigState> {
             drawPileCounts.put(playerId, state.drawPiles().getOrDefault(playerId, List.of()).size());
         }
         view.put("drawPileCounts", drawPileCounts);
+        view.put("drawPileCountsBeforeTrick", state.drawPileCountsBeforeTrick());
+
+        Map<String, Integer> stakeCardCounts = new LinkedHashMap<>();
+        for (String playerId : state.playerIds()) {
+            stakeCardCounts.put(playerId, 0);
+        }
+        for (KrigState.CenterCard centerCard : state.centerPile()) {
+            if (!centerCard.faceUp()) {
+                stakeCardCounts.put(centerCard.playerId(), stakeCardCounts.getOrDefault(centerCard.playerId(), 0) + 1);
+            }
+        }
+        view.put("stakeCardCounts", stakeCardCounts);
 
         Map<String, String> currentFaceUpCards = new LinkedHashMap<>();
         for (String playerId : state.playerIds()) {

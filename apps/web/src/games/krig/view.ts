@@ -15,6 +15,7 @@ export type KrigViewModel = {
         playerId: string;
         displayName: string;
         pileCount: number;
+        stakeCount: number;
         tableCard: CardDisplayModel;
         isSelf: boolean;
         isReady: boolean;
@@ -49,10 +50,11 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
         isSelf: player.isSelf,
         isCurrentTurn: false,
         stateTone: player.isRoundWinner ? 'winner' : player.isRoundLoser ? 'loser' : player.isReady ? 'waiting' : 'default',
-        badges: [`${player.pileCount} cards`, ...(player.isReady && !player.isRoundWinner && !player.isRoundLoser ? ['Ready'] : [])],
+        badges: [`${player.pileCount} cards`],
         callout: player.callout,
         stackCount: player.pileCount,
         tableCard: player.tableCard,
+        tableExtraHtml: player.stakeCount > 0 ? renderStakeCards(player.stakeCount) : '',
     }));
 
     return renderGameRoomSections({
@@ -68,16 +70,15 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
         centerHtml: viewModel.isGameOver
             ? `${viewModel.postGame ? renderPostGameOverlay(viewModel.postGame) : ''}`
             : renderCenter(viewModel),
-        trayTitle: viewModel.isGameOver ? 'Match complete' : 'Draw pile',
-        trayDescription: viewModel.statusText,
+        trayTitle: viewModel.isGameOver ? 'Match complete' : '',
+        trayDescription: null,
         trayBodyHtml: viewModel.isGameOver
             ? ''
-            : renderPileSummary(viewModel),
+            : '',
         trayFooterHtml: viewModel.isGameOver
             ? ''
             : `
-          <div class="card-row room-actions">
-            <span class="pill">Center: ${viewModel.centerPileSize} cards</span>
+          <div class="card-row room-actions krig-minimal-actions">
             <button class="btn primary" data-action="flip-card" ${!viewModel.canFlip ? 'disabled' : ''}>Flip card</button>
           </div>
         `,
@@ -87,28 +88,19 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
 function renderCenter(viewModel: KrigViewModel): string {
     return `
       <div class="table-center-info table-center-info-compact krig-center">
-        <div class="table-title">${viewModel.warActive ? 'Krig!' : 'Krig'}</div>
+        <div class="table-title">${viewModel.warActive ? 'KRIG!' : 'Krig'}</div>
         <div class="table-center-prompt">${viewModel.statusText}</div>
-        <div class="krig-center-stakes">
-          <span class="pill">${viewModel.warPileSize} stake cards</span>
-          <span class="pill">${viewModel.centerPileSize} cards in center</span>
-          ${viewModel.warDepth > 0 ? `<span class="pill">War depth ${viewModel.warDepth}</span>` : ''}
-        </div>
       </div>
     `;
 }
 
-function renderPileSummary(viewModel: KrigViewModel): string {
-    return `
-      <div class="krig-pile-summary">
-        ${viewModel.players.map((player) => `
-          <div class="krig-pile-row">
-            <span>${player.isSelf ? 'Your pile' : `${player.displayName}'s pile`}</span>
-            <strong>${player.pileCount}</strong>
-          </div>
-        `).join('')}
-      </div>
-    `;
+function renderStakeCards(count: number): string {
+    const visibleCount = Math.max(1, Math.min(count, 6));
+    let cards = '';
+    for (let i = 0; i < visibleCount; i++) {
+        cards += `<span class="krig-stake-card" style="--stake-offset:${i * 14}px"></span>`;
+    }
+    return `<div class="krig-stake-row" aria-hidden="true">${cards}</div>`;
 }
 
 function renderPostGameOverlay(postGame: NonNullable<KrigViewModel['postGame']>): string {

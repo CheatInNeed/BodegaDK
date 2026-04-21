@@ -37,6 +37,7 @@ export type SeatViewModel = {
     callout?: string | null;
     stackCount?: number;
     tableCard?: CardDisplayModel | null;
+    tableExtraHtml?: string;
     positionClass?: SeatPositionClass;
 };
 
