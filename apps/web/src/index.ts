@@ -79,6 +79,9 @@ const quickPlayState = {
     errorMessage: null as string | null,
     activeGame: null as string | null,
     ticket: null as MatchmakingResponse | null,
+    startedAtMs: null as number | null,
+    leaving: false,
+    matchedCountdown: null as number | null,
 };
 
 const authUiState = {
@@ -97,6 +100,10 @@ let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
 let highCardAutoStartKey: string | null = null;
 let quickPlayPollTimer: number | null = null;
+let quickPlayRealtimeChannel: { unsubscribe: () => void } | null = null;
+let quickPlayRealtimeRefreshTimer: number | null = null;
+let activeQueueClockTimer: number | null = null;
+let matchedCountdownTimer: number | null = null;
 
 function getInitialTheme(): ThemeId {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -130,12 +137,39 @@ function clearQuickPlayPolling() {
     quickPlayPollTimer = null;
 }
 
+function clearQuickPlayRealtime() {
+    if (quickPlayRealtimeRefreshTimer !== null) {
+        window.clearTimeout(quickPlayRealtimeRefreshTimer);
+        quickPlayRealtimeRefreshTimer = null;
+    }
+    quickPlayRealtimeChannel?.unsubscribe();
+    quickPlayRealtimeChannel = null;
+}
+
+function clearActiveQueueClock() {
+    if (activeQueueClockTimer === null) return;
+    window.clearInterval(activeQueueClockTimer);
+    activeQueueClockTimer = null;
+}
+
+function clearMatchedCountdown() {
+    if (matchedCountdownTimer === null) return;
+    window.clearInterval(matchedCountdownTimer);
+    matchedCountdownTimer = null;
+}
+
 function resetQuickPlayState() {
     clearQuickPlayPolling();
+    clearQuickPlayRealtime();
+    clearActiveQueueClock();
+    clearMatchedCountdown();
     quickPlayState.loading = false;
     quickPlayState.errorMessage = null;
     quickPlayState.activeGame = null;
     quickPlayState.ticket = null;
+    quickPlayState.startedAtMs = null;
+    quickPlayState.leaving = false;
+    quickPlayState.matchedCountdown = null;
 }
 
 function iconSvg(pathD: string) {
@@ -202,6 +236,9 @@ function renderApp() {
       </aside>
 
       <main class="main" id="main"></main>
+      <div id="activeQueueHost">
+        ${renderActiveQueueBar()}
+      </div>
     </div>
   `;
 
@@ -239,7 +276,6 @@ function renderView() {
         main.innerHTML = `
       <h1 class="h1" data-i18n="play.title"></h1>
       <p class="sub" data-i18n="play.subtitle"></p>
-      ${renderQuickPlayPanel()}
       ${playCards()}
     `;
     } else if (state.view === 'lobby-browser') {
@@ -563,44 +599,41 @@ function playCards() {
   `;
 }
 
-function renderQuickPlayPanel() {
+function renderActiveQueueBar() {
     const ticket = quickPlayState.ticket;
-    const headlineKey = ticket?.status === 'MATCHED' ? 'play.queue.matched' : ticket ? 'play.queue.waiting' : 'play.queue.idle';
-    const errorBanner = quickPlayState.errorMessage
-        ? `<div class="room-banner room-banner-error">${quickPlayState.errorMessage}</div>`
-        : '';
-    const metrics = ticket
-        ? `
-          <div class="home-matchmaking-grid">
-            <div class="home-matchmaking-panel">
-              <div class="card-title" data-i18n="play.queue.players"></div>
-              <p class="card-desc">${ticket.queuedPlayers}</p>
-            </div>
-            <div class="home-matchmaking-panel">
-              <div class="card-title" data-i18n="play.queue.needed"></div>
-              <p class="card-desc">${ticket.playersNeeded}</p>
-            </div>
-            <div class="home-matchmaking-panel">
-              <div class="card-title" data-i18n="play.queue.eta"></div>
-              <p class="card-desc">${ticket.estimatedWaitSeconds} ${t(state.lang, 'play.queue.seconds')}</p>
-            </div>
-          </div>
-        `
-        : '';
+    if (!ticket || (ticket.status !== 'WAITING' && ticket.status !== 'MATCHED')) return '';
 
+    const targetPlayers = Math.max(ticket.minPlayers, ticket.queuedPlayers);
+    const elapsedSeconds = quickPlayState.startedAtMs
+        ? Math.max(Math.floor((Date.now() - quickPlayState.startedAtMs) / 1000), 0)
+        : 0;
+    const isMatched = ticket.status === 'MATCHED';
+    const countdown = quickPlayState.matchedCountdown ?? 0;
+    const statusText = isMatched
+        ? `${t(state.lang, countdown > 0 ? 'queue.bar.matchedCountdown' : 'queue.bar.matchedNow')} ${countdown > 0 ? countdown : ''}`.trim()
+        : `${t(state.lang, 'queue.bar.players')}: ${ticket.queuedPlayers}/${targetPlayers}`;
+
+    const error = quickPlayState.errorMessage
+        ? `<span class="active-queue-error">${quickPlayState.errorMessage}</span>`
+        : '';
     return `
-    <section class="card home-matchmaking-card">
-      <div class="home-card-header">
-        <div>
-          <div class="card-title home-card-title" data-i18n="play.queue.title"></div>
-          <p class="card-desc" data-i18n="${headlineKey}"></p>
+    <section class="active-queue-bar ${isMatched ? 'matched' : ''}" aria-live="polite">
+      <div class="active-queue-status" aria-hidden="true"></div>
+      <div class="active-queue-copy">
+        <div class="active-queue-heading">
+          <span data-i18n="${isMatched ? 'queue.bar.matched' : 'queue.bar.title'}"></span>
+          <strong>${formatGameName(ticket.gameType)}</strong>
+        </div>
+        <div class="active-queue-meta">
+          <span>${statusText}</span>
+          ${isMatched ? '' : `<span>${t(state.lang, 'queue.bar.wait')}: ${formatQueueDuration(ticket.estimatedWaitSeconds)}</span>`}
+          <span>${t(state.lang, 'queue.bar.elapsed')}: ${formatQueueDuration(elapsedSeconds)}</span>
+          ${error}
         </div>
       </div>
-      ${errorBanner}
-      ${metrics}
-      ${ticket && ticket.status === 'WAITING'
-            ? `<button class="btn" type="button" data-action="cancel-quick-play" data-i18n="play.queue.cancel"></button>`
-            : ''}
+      ${isMatched
+            ? `<span class="active-queue-ready" data-i18n="queue.bar.ready"></span>`
+            : `<button class="btn active-queue-leave" type="button" data-action="active-queue-leave" ${quickPlayState.leaving ? 'disabled' : ''} data-i18n="queue.bar.leave"></button>`}
     </section>
   `;
 }
@@ -808,7 +841,7 @@ function wireEvents() {
         });
     });
 
-    document.querySelector<HTMLButtonElement>('button[data-action="cancel-quick-play"]')?.addEventListener('click', () => {
+    document.querySelector<HTMLButtonElement>('button[data-action="active-queue-leave"]')?.addEventListener('click', () => {
         void cancelQuickPlay();
     });
 
@@ -1432,11 +1465,18 @@ async function handleQuickPlay(gameType: string) {
     }
 
     clearQuickPlayPolling();
+    clearQuickPlayRealtime();
+    clearActiveQueueClock();
+    clearMatchedCountdown();
     quickPlayState.loading = true;
     quickPlayState.errorMessage = null;
     quickPlayState.activeGame = gameType;
     quickPlayState.ticket = null;
+    quickPlayState.startedAtMs = null;
+    quickPlayState.leaving = false;
+    quickPlayState.matchedCountdown = null;
     renderView();
+    updateActiveQueueBar();
 
     try {
         const identity = getLobbyIdentity();
@@ -1448,34 +1488,43 @@ async function handleQuickPlay(gameType: string) {
         });
         quickPlayState.ticket = ticket;
         quickPlayState.loading = false;
+        quickPlayState.startedAtMs = Date.now();
         renderView();
         handleQuickPlayTicketUpdate(ticket);
     } catch (error) {
         quickPlayState.loading = false;
         quickPlayState.errorMessage = toErrorMessage(error, 'Failed to join matchmaking queue');
         renderView();
+        updateActiveQueueBar();
     }
 }
 
 function handleQuickPlayTicketUpdate(ticket: MatchmakingResponse) {
+    if (quickPlayState.ticket && quickPlayState.ticket.ticketId !== ticket.ticketId) {
+        return;
+    }
+
+    const wasNewQueue = quickPlayState.ticket?.ticketId !== ticket.ticketId || !quickPlayState.startedAtMs;
     quickPlayState.ticket = ticket;
     quickPlayState.activeGame = ticket.gameType;
+    if (wasNewQueue && ticket.status === 'WAITING') {
+        quickPlayState.startedAtMs = Date.now();
+    }
     if (ticket.status === 'MATCHED' && ticket.roomCode) {
-        resetQuickPlayState();
-        navigate({
-            view: 'room',
-            game: ticket.gameType,
-            room: ticket.roomCode,
-            token: ticket.token,
-            mock: false,
-        });
+        startMatchedCountdown(ticket);
         return;
     }
     if (ticket.status !== 'WAITING') {
         clearQuickPlayPolling();
+        clearQuickPlayRealtime();
+        clearActiveQueueClock();
         renderView();
+        updateActiveQueueBar();
         return;
     }
+    subscribeQuickPlayRealtime(ticket.gameType, ticket.ticketId);
+    startActiveQueueClock();
+    updateActiveQueueBar();
     scheduleQuickPlayPoll(ticket.ticketId);
 }
 
@@ -1484,14 +1533,68 @@ function scheduleQuickPlayPoll(ticketId: string) {
     quickPlayPollTimer = window.setTimeout(async () => {
         try {
             const nextTicket = await getMatchmakingTicket(ticketId);
+            if (quickPlayState.ticket?.ticketId !== ticketId) {
+                return;
+            }
             handleQuickPlayTicketUpdate(nextTicket);
             renderView();
         } catch (error) {
+            if (quickPlayState.ticket?.ticketId !== ticketId) {
+                return;
+            }
             quickPlayState.errorMessage = toErrorMessage(error, 'Failed to refresh matchmaking queue');
             clearQuickPlayPolling();
             renderView();
+            updateActiveQueueBar();
         }
     }, 1500);
+}
+
+function startMatchedCountdown(ticket: MatchmakingResponse) {
+    if (!ticket.roomCode) {
+        return;
+    }
+
+    clearQuickPlayPolling();
+    clearQuickPlayRealtime();
+    clearActiveQueueClock();
+
+    quickPlayState.ticket = ticket;
+    quickPlayState.activeGame = ticket.gameType;
+    quickPlayState.leaving = false;
+    quickPlayState.errorMessage = null;
+    if (matchedCountdownTimer !== null) {
+        updateActiveQueueBar();
+        return;
+    }
+
+    quickPlayState.matchedCountdown = 3;
+    updateActiveQueueBar();
+
+    matchedCountdownTimer = window.setInterval(() => {
+        if (quickPlayState.ticket?.ticketId !== ticket.ticketId) {
+            clearMatchedCountdown();
+            return;
+        }
+
+        const next = (quickPlayState.matchedCountdown ?? 0) - 1;
+        quickPlayState.matchedCountdown = Math.max(next, 0);
+        updateActiveQueueBar();
+
+        if (next > 0) {
+            return;
+        }
+
+        clearMatchedCountdown();
+        resetQuickPlayState();
+        navigate({
+            view: 'room',
+            game: ticket.gameType,
+            room: ticket.roomCode,
+            token: ticket.token,
+            mock: false,
+        });
+    }, 1000);
 }
 
 async function cancelQuickPlay() {
@@ -1499,19 +1602,113 @@ async function cancelQuickPlay() {
     if (!ticketId) {
         resetQuickPlayState();
         renderView();
+        updateActiveQueueBar();
         return;
     }
 
+    quickPlayState.leaving = true;
+    quickPlayState.errorMessage = null;
+    updateActiveQueueBar();
+
     try {
-        await cancelMatchmakingTicket(ticketId);
+        const cancelledInSupabase = await cancelQuickPlayWithSupabase();
+        if (!cancelledInSupabase) {
+            await cancelMatchmakingTicket(ticketId);
+        }
     } catch (error) {
+        quickPlayState.leaving = false;
         quickPlayState.errorMessage = toErrorMessage(error, 'Failed to cancel matchmaking queue');
         renderView();
+        updateActiveQueueBar();
         return;
     }
 
     resetQuickPlayState();
     renderView();
+    updateActiveQueueBar();
+}
+
+async function cancelQuickPlayWithSupabase(): Promise<boolean> {
+    const ticket = quickPlayState.ticket;
+    if (!supabase || !ticket) {
+        return false;
+    }
+
+    const { data, error } = await supabase.rpc('cancel_matchmaking_ticket', {
+        ticket_id_input: ticket.ticketId,
+        session_token_input: ticket.token,
+    });
+
+    if (error) {
+        console.warn('Supabase matchmaking cancel failed; falling back to API cancel', error);
+        return false;
+    }
+
+    return data === true;
+}
+
+function subscribeQuickPlayRealtime(gameType: string, ticketId: string) {
+    if (!supabase || quickPlayRealtimeChannel) {
+        return;
+    }
+
+    quickPlayRealtimeChannel = supabase
+        .channel(`matchmaking-ticket-${ticketId}`)
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'matchmaking_tickets',
+                filter: `game_type=eq.${gameType}`,
+            },
+            () => {
+                scheduleRealtimeTicketRefresh(ticketId);
+            }
+        )
+        .subscribe();
+}
+
+function scheduleRealtimeTicketRefresh(ticketId: string) {
+    if (quickPlayState.ticket?.ticketId !== ticketId) {
+        return;
+    }
+    if (quickPlayRealtimeRefreshTimer !== null) {
+        window.clearTimeout(quickPlayRealtimeRefreshTimer);
+    }
+    quickPlayRealtimeRefreshTimer = window.setTimeout(async () => {
+        quickPlayRealtimeRefreshTimer = null;
+        try {
+            const nextTicket = await getMatchmakingTicket(ticketId);
+            if (quickPlayState.ticket?.ticketId !== ticketId) {
+                return;
+            }
+            handleQuickPlayTicketUpdate(nextTicket);
+        } catch (error) {
+            if (quickPlayState.ticket?.ticketId !== ticketId) {
+                return;
+            }
+            quickPlayState.errorMessage = toErrorMessage(error, 'Failed to refresh matchmaking queue');
+            updateActiveQueueBar();
+        }
+    }, 250);
+}
+
+function startActiveQueueClock() {
+    if (activeQueueClockTimer !== null) return;
+    activeQueueClockTimer = window.setInterval(() => {
+        updateActiveQueueBar();
+    }, 1000);
+}
+
+function updateActiveQueueBar() {
+    const host = document.getElementById('activeQueueHost');
+    if (!host) return;
+    host.innerHTML = renderActiveQueueBar();
+    applyI18n(host, state.lang);
+    document.querySelector<HTMLButtonElement>('button[data-action="active-queue-leave"]')?.addEventListener('click', () => {
+        void cancelQuickPlay();
+    });
 }
 
 function triggerCasinoQuickMerge() {
@@ -1564,6 +1761,21 @@ function readCasinoValueMap(publicState: Record<string, unknown> | null): Record
 
 function randomToken(): string {
     return `player-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function formatQueueDuration(seconds: number): string {
+    const safeSeconds = Math.max(Math.floor(seconds), 0);
+    const minutes = Math.floor(safeSeconds / 60);
+    const remainder = safeSeconds % 60;
+    return `${minutes}:${remainder.toString().padStart(2, '0')}`;
+}
+
+function formatGameName(gameType: string): string {
+    if (gameType === 'snyd') return t(state.lang, 'game.cheat');
+    if (gameType === KRIG_GAME_ID) return t(state.lang, 'game.krig');
+    if (gameType === 'casino') return t(state.lang, 'game.casino');
+    if (gameType === HIGHCARD_GAME_ID) return t(state.lang, 'game.highcard');
+    return gameType;
 }
 
 function getLobbyIdentity() {

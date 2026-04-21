@@ -20,6 +20,7 @@ Current Supabase files in the repo:
 - `supabase/migrations/202604081410_init.sql`
 - `supabase/migrations/202604191100_room_matchmaking.sql`
 - `supabase/migrations/202604201130_profiles_auth_trigger.sql`
+- `supabase/migrations/202604211200_matchmaking_realtime_cancel.sql`
 - `.github/workflows/supabase-migrations.yml`
 
 Room/session metadata now lives in Supabase/Postgres, while live
@@ -34,6 +35,17 @@ Profile creation is now database-driven:
 - a trigger on `auth.users` creates or updates the matching row in `public.profiles`
 - signup metadata (`username`, `country`) is copied from `raw_user_meta_data`
 - `public.profiles` uses RLS policies so authenticated users can read and update only their own row
+
+Matchmaking queue UI uses Supabase in the browser for live status and
+cancel support:
+
+- `public.matchmaking_tickets` is added to the Supabase realtime publication
+- the web client listens for changes to active queue tickets and refreshes its
+  server ticket snapshot when another player joins or a ticket is matched
+- `public.cancel_matchmaking_ticket(uuid, text)` cancels only the matching
+  waiting ticket for the caller's session token
+- the Spring backend remains authoritative for matching players and creating
+  rooms
 
 GitHub Actions applies migrations on:
 
