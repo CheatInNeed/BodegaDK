@@ -2039,6 +2039,7 @@ select.input {
 
 .room-krig .table-seat-panel {
     gap: 10px;
+    position: relative;
 }
 
 .room-krig .table-seat-card .play-card-face {
@@ -2073,25 +2074,29 @@ select.input {
 }
 
 .krig-stake-row {
-    position: relative;
-    width: 132px;
-    height: 46px;
-    margin-top: -2px;
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    width: 154px;
+    height: 92px;
+    transform: translateY(-50%);
+    z-index: 3;
+    pointer-events: none;
 }
 
 .krig-stake-card {
     position: absolute;
     left: var(--stake-offset);
     top: 0;
-    width: 34px;
-    height: 46px;
-    border-radius: 6px;
+    width: 64px;
+    height: 92px;
+    border-radius: 14px;
     border: 1px solid color-mix(in srgb, var(--color-tertiary) 72%, white);
     background:
             linear-gradient(135deg, color-mix(in srgb, var(--color-danger) 26%, #2f2a3d), #15131f),
             repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12) 2px, transparent 2px, transparent 6px);
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.34);
-    transform: rotate(calc((var(--stake-offset) / 14) * 3deg - 5deg));
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
+    transform: rotate(calc((var(--stake-offset) / 18) * 2deg - 3deg));
 }
 
 .room-krig .krig-minimal-actions {

@@ -86,6 +86,10 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
         const warDepth = typeof publicState?.warDepth === 'number' ? publicState.warDepth : trick?.warDepth ?? 0;
         const cardsInCenter = typeof publicState?.centerPileSize === 'number' ? publicState.centerPileSize : trick?.cardsWon ?? 0;
         const warPileSize = typeof publicState?.warPileSize === 'number' ? publicState.warPileSize : Math.max(0, cardsInCenter - 2);
+        const warPresentationActive = !!trick
+            && warDepth > 0
+            && trick.trickNumber !== presentation.completedBattleRound
+            && !postGameVisible;
         const drawPileCounts = suspenseVisible && publicState?.drawPileCountsBeforeTrick
             ? publicState.drawPileCountsBeforeTrick
             : publicState?.drawPileCounts;
@@ -107,7 +111,7 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
                 fallback: typeof publicState?.statusText === 'string' ? publicState.statusText : null,
             }),
             canFlip: !isRoundLocked && !sessionState.winnerPlayerId && !opponentLeft,
-            warActive: (publicState?.warActive === true || warDepth > 0) && !postGameVisible,
+            warActive: warPresentationActive,
             warDepth,
             warPileSize,
             centerPileSize: cardsInCenter,
@@ -216,10 +220,10 @@ function buildTableCard(input: {
     }
 
     if (input.suspenseVisible || input.isReady) {
-        return { kind: 'back', label: '', size: 'sm' };
+        return { kind: 'back', label: 'Ready', size: 'sm' };
     }
 
-    return { kind: 'stack', count: undefined, label: 'Draw pile', size: 'sm' };
+    return { kind: 'back', label: 'Draw pile', size: 'sm' };
 }
 
 function describeStatus(input: {

@@ -27,6 +27,22 @@ class KrigEngineTest {
     }
 
     @Test
+    void warDemoDeckForcesWarOnFirstTrick() {
+        KrigEngine demoEngine = new KrigEngine("war-demo");
+        KrigState state = demoEngine.init(List.of("p1", "p2"));
+
+        assertEquals("H7", state.drawPiles().get("p1").getFirst().toString());
+        assertEquals("S7", state.drawPiles().get("p2").getFirst().toString());
+
+        KrigState waiting = demoEngine.apply(new KrigAction("p1"), state);
+        KrigState resolved = demoEngine.apply(new KrigAction("p2"), waiting);
+
+        assertEquals(1, resolved.lastTrick().warDepth());
+        assertEquals(10, resolved.lastTrick().cardsWon());
+        assertEquals("p1", resolved.lastTrick().winnerPlayerId());
+    }
+
+    @Test
     void firstFlipMarksPlayerReadyWithoutRevealingCard() {
         KrigState state = buildState(
                 List.of(new Card("H", "A")),

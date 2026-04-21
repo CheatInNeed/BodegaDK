@@ -54,7 +54,7 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
         callout: player.callout,
         stackCount: player.pileCount,
         tableCard: player.tableCard,
-        tableExtraHtml: player.stakeCount > 0 ? renderStakeCards(player.stakeCount) : '',
+        tableExtraHtml: viewModel.warActive && player.stakeCount > 0 ? renderStakeCards(player.stakeCount) : '',
     }));
 
     return renderGameRoomSections({
@@ -98,7 +98,7 @@ function renderStakeCards(count: number): string {
     const visibleCount = Math.max(1, Math.min(count, 6));
     let cards = '';
     for (let i = 0; i < visibleCount; i++) {
-        cards += `<span class="krig-stake-card" style="--stake-offset:${i * 14}px"></span>`;
+        cards += `<span class="krig-stake-card" style="--stake-offset:${i * 18}px"></span>`;
     }
     return `<div class="krig-stake-row" aria-hidden="true">${cards}</div>`;
 }

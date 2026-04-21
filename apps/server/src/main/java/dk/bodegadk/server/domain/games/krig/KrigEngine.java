@@ -11,6 +11,16 @@ import java.util.List;
 public class KrigEngine implements GameEngine<KrigState, KrigAction> {
     private static final int PLAYER_COUNT = 2;
     private static final int WAR_STAKE_CARDS = 3;
+    private static final String WAR_DEMO_DECK = "war-demo";
+    private final String deckMode;
+
+    public KrigEngine() {
+        this(readDeckMode());
+    }
+
+    KrigEngine(String deckMode) {
+        this.deckMode = deckMode == null ? "" : deckMode.trim().toLowerCase();
+    }
 
     @Override public String gameId() { return "krig"; }
     @Override public int minPlayers() { return PLAYER_COUNT; }
@@ -23,7 +33,9 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         }
 
         KrigState state = new KrigState(playerIds);
-        List<List<Card>> hands = Deck.standard52().shuffle().deal(PLAYER_COUNT);
+        List<List<Card>> hands = WAR_DEMO_DECK.equals(deckMode)
+                ? warDemoHands()
+                : Deck.standard52().shuffle().deal(PLAYER_COUNT);
         for (int i = 0; i < PLAYER_COUNT; i++) {
             state.drawPiles().put(playerIds.get(i), new ArrayList<>(hands.get(i)));
         }
@@ -235,5 +247,43 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
             boolean tie,
             int cardsWon
     ) {
+    }
+
+    private static String readDeckMode() {
+        String propertyValue = System.getProperty("bodegadk.krig.deck");
+        if (propertyValue != null && !propertyValue.isBlank()) {
+            return propertyValue;
+        }
+        return System.getenv("BODEGADK_KRIG_DECK");
+    }
+
+    private List<List<Card>> warDemoHands() {
+        List<Card> firstPile = new ArrayList<>(List.of(
+                new Card("H", "7"),
+                new Card("H", "2"),
+                new Card("H", "3"),
+                new Card("H", "4"),
+                new Card("H", "A")
+        ));
+        List<Card> secondPile = new ArrayList<>(List.of(
+                new Card("S", "7"),
+                new Card("S", "2"),
+                new Card("S", "3"),
+                new Card("S", "4"),
+                new Card("S", "K")
+        ));
+
+        for (Card card : Deck.standard52().deal(1).getFirst()) {
+            if (firstPile.contains(card) || secondPile.contains(card)) {
+                continue;
+            }
+            if (firstPile.size() < 26) {
+                firstPile.add(card);
+            } else if (secondPile.size() < 26) {
+                secondPile.add(card);
+            }
+        }
+
+        return List.of(firstPile, secondPile);
     }
 }
