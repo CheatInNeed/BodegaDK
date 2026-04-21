@@ -386,6 +386,15 @@ button { font: inherit; }
     box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-accent) 18%, transparent), 0 0 26px var(--color-accent);
 }
 
+.active-queue-bar.matched {
+    border-color: color-mix(in srgb, var(--color-success) 46%, var(--color-accent));
+}
+
+.active-queue-bar.matched .active-queue-status {
+    background: var(--color-success);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-success) 18%, transparent), 0 0 26px var(--color-success);
+}
+
 .active-queue-copy {
     min-width: 0;
     display: grid;
@@ -431,6 +440,14 @@ button { font: inherit; }
     border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border));
     color: var(--color-accent);
     font-weight: 800;
+    white-space: nowrap;
+}
+
+.active-queue-ready {
+    color: var(--color-success);
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: 0.84rem;
     white-space: nowrap;
 }
 
