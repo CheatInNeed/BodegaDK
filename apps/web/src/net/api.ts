@@ -36,6 +36,21 @@ export type JoinRoomResponse = {
 
 export type RoomActionResponse = { ok: boolean };
 
+export type MatchmakingResponse = {
+    ticketId: string;
+    gameType: string;
+    status: 'WAITING' | 'MATCHED' | 'CANCELLED';
+    roomCode: string | null;
+    playerId: string;
+    token: string;
+    queuedPlayers: number;
+    playersNeeded: number;
+    minPlayers: number;
+    maxPlayers: number;
+    strictCount: boolean;
+    estimatedWaitSeconds: number;
+};
+
 export async function listRooms(): Promise<LobbyRoomSummary[]> {
     const response = await fetch(`${resolveApiBaseUrl()}/rooms`);
     return parseJsonResponse<LobbyRoomSummary[]>(response, 'Failed to load public rooms');
@@ -102,6 +117,49 @@ export async function kickPlayer(input: { roomCode: string; actorToken: string; 
     });
 
     return parseJsonResponse<RoomActionResponse>(response, 'Failed to kick player');
+}
+
+export async function enqueueMatchmaking(input: {
+    gameType: string;
+    playerId: string;
+    username?: string;
+    token: string;
+}): Promise<MatchmakingResponse> {
+    const response = await fetch(`${resolveApiBaseUrl()}/matchmaking/queue`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(input),
+    });
+
+    return parseJsonResponse<MatchmakingResponse>(response, 'Failed to join matchmaking queue');
+}
+
+export async function getMatchmakingTicket(ticketId: string): Promise<MatchmakingResponse> {
+    const response = await fetch(`${resolveApiBaseUrl()}/matchmaking/queue/${encodeURIComponent(ticketId)}`);
+    return parseJsonResponse<MatchmakingResponse>(response, 'Failed to load matchmaking ticket');
+}
+
+export async function cancelMatchmakingTicket(ticketId: string): Promise<void> {
+    const response = await fetch(`${resolveApiBaseUrl()}/matchmaking/queue/${encodeURIComponent(ticketId)}`, {
+        method: 'DELETE',
+    });
+
+    if (response.ok) {
+        return;
+    }
+
+    let details = '';
+    try {
+        const body = await response.json() as { message?: string };
+        details = typeof body.message === 'string' ? body.message : '';
+    } catch {
+        details = '';
+    }
+
+    const suffix = details ? `: ${details}` : '';
+    throw new Error(`Failed to cancel matchmaking ticket (${response.status})${suffix}`);
 }
 
 async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {

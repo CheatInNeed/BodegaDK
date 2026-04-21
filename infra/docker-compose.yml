@@ -15,12 +15,9 @@ services:
       context: ../apps/server
     restart: unless-stopped
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/bodegadk
-      - SPRING_DATASOURCE_USERNAME=bodegadk
-      - SPRING_DATASOURCE_PASSWORD=bodegadk
-    depends_on:
-      db:
-        condition: service_healthy
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL:-jdbc:postgresql://db:5432/bodegadk}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME:-bodegadk}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:-bodegadk}
 
   db:
     image: postgres:16

@@ -8,6 +8,7 @@ deployment model for the BodegaDK web-based game platform.
 Detaljer om den konkrete web game-room implementation findes i:
 
 -   `docs/design/WEB_CLIENT_GAME_ROOM.md`
+-   `docs/design/ROOM_AND_MATCHMAKING_ARCHITECTURE.md`
 -   `docs/contracts/gameroom_ui_contract.md`
 
 Platform goals:
@@ -60,6 +61,7 @@ Used for:
 -   Authentication
 -   Create room
 -   Join room
+-   Matchmaking queue
 -   Fetch room metadata
 -   Fetch user info
 -   Game history
@@ -149,6 +151,8 @@ Responsibilities:
 -   Local UI state management
 -   Game-room session lifecycle
 -   Public/private state rendering through per-game adapters
+-   Quick-play queue polling
+-   Lobby vs in-game view switching from room status
 
 ### 4.1 Game Room Client Layer
 
@@ -212,12 +216,18 @@ UI-side source of truth for active live card rooms:
 Layer responsibilities:
 
 REST Layer: - Authentication - Room creation/join - Metadata endpoints
+- Matchmaking queue endpoints
 
 WebSocket Layer: - Authenticated connection - Routing game messages -
 Broadcasting updates
 
 Domain Layer: - GameEngine interface - SnydEngine implementation - Full
 rule enforcement
+
+Persistence split:
+
+- room metadata and queue tickets are stored in Postgres
+- WebSocket bindings and active engine state still live in memory
 
 Persistence Layer: - Users - Rooms metadata - Game history - Statistics
 

@@ -5,6 +5,9 @@ Supabase is currently used by the web client for:
 - email/password auth
 - signup metadata
 - avatar/profile data in `public.avatars`
+- persisted room metadata in `public.rooms`
+- room participants in `public.room_players`
+- quick-play queue tickets in `public.matchmaking_tickets`
 
 It is not the game backend. Gameplay, lobby state, and rules stay in the
 Spring Boot server.
@@ -15,11 +18,34 @@ Current Supabase files in the repo:
 
 - `supabase/config.toml`
 - `supabase/migrations/202604081410_init.sql`
+- `supabase/migrations/202604191100_room_matchmaking.sql`
+- `supabase/migrations/202604201130_profiles_auth_trigger.sql`
+- `supabase/migrations/202604211200_matchmaking_realtime_cancel.sql`
 - `.github/workflows/supabase-migrations.yml`
+
+Room/session metadata now lives in Supabase/Postgres, while live
+engine-specific game state still remains inside the Spring runtime.
 
 ## Migration workflow
 
 Schema changes live in `supabase/migrations/`.
+
+Profile creation is now database-driven:
+
+- a trigger on `auth.users` creates or updates the matching row in `public.profiles`
+- signup metadata (`username`, `country`) is copied from `raw_user_meta_data`
+- `public.profiles` uses RLS policies so authenticated users can read and update only their own row
+
+Matchmaking queue UI uses Supabase in the browser for live status and
+cancel support:
+
+- `public.matchmaking_tickets` is added to the Supabase realtime publication
+- the web client listens for changes to active queue tickets and refreshes its
+  server ticket snapshot when another player joins or a ticket is matched
+- `public.cancel_matchmaking_ticket(uuid, text)` cancels only the matching
+  waiting ticket for the caller's session token
+- the Spring backend remains authoritative for matching players and creating
+  rooms
 
 GitHub Actions applies migrations on:
 
@@ -39,6 +65,13 @@ Required GitHub secrets:
 
 The workflow runs `supabase db push --linked --dry-run` and then
 `supabase db push --linked`.
+
+When the Spring backend is pointed at an existing Supabase schema that
+already contains app tables but does not yet contain
+`public.flyway_schema_history`, Flyway must baseline that schema before
+normal migrations can continue. The app now enables
+`spring.flyway.baseline-on-migrate=true` so the backend can boot cleanly
+against a pre-populated Supabase `public` schema.
 
 ## Frontend config
 
@@ -63,6 +96,33 @@ Supabase URL and anon key before running the web build.
 If these values are missing, the web app still builds, but Supabase
 auth/profile features are disabled.
 
+## Backend datasource
+
+The Spring backend does not read `PUBLIC_SUPABASE_URL` or
+`PUBLIC_SUPABASE_ANON_KEY`.
+
+Those public values are only for the browser client. The backend writes
+room metadata and matchmaking tickets through the Spring datasource:
+
+- `SPRING_DATASOURCE_URL`
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+
+In the Docker deploy stack, `infra/docker-compose.yml` now reads those
+values from the host environment with a fallback to the local Docker
+Postgres container:
+
+- default/fallback: `jdbc:postgresql://db:5432/bodegadk`
+- override for Supabase: set the three Spring datasource env vars on the
+  VM before `docker compose up`
+
+Typical Supabase JDBC value shape:
+
+- `jdbc:postgresql://<project-db-host>:5432/postgres?sslmode=require`
+
+The exact host, username, and password must come from the Supabase
+project database connection settings. Do not commit them to the repo.
+
 ## Live deploy note
 
 Hosted Supabase migrations and web runtime config are separate concerns.
@@ -70,6 +130,8 @@ Hosted Supabase migrations and web runtime config are separate concerns.
 - `supabase/migrations/` controls the hosted database schema
 - `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` control whether the
   built web app can use Supabase auth/profile features
+- `SPRING_DATASOURCE_*` controls whether the Spring backend persists
+  rooms/matchmaking into Supabase or into the fallback Docker Postgres
 
 For live deploys, the machine or CI job that runs `npm run web:build` or
 `npm run deploy:update` must provide those public values either through:
@@ -80,3 +142,7 @@ For live deploys, the machine or CI job that runs `npm run web:build` or
 
 Pushing migrations alone does not populate `apps/web/public/app-config.js`
 for a live build.
+
+Likewise, applying Supabase migrations alone does not move backend writes
+to Supabase. The live server must be started with Supabase-backed
+`SPRING_DATASOURCE_*` values.

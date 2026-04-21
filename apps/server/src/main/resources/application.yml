@@ -5,6 +5,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:bodegadk}
   flyway:
     enabled: true
+    baseline-on-migrate: true
 
 server:
   port: 8080
