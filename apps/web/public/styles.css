@@ -2057,6 +2057,39 @@ select.input {
     color: color-mix(in srgb, var(--color-text-strong) 82%, transparent);
 }
 
+.room-krig .krig-center {
+    gap: 10px;
+}
+
+.krig-center-stakes,
+.krig-pile-summary {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.krig-pile-summary {
+    align-items: stretch;
+}
+
+.krig-pile-row {
+    min-width: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text);
+}
+
+.krig-pile-row strong {
+    color: var(--color-text-strong);
+}
+
 .room-krig .private-panel {
     border-top: 1px solid color-mix(in srgb, var(--color-danger) 24%, transparent);
 }

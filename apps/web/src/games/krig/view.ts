@@ -1,26 +1,27 @@
 import type { CardDisplayModel, GameRoomLayoutSpec, SeatViewModel } from '../../game-room/types.js';
-import { fallbackLayoutMode, renderGameRoomSections, renderHandCards } from '../../game-room/ui.js';
+import { fallbackLayoutMode, renderGameRoomSections } from '../../game-room/ui.js';
 
 export type KrigViewModel = {
     roomCode: string;
-    round: number;
-    totalRounds: number;
+    trickNumber: number;
     selfPlayerId: string | null;
     statusText: string;
-    canPlayCard: boolean;
+    canFlip: boolean;
+    warActive: boolean;
+    warDepth: number;
+    warPileSize: number;
+    centerPileSize: number;
     players: Array<{
         playerId: string;
         displayName: string;
-        score: number;
+        pileCount: number;
         tableCard: CardDisplayModel;
         isSelf: boolean;
-        isWaiting: boolean;
+        isReady: boolean;
         isRoundWinner: boolean;
         isRoundLoser: boolean;
-        scoreDeltaText: string | null;
+        callout: string | null;
     }>;
-    hand: Array<{ card: string; selected: boolean }>;
-    selectedCard: string | null;
     isGameOver: boolean;
     postGame: {
         winnerLabel: string;
@@ -28,10 +29,10 @@ export type KrigViewModel = {
         rematchButtonLabel: string;
         rematchDisabled: boolean;
         rematchStatusText: string;
-        scores: Array<{
+        piles: Array<{
             playerId: string;
             displayName: string;
-            score: number;
+            pileCount: number;
         }>;
     } | null;
 };
@@ -47,9 +48,10 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
         label: player.isSelf ? 'You' : player.displayName,
         isSelf: player.isSelf,
         isCurrentTurn: false,
-        stateTone: player.isRoundWinner ? 'winner' : player.isRoundLoser ? 'loser' : player.isWaiting ? 'waiting' : 'default',
-        badges: [`Score ${player.score}`, ...(player.isWaiting && !player.isRoundWinner && !player.isRoundLoser ? ['Ready'] : [])],
-        callout: player.scoreDeltaText,
+        stateTone: player.isRoundWinner ? 'winner' : player.isRoundLoser ? 'loser' : player.isReady ? 'waiting' : 'default',
+        badges: [`${player.pileCount} cards`, ...(player.isReady && !player.isRoundWinner && !player.isRoundLoser ? ['Ready'] : [])],
+        callout: player.callout,
+        stackCount: player.pileCount,
         tableCard: player.tableCard,
     }));
 
@@ -60,35 +62,53 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
         headerPills: [
             `Room: ${viewModel.roomCode}`,
             'Game: Krig',
-            `Round: ${viewModel.round}/${viewModel.totalRounds}`,
+            `Trick: ${viewModel.trickNumber}`,
         ],
         seats,
         centerHtml: viewModel.isGameOver
             ? `${viewModel.postGame ? renderPostGameOverlay(viewModel.postGame) : ''}`
-            : `
-          <div class="table-center-info table-center-info-compact">
-            <div class="table-title">Krig</div>
-            <div class="table-center-prompt">${viewModel.statusText}</div>
-          </div>
-        `,
-        trayTitle: viewModel.isGameOver ? 'Match complete' : 'Quick multiplayer test game',
+            : renderCenter(viewModel),
+        trayTitle: viewModel.isGameOver ? 'Match complete' : 'Draw pile',
         trayDescription: viewModel.statusText,
         trayBodyHtml: viewModel.isGameOver
             ? ''
-            : `
-          <div class="private-hand-row">
-            ${renderHandCards(viewModel.hand)}
-          </div>
-        `,
+            : renderPileSummary(viewModel),
         trayFooterHtml: viewModel.isGameOver
             ? ''
             : `
           <div class="card-row room-actions">
-            <span class="pill">Selected: ${viewModel.selectedCard ?? '-'}</span>
-            <button class="btn primary" data-action="play-selected" ${!viewModel.selectedCard || !viewModel.canPlayCard ? 'disabled' : ''}>Play selected card</button>
+            <span class="pill">Center: ${viewModel.centerPileSize} cards</span>
+            <button class="btn primary" data-action="flip-card" ${!viewModel.canFlip ? 'disabled' : ''}>Flip card</button>
           </div>
         `,
     });
+}
+
+function renderCenter(viewModel: KrigViewModel): string {
+    return `
+      <div class="table-center-info table-center-info-compact krig-center">
+        <div class="table-title">${viewModel.warActive ? 'Krig!' : 'Krig'}</div>
+        <div class="table-center-prompt">${viewModel.statusText}</div>
+        <div class="krig-center-stakes">
+          <span class="pill">${viewModel.warPileSize} stake cards</span>
+          <span class="pill">${viewModel.centerPileSize} cards in center</span>
+          ${viewModel.warDepth > 0 ? `<span class="pill">War depth ${viewModel.warDepth}</span>` : ''}
+        </div>
+      </div>
+    `;
+}
+
+function renderPileSummary(viewModel: KrigViewModel): string {
+    return `
+      <div class="krig-pile-summary">
+        ${viewModel.players.map((player) => `
+          <div class="krig-pile-row">
+            <span>${player.isSelf ? 'Your pile' : `${player.displayName}'s pile`}</span>
+            <strong>${player.pileCount}</strong>
+          </div>
+        `).join('')}
+      </div>
+    `;
 }
 
 function renderPostGameOverlay(postGame: NonNullable<KrigViewModel['postGame']>): string {
@@ -98,10 +118,10 @@ function renderPostGameOverlay(postGame: NonNullable<KrigViewModel['postGame']>)
           <div class="krig-postgame-kicker">Game Over</div>
           <div class="krig-postgame-title">${postGame.isTie ? 'It is a tie' : `${postGame.winnerLabel} wins`}</div>
           <div class="krig-postgame-scores">
-            ${postGame.scores.map((entry) => `
+            ${postGame.piles.map((entry) => `
               <div class="krig-postgame-score-row">
                 <span>${entry.displayName}</span>
-                <strong>${entry.score}</strong>
+                <strong>${entry.pileCount}</strong>
               </div>
             `).join('')}
           </div>

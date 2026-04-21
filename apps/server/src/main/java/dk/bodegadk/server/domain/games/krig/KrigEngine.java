@@ -10,7 +10,7 @@ import java.util.List;
 
 public class KrigEngine implements GameEngine<KrigState, KrigAction> {
     private static final int PLAYER_COUNT = 2;
-    private static final int CARDS_PER_PLAYER = 5;
+    private static final int WAR_STAKE_CARDS = 3;
 
     @Override public String gameId() { return "krig"; }
     @Override public int minPlayers() { return PLAYER_COUNT; }
@@ -23,17 +23,10 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         }
 
         KrigState state = new KrigState(playerIds);
-        Deck deck = Deck.standard52().shuffle();
-
-        for (String playerId : playerIds) {
-            List<Card> hand = new ArrayList<>();
-            for (int i = 0; i < CARDS_PER_PLAYER; i++) {
-                hand.add(deck.draw());
-            }
-            state.hands().put(playerId, hand);
-            state.scores().put(playerId, 0);
+        List<List<Card>> hands = Deck.standard52().shuffle().deal(PLAYER_COUNT);
+        for (int i = 0; i < PLAYER_COUNT; i++) {
+            state.drawPiles().put(playerIds.get(i), new ArrayList<>(hands.get(i)));
         }
-
         state.setPhase(GameState.Phase.PLAYING);
         return state;
     }
@@ -43,18 +36,14 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         if (state.isFinished()) {
             throw new GameRuleException("Game is already finished.");
         }
-
-        List<Card> hand = state.hands().get(action.playerId());
-        if (hand == null) {
+        if (!state.playerIds().contains(action.playerId())) {
             throw new GameRuleException("Player not in game.");
         }
-        if (state.submittedCards().containsKey(action.playerId())) {
-            throw new GameRuleException("You have already locked in a card this round.");
+        if (state.readyPlayerIds().contains(action.playerId())) {
+            throw new GameRuleException("You are already ready for this flip.");
         }
-
-        Card played = Card.parse(action.cardCode());
-        if (!hand.contains(played)) {
-            throw new GameRuleException("You do not own card: " + action.cardCode());
+        if (state.drawPiles().getOrDefault(action.playerId(), List.of()).isEmpty()) {
+            throw new GameRuleException("You have no cards left to flip.");
         }
     }
 
@@ -62,18 +51,17 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
     public KrigState apply(KrigAction action, KrigState state) {
         validate(action, state);
         KrigState next = state.copy();
-        prepareNextRound(next);
+        if (next.readyPlayerIds().isEmpty()) {
+            prepareNextFlip(next);
+        }
+        next.readyPlayerIds().add(action.playerId());
+        next.setStatusText("Waiting for both players to flip.");
 
-        Card played = Card.parse(action.cardCode());
-        List<Card> hand = next.hands().get(action.playerId());
-        hand.remove(played);
-        next.submittedCards().put(action.playerId(), played);
-
-        if (next.submittedCards().size() < PLAYER_COUNT) {
+        if (next.readyPlayerIds().size() < PLAYER_COUNT) {
             return next;
         }
 
-        resolveRound(next);
+        resolveTrick(next);
         return next;
     }
 
@@ -104,61 +92,139 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         return state.winnerPlayerId();
     }
 
-    private void prepareNextRound(KrigState state) {
-        if (!state.revealedCards().isEmpty()) {
-            state.revealedCards().clear();
-            state.setLastBattle(null);
-            state.setRound(state.round() + 1);
+    private void resolveTrick(KrigState state) {
+        state.readyPlayerIds().clear();
+        prepareNextFlip(state);
+
+        String firstPlayerId = state.playerIds().get(0);
+        String secondPlayerId = state.playerIds().get(1);
+        Resolution resolution = flipBattleCards(state, firstPlayerId, secondPlayerId);
+
+        while (resolution.winnerPlayerId == null && resolution.tie) {
+            state.setWarDepth(state.warDepth() + 1);
+            resolution = continueWar(state, firstPlayerId, secondPlayerId);
+        }
+
+        if (resolution.winnerPlayerId == null) {
+            finishGame(state, null, "War cannot continue.");
+            return;
+        }
+
+        awardCenterPile(state, resolution.winnerPlayerId);
+        state.setLastTrick(new KrigState.TrickResult(
+                state.trickNumber(),
+                firstPlayerId,
+                resolution.firstCard == null ? null : resolution.firstCard.toString(),
+                secondPlayerId,
+                resolution.secondCard == null ? null : resolution.secondCard.toString(),
+                resolution.winnerPlayerId,
+                resolution.outcome,
+                resolution.cardsWon,
+                state.warDepth()
+        ));
+
+        if (state.drawPiles().get(firstPlayerId).isEmpty()) {
+            finishGame(state, secondPlayerId, "Game over.");
+            return;
+        }
+        if (state.drawPiles().get(secondPlayerId).isEmpty()) {
+            finishGame(state, firstPlayerId, "Game over.");
+            return;
+        }
+
+        state.setTrickNumber(state.trickNumber() + 1);
+        state.setStatusText(state.warDepth() > 0 ? "War resolved. Ready for the next flip." : "Trick resolved. Ready for the next flip.");
+    }
+
+    private void prepareNextFlip(KrigState state) {
+        state.centerPile().clear();
+        state.currentFaceUpCards().clear();
+        state.setLastTrick(null);
+        state.setWarDepth(0);
+    }
+
+    private Resolution flipBattleCards(KrigState state, String firstPlayerId, String secondPlayerId) {
+        Card firstCard = drawFaceUp(state, firstPlayerId);
+        Card secondCard = drawFaceUp(state, secondPlayerId);
+        return compareFaceUpCards(firstPlayerId, firstCard, secondPlayerId, secondCard, state.centerPile().size());
+    }
+
+    private Resolution continueWar(KrigState state, String firstPlayerId, String secondPlayerId) {
+        placeWarStakes(state, firstPlayerId);
+        placeWarStakes(state, secondPlayerId);
+
+        Card firstCard = drawFaceUpIfAvailable(state, firstPlayerId);
+        Card secondCard = drawFaceUpIfAvailable(state, secondPlayerId);
+
+        if (firstCard == null && secondCard == null) {
+            return new Resolution(null, null, null, "TIE", true, state.centerPile().size());
+        }
+        if (firstCard == null) {
+            return new Resolution(secondPlayerId, null, secondCard, "SECOND", false, state.centerPile().size());
+        }
+        if (secondCard == null) {
+            return new Resolution(firstPlayerId, firstCard, null, "FIRST", false, state.centerPile().size());
+        }
+
+        return compareFaceUpCards(firstPlayerId, firstCard, secondPlayerId, secondCard, state.centerPile().size());
+    }
+
+    private void placeWarStakes(KrigState state, String playerId) {
+        List<Card> pile = state.drawPiles().get(playerId);
+        int stakeCount = Math.min(WAR_STAKE_CARDS, Math.max(0, pile.size() - 1));
+        for (int i = 0; i < stakeCount; i++) {
+            Card card = pile.removeFirst();
+            state.centerPile().add(new KrigState.CenterCard(playerId, card.toString(), false));
         }
     }
 
-    private void resolveRound(KrigState state) {
-        String firstPlayerId = state.playerIds().get(0);
-        String secondPlayerId = state.playerIds().get(1);
-        Card firstCard = state.submittedCards().get(firstPlayerId);
-        Card secondCard = state.submittedCards().get(secondPlayerId);
+    private Card drawFaceUp(KrigState state, String playerId) {
+        Card card = state.drawPiles().get(playerId).removeFirst();
+        state.centerPile().add(new KrigState.CenterCard(playerId, card.toString(), true));
+        state.currentFaceUpCards().put(playerId, card);
+        return card;
+    }
 
-        String winnerPlayerId = null;
-        String outcome = "TIE";
+    private Card drawFaceUpIfAvailable(KrigState state, String playerId) {
+        List<Card> pile = state.drawPiles().get(playerId);
+        if (pile.isEmpty()) {
+            state.currentFaceUpCards().put(playerId, null);
+            return null;
+        }
+        return drawFaceUp(state, playerId);
+    }
+
+    private Resolution compareFaceUpCards(String firstPlayerId, Card firstCard, String secondPlayerId, Card secondCard, int cardsWon) {
         if (firstCard.value() > secondCard.value()) {
-            winnerPlayerId = firstPlayerId;
-            outcome = "FIRST";
-        } else if (secondCard.value() > firstCard.value()) {
-            winnerPlayerId = secondPlayerId;
-            outcome = "SECOND";
+            return new Resolution(firstPlayerId, firstCard, secondCard, "FIRST", false, cardsWon);
         }
-
-        if (winnerPlayerId != null) {
-            state.scores().put(winnerPlayerId, state.scores().getOrDefault(winnerPlayerId, 0) + 1);
+        if (secondCard.value() > firstCard.value()) {
+            return new Resolution(secondPlayerId, firstCard, secondCard, "SECOND", false, cardsWon);
         }
+        return new Resolution(null, firstCard, secondCard, "TIE", true, cardsWon);
+    }
 
-        state.revealedCards().clear();
-        state.revealedCards().put(firstPlayerId, firstCard);
-        state.revealedCards().put(secondPlayerId, secondCard);
-        state.setLastBattle(new KrigState.BattleResult(
-                state.round(),
-                firstPlayerId,
-                firstCard.toString(),
-                secondPlayerId,
-                secondCard.toString(),
-                winnerPlayerId,
-                outcome
-        ));
-        state.submittedCards().clear();
-
-        boolean finished = state.hands().values().stream().allMatch(List::isEmpty);
-        if (finished) {
-            state.setPhase(GameState.Phase.FINISHED);
-            state.rematchPlayerIds().clear();
-            int firstScore = state.scores().getOrDefault(firstPlayerId, 0);
-            int secondScore = state.scores().getOrDefault(secondPlayerId, 0);
-            if (firstScore > secondScore) {
-                state.setWinnerPlayerId(firstPlayerId);
-            } else if (secondScore > firstScore) {
-                state.setWinnerPlayerId(secondPlayerId);
-            } else {
-                state.setWinnerPlayerId(null);
-            }
+    private void awardCenterPile(KrigState state, String winnerPlayerId) {
+        List<Card> winnerPile = state.drawPiles().get(winnerPlayerId);
+        for (KrigState.CenterCard centerCard : state.centerPile()) {
+            winnerPile.add(Card.parse(centerCard.card()));
         }
+    }
+
+    private void finishGame(KrigState state, String winnerPlayerId, String statusText) {
+        state.setPhase(GameState.Phase.FINISHED);
+        state.rematchPlayerIds().clear();
+        state.setWinnerPlayerId(winnerPlayerId);
+        state.setStatusText(statusText);
+    }
+
+    private record Resolution(
+            String winnerPlayerId,
+            Card firstCard,
+            Card secondCard,
+            String outcome,
+            boolean tie,
+            int cardsWon
+    ) {
     }
 }
