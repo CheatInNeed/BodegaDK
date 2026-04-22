@@ -19,6 +19,7 @@ project_dump.txt
 # Local environment config
 .env
 .env.local
+.env.deploy
 apps/web/.env
 apps/web/.env.local
 
