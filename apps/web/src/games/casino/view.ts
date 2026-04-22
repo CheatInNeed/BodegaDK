@@ -26,6 +26,7 @@ export type CasinoViewModel = {
 export function renderCasinoRoom(
     viewModel: CasinoViewModel,
     controls: { disablePlay: boolean; disableBuild: boolean; selectedStackIds: string[] },
+    handTrayOpen: boolean,
 ): string {
     const selectedSet = new Set(controls.selectedStackIds);
     const tableHtml = viewModel.tableStacks.map((stack) => {
@@ -76,7 +77,7 @@ export function renderCasinoRoom(
         </div>
       </div>
 
-      <div class="private-panel">
+      <div class="private-panel room-hand-tray ${handTrayOpen ? 'is-open' : ''}" data-room-hand-tray aria-hidden="${handTrayOpen ? 'false' : 'true'}">
         <div class="card-title">Your hand</div>
         <div class="private-hand-row">
           ${handHtml || '<span class="muted">No cards in hand</span>'}

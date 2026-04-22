@@ -62,9 +62,10 @@ export function renderGameRoomSections(model: GameRoomSectionModel): string {
     const seats = arrangeSeats(model.seats, model.layout);
     const headerHtml = model.headerPills.map((pill) => `<div class="pill room-header-pill">${pill}</div>`).join('');
     const seatsHtml = seats.map(renderSeat).join('');
+    const handTrayClassName = model.handTrayOpen ? ' is-open' : '';
     const trayHtml = model.layout.hasPrivateTray
         ? `
-      <div class="private-panel">
+      <div class="private-panel room-hand-tray${handTrayClassName}" data-room-hand-tray aria-hidden="${model.handTrayOpen ? 'false' : 'true'}">
         ${model.trayTitle ? `<div class="card-title">${model.trayTitle}</div>` : ''}
         ${model.trayDescription ? `<p class="card-desc private-panel-copy">${model.trayDescription}</p>` : ''}
         ${model.trayBodyHtml ?? ''}

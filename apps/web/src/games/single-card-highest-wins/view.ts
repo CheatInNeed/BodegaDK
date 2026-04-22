@@ -15,7 +15,11 @@ export type SingleCardHighestWinsViewModel = {
     selectedCard: string | null;
 };
 
-export function renderSingleCardHighestWinsRoom(viewModel: SingleCardHighestWinsViewModel, layout: GameRoomLayoutSpec): string {
+export function renderSingleCardHighestWinsRoom(
+    viewModel: SingleCardHighestWinsViewModel,
+    layout: GameRoomLayoutSpec,
+    handTrayOpen: boolean,
+): string {
     const seats: SeatViewModel[] = [
         {
             playerId: 'dealer',
@@ -44,6 +48,7 @@ export function renderSingleCardHighestWinsRoom(viewModel: SingleCardHighestWins
             `Score: You ${viewModel.scoreYou} - ${viewModel.scoreDealer} Dealer`,
         ],
         seats,
+        handTrayOpen,
         centerHtml: `
           <div class="table-center-info game-room-center-card">
             <div class="table-title">Middle card</div>

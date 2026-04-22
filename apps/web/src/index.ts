@@ -99,6 +99,7 @@ let roomSession: ActiveSession | null = null;
 let roomSessionKey: string | null = null;
 let unsubscribeRoomSession: (() => void) | null = null;
 let highCardAutoStartKey: string | null = null;
+let roomHandTrayOpen = false;
 let quickPlayPollTimer: number | null = null;
 let quickPlayRealtimeChannel: { unsubscribe: () => void } | null = null;
 let quickPlayRealtimeRefreshTimer: number | null = null;
@@ -501,16 +502,18 @@ function renderRoomContent(): string {
             disablePlay: disableByConnection || !casinoViewModel.isMyTurn || !casinoViewModel.selectedHandCard,
             disableBuild: disableByConnection || !casinoViewModel.isMyTurn || !casinoViewModel.selectedHandCard || casinoSelectedStackIds.length !== 1,
             selectedStackIds: casinoSelectedStackIds,
-        });
+        }, roomHandTrayOpen);
     } else if (adapter.id === highcardAdapter.id) {
         bodyHtml = renderSingleCardHighestWinsRoom(
             viewModel as Parameters<typeof renderSingleCardHighestWinsRoom>[0],
             layoutSpec,
+            roomHandTrayOpen,
         );
     } else if (adapter.id === krigAdapter.id) {
         bodyHtml = renderKrigRoom(
             viewModel as Parameters<typeof renderKrigRoom>[0],
             layoutSpec,
+            roomHandTrayOpen,
         );
     } else {
         bodyHtml = renderSnydRoom(
@@ -522,6 +525,7 @@ function renderRoomContent(): string {
                 disableCallSnyd: disableByConnection || !(viewModel as Parameters<typeof renderSnydRoom>[0]).isMyTurn,
             },
             layoutSpec,
+            roomHandTrayOpen,
         );
     }
 
@@ -531,6 +535,7 @@ function renderRoomContent(): string {
         errorMessage: roomState.lastError,
         winnerPlayerId: roomState.winnerPlayerId,
         winnerLabel: resolvePlayerName(playerNames, roomState.winnerPlayerId),
+        handTrayOpen: roomHandTrayOpen,
         bodyHtml,
         suppressWinnerBanner,
     });
@@ -578,6 +583,7 @@ function cleanupRoomSession() {
     roomSession = null;
     roomSessionKey = null;
     highCardAutoStartKey = null;
+    roomHandTrayOpen = false;
     casinoSelectedStackIds = [];
 }
 
@@ -891,6 +897,11 @@ function wireEvents() {
 function wireRoomEvents() {
     if (state.view !== 'room') return;
     if (!roomSession) return;
+
+    document.querySelector<HTMLButtonElement>('button[data-action="toggle-room-hand"]')?.addEventListener('click', () => {
+        roomHandTrayOpen = !roomHandTrayOpen;
+        renderView();
+    });
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="leave-table"]').forEach((button) => {
         button.addEventListener('click', () => {

@@ -1320,6 +1320,28 @@ select.input {
     position: relative;
 }
 
+.game-room-shell .room-hand-tray {
+    position: fixed;
+    left: 32px;
+    right: calc(var(--room-sidebar-width) + 32px);
+    bottom: 82px;
+    width: auto;
+    margin: 0;
+    z-index: 22;
+    max-height: min(44vh, 420px);
+    overflow: auto;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(calc(100% + 24px));
+    transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.game-room-shell .room-hand-tray.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
 .game-room-shell .private-panel::before {
     content: "";
     position: absolute;
@@ -1334,6 +1356,10 @@ select.input {
 .game-room-shell .private-hand-row {
     justify-content: center;
     padding: 8px 0 14px;
+}
+
+.game-room-shell .room-hand-tray .private-hand-row {
+    justify-content: flex-start;
 }
 
 .game-room-shell .play-card {
@@ -1368,6 +1394,8 @@ select.input {
     justify-content: center;
     gap: 12px;
     padding: 0 24px 18px;
+    position: relative;
+    z-index: 24;
 }
 
 .game-room-bottom-pill {
@@ -1386,6 +1414,14 @@ select.input {
     background: rgba(76, 51, 0, 0.92);
     color: var(--color-accent);
     box-shadow: 0 0 18px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+@media (max-width: 1100px) {
+    .game-room-shell .room-hand-tray {
+        left: 20px;
+        right: 20px;
+        bottom: 76px;
+    }
 }
 
 .game-room-sidebar {

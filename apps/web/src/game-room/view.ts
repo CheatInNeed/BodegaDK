@@ -6,6 +6,7 @@ export function renderRoomFrame(params: {
     errorMessage: string | null;
     winnerPlayerId: string | null;
     winnerLabel: string;
+    handTrayOpen: boolean;
     bodyHtml: string;
     overlayHtml?: string;
     suppressWinnerBanner?: boolean;
@@ -78,7 +79,7 @@ export function renderRoomFrame(params: {
         </div>
 
         <div class="game-room-bottom-nav" aria-label="Room navigation">
-          <button class="game-room-bottom-pill active" type="button">Hand</button>
+          <button class="game-room-bottom-pill ${params.handTrayOpen ? 'active' : ''}" type="button" data-action="toggle-room-hand" aria-pressed="${params.handTrayOpen ? 'true' : 'false'}">Hand</button>
           <button class="game-room-bottom-pill" type="button">Board</button>
           <button class="game-room-bottom-pill" type="button">Social</button>
           <button class="game-room-bottom-pill" type="button">Menu</button>

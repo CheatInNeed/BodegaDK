@@ -63,6 +63,7 @@ export type GameRoomSectionModel = {
     headerPills: string[];
     seats: SeatViewModel[];
     centerHtml: string;
+    handTrayOpen?: boolean;
     trayTitle?: string;
     trayDescription?: string | null;
     trayBodyHtml?: string;
