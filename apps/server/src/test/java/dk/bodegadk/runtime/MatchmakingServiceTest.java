@@ -44,5 +44,10 @@ class MatchmakingServiceTest {
         assertEquals(InMemoryRuntimeStore.RoomStatus.IN_GAME, room.status());
         assertEquals(2, room.participants().size());
         assertEquals("casino", room.selectedGame());
+
+        RoomMetadataStore.StoredRoom storedRoom = roomMetadataStore.room(second.roomCode()).orElseThrow();
+        assertEquals(InMemoryRuntimeStore.RoomStatus.IN_GAME, storedRoom.status());
+        assertEquals(2, storedRoom.participants().size());
+        assertEquals("casino", storedRoom.selectedGame());
     }
 }
