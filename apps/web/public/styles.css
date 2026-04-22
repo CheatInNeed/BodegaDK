@@ -1249,14 +1249,14 @@ select.input {
     z-index: 2;
     min-height: min(74vh, 860px);
     display: grid;
+    align-content: start;
     gap: 20px;
     padding: 24px 32px 32px;
 }
 
-.game-room-shell .room-layout,
-.game-room-shell .room-card,
-.game-room-shell .room-table-card {
-    height: 100%;
+.game-room-shell .room-layout {
+    min-height: 100%;
+    align-content: start;
 }
 
 .game-room-shell .room-table-card {
@@ -1265,6 +1265,7 @@ select.input {
     box-shadow: none;
     padding: 0;
     gap: 20px;
+    overflow: visible;
 }
 
 .game-room-shell .room-header-row {
