@@ -121,7 +121,6 @@ public class InMemoryRoomMetadataStore implements RoomMetadataStore {
     public UUID enqueueTicket(String gameType, String playerId, String username, String token, int minPlayers, int maxPlayers, boolean strictCount) {
         UUID existingTicketId = tickets.values().stream()
                 .filter(record -> record.status == MatchmakingTicketStatus.WAITING)
-                .filter(record -> record.gameType.equalsIgnoreCase(gameType))
                 .filter(record -> record.playerId.equals(playerId))
                 .sorted(Comparator.comparing(record -> record.createdAt))
                 .map(record -> record.ticketId)
