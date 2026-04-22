@@ -55,7 +55,7 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     @Override
     public List<StoredRoom> publicRooms() {
         return jdbcTemplate.query(
-                "select room_code, host_player_id, is_private, game_type, room_status from public.rooms where is_private = false order by room_code asc",
+                "select room_code, host_player_id, is_private, game_type, room_status from public.rooms where is_private = false and room_status <> 'FINISHED' order by room_code asc",
                 (rs, rowNum) -> {
                     String roomCode = rs.getString("room_code");
                     return mapRoom(rs, loadParticipants(roomCode));
@@ -108,7 +108,8 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     @Override
     public void updateRoomStatus(String roomCode, InMemoryRuntimeStore.RoomStatus status) {
         jdbcTemplate.update(
-                "update public.rooms set room_status = ? where room_code = ?",
+                "update public.rooms set room_status = ?, last_heartbeat = case when ? = 'IN_GAME' then now() else last_heartbeat end where room_code = ?",
+                status.name(),
                 status.name(),
                 roomCode
         );

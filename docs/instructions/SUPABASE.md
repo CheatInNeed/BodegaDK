@@ -7,6 +7,7 @@ Supabase is currently used by the web client for:
 - avatar/profile data in `public.avatars`
 - persisted room metadata in `public.rooms`
 - room participants in `public.room_players`
+- active-room heartbeat and stale-room cleanup
 - quick-play queue tickets in `public.matchmaking_tickets`
 
 It is not the game backend. Gameplay, lobby state, and rules stay in the
@@ -21,6 +22,7 @@ Current Supabase files in the repo:
 - `supabase/migrations/202604191100_room_matchmaking.sql`
 - `supabase/migrations/202604201130_profiles_auth_trigger.sql`
 - `supabase/migrations/202604211200_matchmaking_realtime_cancel.sql`
+- `supabase/migrations/202604221200_room_heartbeat_cleanup.sql`
 - `.github/workflows/supabase-migrations.yml`
 
 Room/session metadata now lives in Supabase/Postgres, while live
@@ -46,6 +48,16 @@ cancel support:
   waiting ticket for the caller's session token
 - the Spring backend remains authoritative for matching players and creating
   rooms
+
+Active room cleanup uses Supabase RPCs:
+
+- `public.touch_room_heartbeat(room_code_input)` updates `public.rooms.last_heartbeat`
+  for active `IN_GAME` rooms
+- `public.finish_stale_rooms(stale_after interval default interval '60 seconds')`
+  updates stale `IN_GAME` rooms to `FINISHED`
+- the migration schedules `finish_stale_rooms` once per minute when `pg_cron` is
+  available; otherwise an external cron or Edge Function can call the RPC
+- cleanup only updates `public.rooms`; `public.room_players` rows remain intact
 
 GitHub Actions applies migrations on:
 

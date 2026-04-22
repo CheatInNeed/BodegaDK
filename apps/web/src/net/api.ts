@@ -1,4 +1,4 @@
-export type RoomStatus = 'LOBBY' | 'IN_GAME';
+export type RoomStatus = 'LOBBY' | 'IN_GAME' | 'FINISHED';
 
 export type LobbyParticipant = {
     playerId: string;
