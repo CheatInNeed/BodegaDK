@@ -30,6 +30,12 @@ Base path (prod via nginx): /api/
 
 Base path (dev): http://localhost:8080/
 
+Room status values:
+
+- `LOBBY`: players can join and configure the room
+- `IN_GAME`: active gameplay; the browser sends room heartbeats while this is live
+- `FINISHED`: terminal persisted room state used by stale-room cleanup and history
+
 ------------------------------------------------------------------------
 
 ## POST /rooms

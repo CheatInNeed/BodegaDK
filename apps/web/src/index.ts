@@ -42,6 +42,7 @@ const adapters: GenericAdapter[] = [
 type ThemeId = 'bodega' | 'harbor' | 'parlor';
 
 const THEME_STORAGE_KEY = 'ui-theme';
+const ROOM_HEARTBEAT_INTERVAL_MS = 20_000;
 
 const THEMES: Array<{ id: ThemeId; labelKey: string; toneKey: string }> = [
     { id: 'bodega', labelKey: 'theme.bodega.label', toneKey: 'theme.bodega.tone' },
@@ -106,6 +107,9 @@ let quickPlayRealtimeRefreshTimer: number | null = null;
 let activeQueueClockTimer: number | null = null;
 let matchedCountdownTimer: number | null = null;
 let quickPlayGeneration = 0;
+let roomHeartbeatTimer: number | null = null;
+let roomHeartbeatKey: string | null = null;
+let roomHeartbeatInFlight = false;
 
 function getInitialTheme(): ThemeId {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -381,6 +385,7 @@ function renderView() {
 }
 
 function renderLobbyContent(): string {
+    stopRoomHeartbeat();
     const route = state.route;
     if (!route.room || !route.token) {
         cleanupRoomSession();
@@ -458,6 +463,7 @@ function renderRoomContent(): string {
     const viewModel = session?.toViewModel({ selfUsername });
 
     if (!roomState || !viewModel) {
+        stopRoomHeartbeat();
         return renderRoomError('Unable to initialize room session');
     }
 
@@ -470,6 +476,13 @@ function renderRoomContent(): string {
     const hostPlayerId = typeof roomPublicState.hostPlayerId === 'string' ? roomPublicState.hostPlayerId : null;
     const autoStartKey = `${route.room}|${route.token}|${route.game}`;
     const suppressWinnerBanner = adapter.id === krigAdapter.id && roomPublicState.gamePhase === 'GAME_OVER';
+    const hasFinished = !!roomState.winnerPlayerId || status === 'FINISHED' || roomPublicState.gamePhase === 'GAME_OVER';
+
+    if (status === 'IN_GAME' && !hasFinished) {
+        startRoomHeartbeat(route.room, route.mock);
+    } else {
+        stopRoomHeartbeat();
+    }
 
     if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room && route.token) {
         queueMicrotask(() => {
@@ -592,6 +605,7 @@ function ensureRoomSession(
 }
 
 function cleanupRoomSession() {
+    stopRoomHeartbeat();
     unsubscribeRoomSession?.();
     unsubscribeRoomSession = null;
     roomSession?.stop();
@@ -600,6 +614,52 @@ function cleanupRoomSession() {
     highCardAutoStartKey = null;
     roomHandTrayOpen = false;
     casinoSelectedStackIds = [];
+}
+
+function startRoomHeartbeat(roomCode: string, useMock: boolean) {
+    if (useMock || !supabase) {
+        stopRoomHeartbeat();
+        return;
+    }
+
+    const key = roomCode;
+    if (roomHeartbeatTimer !== null && roomHeartbeatKey === key) {
+        return;
+    }
+
+    stopRoomHeartbeat();
+    roomHeartbeatKey = key;
+    void sendRoomHeartbeat(roomCode);
+    roomHeartbeatTimer = window.setInterval(() => {
+        void sendRoomHeartbeat(roomCode);
+    }, ROOM_HEARTBEAT_INTERVAL_MS);
+}
+
+function stopRoomHeartbeat() {
+    if (roomHeartbeatTimer !== null) {
+        window.clearInterval(roomHeartbeatTimer);
+        roomHeartbeatTimer = null;
+    }
+    roomHeartbeatKey = null;
+    roomHeartbeatInFlight = false;
+}
+
+async function sendRoomHeartbeat(roomCode: string) {
+    if (!supabase || roomHeartbeatInFlight) return;
+    roomHeartbeatInFlight = true;
+
+    try {
+        const { error } = await supabase.rpc('touch_room_heartbeat', {
+            room_code_input: roomCode,
+        });
+        if (error) {
+            console.warn('[room-heartbeat] failed to update room heartbeat', error);
+        }
+    } catch (error) {
+        console.warn('[room-heartbeat] failed to update room heartbeat', error);
+    } finally {
+        roomHeartbeatInFlight = false;
+    }
 }
 
 function resolveAdapter(game: string): GenericAdapter | undefined {

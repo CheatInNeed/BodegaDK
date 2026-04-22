@@ -569,7 +569,8 @@ public class InMemoryRuntimeStore {
 
     public enum RoomStatus {
         LOBBY,
-        IN_GAME
+        IN_GAME,
+        FINISHED
     }
 
     public record PlayerSession(String roomCode, String playerId, String token) {
