@@ -85,9 +85,11 @@ public class MatchmakingService {
             List<RoomMetadataStore.MatchmakingTicket> matchedTickets = new ArrayList<>(waitingTickets.subList(0, matchSize));
             RoomMetadataStore.MatchmakingTicket hostTicket = matchedTickets.getFirst();
             String roomCode = runtimeStore.createRoom(definition.id(), false, hostTicket.playerId());
+            roomMetadataStore.createRoom(roomCode, hostTicket.playerId(), false, definition.id(), InMemoryRuntimeStore.RoomStatus.LOBBY);
 
             for (RoomMetadataStore.MatchmakingTicket ticket : matchedTickets) {
                 runtimeStore.joinRoom(roomCode, ticket.playerId(), ticket.username(), ticket.token());
+                roomMetadataStore.upsertParticipant(roomCode, ticket.playerId(), ticket.username());
             }
 
             ObjectNode payload = objectMapper.createObjectNode();
@@ -102,9 +104,11 @@ public class MatchmakingService {
 
             if (startResult.isError()) {
                 runtimeStore.resetRoomToLobby(roomCode);
+                roomMetadataStore.updateRoomStatus(roomCode, InMemoryRuntimeStore.RoomStatus.LOBBY);
                 throw new IllegalStateException(startResult.errorMessage());
             }
 
+            roomMetadataStore.updateRoomStatus(roomCode, InMemoryRuntimeStore.RoomStatus.IN_GAME);
             matchedTickets.forEach(ticket -> roomMetadataStore.markTicketMatched(ticket.ticketId(), roomCode));
         }
     }
