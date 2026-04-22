@@ -216,7 +216,9 @@ function renderApp() {
     <div class="shell ${state.sidebarCollapsed ? 'collapsed' : ''} ${state.view === 'room' ? 'shell-room-mode' : ''}" id="shell">
       <header class="topbar">
         <a class="brand" href="#" id="goHome" aria-label="Gå til forsiden">
-          <div class="logo" aria-hidden="true"></div>
+          <span class="logo" aria-hidden="true">
+            <img class="logo-image" src="/images/brand/bodegadk-brand-mark.png" alt="" />
+          </span>
           <span data-i18n="app.name"></span>
         </a>
 
