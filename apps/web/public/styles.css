@@ -210,11 +210,31 @@ button { font: inherit; }
     width: 38px;
     height: 38px;
     border-radius: 10px;
-
-    background:
-            radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.24), transparent 55%),
-            linear-gradient(135deg, var(--color-accent), var(--color-secondary));
+    display: block;
+    position: relative;
+    overflow: hidden;
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.22), 0 10px 22px rgba(0, 0, 0, 0.36);
+}
+
+.logo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+            linear-gradient(
+                    135deg,
+                    color-mix(in srgb, var(--color-accent) 34%, transparent),
+                    color-mix(in srgb, var(--color-secondary) 26%, transparent)
+            );
+    mix-blend-mode: soft-light;
+    pointer-events: none;
+}
+
+.logo-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .topbar-right {
@@ -2238,14 +2258,19 @@ select.input {
     justify-content: center;
 }
 
-.room-krig .krig-center-actions {
+.room-krig .krig-floating-actions {
+    position: fixed;
+    left: 50%;
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
     justify-content: center;
-    margin-top: 16px;
+    z-index: 46;
 }
 
-.room-krig .krig-center-actions .btn,
+.room-krig .krig-floating-actions .btn,
 .room-krig .krig-minimal-actions .btn {
     min-width: 180px;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
 }
 
 .room-krig .private-panel {

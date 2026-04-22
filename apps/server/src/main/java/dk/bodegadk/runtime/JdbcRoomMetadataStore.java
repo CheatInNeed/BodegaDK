@@ -125,12 +125,11 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
                 """
                 select ticket_id
                 from public.matchmaking_tickets
-                where game_type = ? and player_id = ? and ticket_status = 'WAITING'
+                where player_id = ? and ticket_status = 'WAITING'
                 order by created_at asc
                 limit 1
                 """,
                 (rs, rowNum) -> UUID.fromString(rs.getString("ticket_id")),
-                gameType,
                 playerId
         );
         if (!existingTickets.isEmpty()) {

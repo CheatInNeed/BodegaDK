@@ -7,6 +7,7 @@ export function renderRoomFrame(params: {
     winnerPlayerId: string | null;
     winnerLabel: string;
     handTrayOpen: boolean;
+    showHandToggle?: boolean;
     bodyHtml: string;
     overlayHtml?: string;
     suppressWinnerBanner?: boolean;
@@ -47,6 +48,20 @@ export function renderRoomFrame(params: {
       </div>
     `).join('');
 
+    const showHandToggle = params.showHandToggle !== false;
+    const handControls = showHandToggle ? `
+        <button class="game-room-hand-toggle ${params.handTrayOpen ? 'active' : ''}" type="button" data-action="toggle-room-hand" aria-pressed="${params.handTrayOpen ? 'true' : 'false'}">
+          ${params.handTrayOpen ? 'Hide Hand' : 'Show Hand'}
+        </button>
+
+        <div class="game-room-bottom-nav" aria-label="Room navigation">
+          <button class="game-room-bottom-pill ${params.handTrayOpen ? 'active' : ''}" type="button" data-action="toggle-room-hand" aria-pressed="${params.handTrayOpen ? 'true' : 'false'}">Hand</button>
+          <button class="game-room-bottom-pill" type="button">Board</button>
+          <button class="game-room-bottom-pill" type="button">Social</button>
+          <button class="game-room-bottom-pill" type="button">Menu</button>
+        </div>
+    ` : '';
+
     return `
     <section class="game-room-shell">
       <div class="game-room-main">
@@ -78,16 +93,7 @@ export function renderRoomFrame(params: {
           </div>
         </div>
 
-        <button class="game-room-hand-toggle ${params.handTrayOpen ? 'active' : ''}" type="button" data-action="toggle-room-hand" aria-pressed="${params.handTrayOpen ? 'true' : 'false'}">
-          ${params.handTrayOpen ? 'Hide Hand' : 'Show Hand'}
-        </button>
-
-        <div class="game-room-bottom-nav" aria-label="Room navigation">
-          <button class="game-room-bottom-pill ${params.handTrayOpen ? 'active' : ''}" type="button" data-action="toggle-room-hand" aria-pressed="${params.handTrayOpen ? 'true' : 'false'}">Hand</button>
-          <button class="game-room-bottom-pill" type="button">Board</button>
-          <button class="game-room-bottom-pill" type="button">Social</button>
-          <button class="game-room-bottom-pill" type="button">Menu</button>
-        </div>
+        ${handControls}
       </div>
 
       <aside class="game-room-sidebar">

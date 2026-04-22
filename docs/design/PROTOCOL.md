@@ -97,6 +97,10 @@ Joiner et eksisterende room.
 ## POST /matchmaking/queue
 
 Sætter en spiller i quick-play kø.
+Hvis spilleren allerede har en ventende matchmaking ticket, returnerer
+endpointet den eksisterende ticket i stedet for at oprette endnu en. Det
+gælder på tværs af spil, så én spiller kun kan have én aktiv queue ticket ad
+gangen.
 
 ### Request
 

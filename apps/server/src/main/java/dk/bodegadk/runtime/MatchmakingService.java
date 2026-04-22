@@ -7,8 +7,10 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -82,7 +84,10 @@ public class MatchmakingService {
                 return;
             }
 
-            List<RoomMetadataStore.MatchmakingTicket> matchedTickets = new ArrayList<>(waitingTickets.subList(0, matchSize));
+            List<RoomMetadataStore.MatchmakingTicket> matchedTickets = uniquePlayerTickets(waitingTickets, matchSize);
+            if (matchedTickets.size() < matchSize) {
+                return;
+            }
             RoomMetadataStore.MatchmakingTicket hostTicket = matchedTickets.getFirst();
             String roomCode = runtimeStore.createRoom(definition.id(), false, hostTicket.playerId());
             roomMetadataStore.createRoom(roomCode, hostTicket.playerId(), false, definition.id(), InMemoryRuntimeStore.RoomStatus.LOBBY);
@@ -140,6 +145,21 @@ public class MatchmakingService {
 
     private Object queueLock(String gameType) {
         return queueLocks.computeIfAbsent(gameType, key -> new Object());
+    }
+
+    private List<RoomMetadataStore.MatchmakingTicket> uniquePlayerTickets(List<RoomMetadataStore.MatchmakingTicket> tickets, int limit) {
+        List<RoomMetadataStore.MatchmakingTicket> uniqueTickets = new ArrayList<>();
+        Set<String> playerIds = new HashSet<>();
+        for (RoomMetadataStore.MatchmakingTicket ticket : tickets) {
+            if (!playerIds.add(ticket.playerId())) {
+                continue;
+            }
+            uniqueTickets.add(ticket);
+            if (uniqueTickets.size() == limit) {
+                break;
+            }
+        }
+        return uniqueTickets;
     }
 
     public record MatchmakingSnapshot(
