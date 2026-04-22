@@ -28,6 +28,7 @@ export function renderSnydRoom(
     viewModel: SnydViewModel,
     controls: { disablePlay: boolean; disableCallSnyd: boolean },
     layout: GameRoomLayoutSpec,
+    handTrayOpen: boolean,
 ): string {
     const seats: SeatViewModel[] = viewModel.players.map((player) => ({
         playerId: player.playerId,
@@ -49,6 +50,7 @@ export function renderSnydRoom(
             `Bunke: ${viewModel.pileCount}`,
         ],
         seats,
+        handTrayOpen,
         centerHtml: `
           <div class="table-center-info">
             <div class="table-title">Snyd</div>

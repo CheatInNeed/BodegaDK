@@ -38,7 +38,7 @@ export type KrigViewModel = {
     } | null;
 };
 
-export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutSpec): string {
+export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutSpec, handTrayOpen: boolean): string {
     const layoutForPlayers: GameRoomLayoutSpec = {
         ...layout,
         preferredLayout: fallbackLayoutMode(viewModel.players.length),
@@ -67,6 +67,7 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
             `Trick: ${viewModel.trickNumber}`,
         ],
         seats,
+        handTrayOpen,
         centerHtml: viewModel.isGameOver
             ? `${viewModel.postGame ? renderPostGameOverlay(viewModel.postGame) : ''}`
             : renderCenter(viewModel),
