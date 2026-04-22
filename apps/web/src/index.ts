@@ -594,13 +594,11 @@ function resolveAdapter(game: string): GenericAdapter | undefined {
 function playCards() {
     return `
     <div class="grid">
-      ${gameCard('game.cheat', 'game.cheat.desc', 'action.play')}
-      ${gameCard('game.krig', 'game.krig.desc', 'action.play')}
-      ${gameCard('casino', 'game.casino.desc', 'action.play')}
-      ${gameCard('single.card.highest.wins', 'single.card.highest.wins.desc', 'action.play')}
-      ${gameCard('game.500', 'game.500.desc', 'action.play')}
-      ${gameCard('game.dice', 'game.dice.desc', 'action.play')}
-      ${gameCard('game.more', 'game.more.desc', 'action.play')}
+      ${imageGameCard('game.cheat', 'game-card-snyd')}
+      ${imageGameCard('game.krig', 'game-card-krig')}
+      ${imageGameCard('casino', 'game-card-casino')}
+      ${imageGameCard('single.card.highest.wins', 'game-card-highest-card')}
+      ${imageGameCard('game.500', 'game-card-500')}
     </div>
   `;
 }
@@ -754,15 +752,11 @@ function renderHomepagePlaceholderCard(input: {
   `;
 }
 
-function gameCard(titleKey: string, descKey: string, actionKey: string) {
+function imageGameCard(titleKey: string, imageClass: string) {
     return `
-    <div class="card">
-      <div class="card-title" data-i18n="${titleKey}"></div>
-      <div class="card-desc" data-i18n="${descKey}"></div>
-      <div class="card-row">
-        <button class="btn primary" data-i18n="${actionKey}" data-action="open-game" data-game="${titleKey}"></button>
-      </div>
-    </div>
+    <button class="card game-card ${imageClass}" type="button" data-action="open-game" data-game="${titleKey}">
+      <span class="game-card-title card-title" data-i18n="${titleKey}"></span>
+    </button>
   `;
 }
 
@@ -829,7 +823,7 @@ function wireEvents() {
         });
     });
 
-    document.querySelectorAll<HTMLButtonElement>('button[data-action="open-game"]').forEach((btn) => {
+    document.querySelectorAll<HTMLElement>('[data-action="open-game"]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const game = normalizeGameKey(btn.dataset.game ?? '');
             if (supportsRealtimeQuickPlay(game)) {

@@ -516,7 +516,7 @@ button { font: inherit; }
     pointer-events: none;
 }
 
-.card:hover { background: var(--gradient-card-hover); }
+.card:not(.game-card):hover { background: var(--gradient-card-hover); }
 
 .card-title {
     margin: 0 0 var(--s1) 0;
@@ -538,6 +538,80 @@ button { font: inherit; }
     gap: var(--s2);
     align-items: center;
     justify-content: space-between;
+}
+
+.game-card {
+    aspect-ratio: 4 / 3;
+    min-height: 0;
+    display: flex;
+    align-items: end;
+    justify-content: flex-start;
+    width: 100%;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    background:
+            linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.66)),
+            var(--gradient-card);
+    background-position: center;
+    background-size: cover;
+}
+
+.game-card:hover,
+.game-card:focus-visible {
+    background-position: center;
+    background-size: cover;
+    transform: translateY(-1px);
+    border-color: var(--color-border-strong);
+}
+
+.game-card:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-accent) 82%, white);
+    outline-offset: 3px;
+}
+
+.game-card-title {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    color: var(--color-text-strong);
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.72);
+}
+
+.game-card-snyd {
+    background-image:
+            linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.66)),
+            url("/images/game-cards/snyd_cover.png"),
+            var(--gradient-card);
+}
+
+.game-card-krig {
+    background-image:
+            linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.66)),
+            url("/images/game-cards/krig_cover.png"),
+            var(--gradient-card);
+}
+
+.game-card-casino {
+    background-image:
+            linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.66)),
+            url("/images/game-cards/casino_cover.png"),
+            var(--gradient-card);
+}
+
+.game-card-highest-card {
+    background-image:
+            linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.66)),
+            url("/images/game-cards/highestcard_cover.png"),
+            var(--gradient-card);
+}
+
+.game-card-500 {
+    background-image:
+            linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.66)),
+            url("/images/game-cards/500_cover.png"),
+            var(--gradient-card);
 }
 .hidden {
     display: none;
