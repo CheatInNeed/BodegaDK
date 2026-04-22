@@ -1389,18 +1389,19 @@ select.input {
 
 .game-room-shell .room-hand-tray {
     position: fixed;
-    left: 32px;
-    right: calc(var(--room-sidebar-width) + 32px);
-    bottom: 82px;
+    left: max(24px, env(safe-area-inset-left));
+    right: calc(var(--room-sidebar-width) + 24px);
+    bottom: 24px;
     width: auto;
     margin: 0;
-    z-index: 22;
-    max-height: min(44vh, 420px);
+    z-index: 40;
+    max-height: min(48vh, 460px);
     overflow: auto;
     opacity: 0;
     pointer-events: none;
-    transform: translateY(calc(100% + 24px));
+    transform: translateY(calc(100% + 32px));
     transition: transform 0.22s ease, opacity 0.22s ease;
+    box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.42);
 }
 
 .game-room-shell .room-hand-tray.is-open {
@@ -1457,12 +1458,37 @@ select.input {
 }
 
 .game-room-bottom-nav {
-    display: flex;
+    display: none;
     justify-content: center;
     gap: 12px;
     padding: 0 24px 18px;
     position: relative;
     z-index: 24;
+}
+
+.game-room-hand-toggle {
+    position: fixed;
+    right: calc(var(--room-sidebar-width) + 24px);
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    z-index: 46;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+    border-radius: 999px;
+    padding: 14px 18px;
+    background:
+            linear-gradient(180deg, color-mix(in srgb, var(--color-card-top) 90%, transparent), transparent 42%),
+            color-mix(in srgb, var(--color-surface-strong) 94%, black);
+    color: var(--color-text-strong);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
+    cursor: pointer;
+}
+
+.game-room-hand-toggle.active {
+    background: var(--gradient-accent);
+    color: var(--color-accent-contrast);
+    border-color: transparent;
 }
 
 .game-room-bottom-pill {
@@ -1487,7 +1513,12 @@ select.input {
     .game-room-shell .room-hand-tray {
         left: 20px;
         right: 20px;
-        bottom: 76px;
+        bottom: 20px;
+    }
+
+    .game-room-hand-toggle {
+        right: 20px;
+        bottom: calc(20px + env(safe-area-inset-bottom));
     }
 }
 
@@ -2207,6 +2238,12 @@ select.input {
     justify-content: center;
 }
 
+.room-krig .krig-center-actions {
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.room-krig .krig-center-actions .btn,
 .room-krig .krig-minimal-actions .btn {
     min-width: 180px;
 }

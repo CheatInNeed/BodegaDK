@@ -76,13 +76,7 @@ export function renderKrigRoom(viewModel: KrigViewModel, layout: GameRoomLayoutS
         trayBodyHtml: viewModel.isGameOver
             ? ''
             : '',
-        trayFooterHtml: viewModel.isGameOver
-            ? ''
-            : `
-          <div class="card-row room-actions krig-minimal-actions">
-            <button class="btn primary" data-action="flip-card" ${!viewModel.canFlip ? 'disabled' : ''}>Flip card</button>
-          </div>
-        `,
+        trayFooterHtml: '',
     });
 }
 
@@ -91,6 +85,9 @@ function renderCenter(viewModel: KrigViewModel): string {
       <div class="table-center-info table-center-info-compact krig-center">
         <div class="table-title">${viewModel.warActive ? 'KRIG!' : 'Krig'}</div>
         <div class="table-center-prompt">${viewModel.statusText}</div>
+        <div class="card-row room-actions krig-center-actions">
+          <button class="btn primary" data-action="flip-card" ${!viewModel.canFlip ? 'disabled' : ''}>Flip card</button>
+        </div>
       </div>
     `;
 }
