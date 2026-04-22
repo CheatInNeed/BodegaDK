@@ -1249,14 +1249,14 @@ select.input {
     z-index: 2;
     min-height: min(74vh, 860px);
     display: grid;
+    align-content: start;
     gap: 20px;
     padding: 24px 32px 32px;
 }
 
-.game-room-shell .room-layout,
-.game-room-shell .room-card,
-.game-room-shell .room-table-card {
-    height: 100%;
+.game-room-shell .room-layout {
+    min-height: 100%;
+    align-content: start;
 }
 
 .game-room-shell .room-table-card {
@@ -1265,6 +1265,7 @@ select.input {
     box-shadow: none;
     padding: 0;
     gap: 20px;
+    overflow: visible;
 }
 
 .game-room-shell .room-header-row {
@@ -2039,6 +2040,7 @@ select.input {
 
 .room-krig .table-seat-panel {
     gap: 10px;
+    position: relative;
 }
 
 .room-krig .table-seat-card .play-card-face {
@@ -2057,8 +2059,59 @@ select.input {
     color: color-mix(in srgb, var(--color-text-strong) 82%, transparent);
 }
 
+.room-krig .krig-center {
+    gap: 10px;
+}
+
+.room-krig .table-title {
+    color: var(--color-text-strong);
+    text-shadow:
+            0 0 18px color-mix(in srgb, var(--color-danger) 34%, transparent),
+            0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.room-krig .krig-center .table-title:first-child {
+    transform: scale(1.04);
+}
+
+.krig-stake-row {
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    width: 154px;
+    height: 92px;
+    transform: translateY(-50%);
+    z-index: 3;
+    pointer-events: none;
+}
+
+.krig-stake-card {
+    position: absolute;
+    left: var(--stake-offset);
+    top: 0;
+    width: 64px;
+    height: 92px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--color-tertiary) 72%, white);
+    background:
+            linear-gradient(135deg, color-mix(in srgb, var(--color-danger) 26%, #2f2a3d), #15131f),
+            repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12) 2px, transparent 2px, transparent 6px);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
+    transform: rotate(calc((var(--stake-offset) / 18) * 2deg - 3deg));
+}
+
+.room-krig .krig-minimal-actions {
+    justify-content: center;
+}
+
+.room-krig .krig-minimal-actions .btn {
+    min-width: 180px;
+}
+
 .room-krig .private-panel {
     border-top: 1px solid color-mix(in srgb, var(--color-danger) 24%, transparent);
+    justify-items: center;
+    gap: 0;
 }
 
 .krig-postgame-overlay {

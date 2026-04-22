@@ -10,6 +10,7 @@ import dk.bodegadk.server.domain.games.casino.CasinoState;
 import dk.bodegadk.server.domain.games.casino.CasinoViewProjector;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.Optional;
 public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String CASINO_GAME_TYPE = "casino";
     private static final String START_GAME = "START_GAME";
+    private static final String CASINO_VALUE_MAP_KEY = "casinoValueMap";
 
     private final InMemoryRuntimeStore runtimeStore;
     private final ObjectMapper objectMapper;
@@ -30,12 +32,29 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
     public CasinoEnginePortAdapter(InMemoryRuntimeStore runtimeStore, ObjectMapper objectMapper) {
         this.runtimeStore = runtimeStore;
         this.objectMapper = objectMapper;
+        runtimeStore.registerMaxPlayers(CASINO_GAME_TYPE, 2);
     }
 
     @Override
     public boolean supports(String roomCode) {
         Optional<String> gameType = runtimeStore.roomGameType(roomCode);
         return gameType.map(value -> value.toLowerCase(Locale.ROOT)).filter(CASINO_GAME_TYPE::equals).isPresent();
+    }
+
+    @Override
+    public Optional<String> onConnect(String roomCode, JsonNode connectPayload) {
+        if (!supports(roomCode)) {
+            return Optional.empty();
+        }
+        Map<String, List<Integer>> valueMap = parseCasinoValueMap(
+                connectPayload.path("setup").path("casinoRules").path("valueMap")
+        );
+        String validationError = CasinoEngine.validateValueMap(valueMap);
+        if (validationError != null) {
+            return Optional.of(validationError);
+        }
+        runtimeStore.putGameConfig(roomCode, CASINO_VALUE_MAP_KEY, valueMap);
+        return Optional.empty();
     }
 
     @Override
@@ -74,7 +93,7 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + exception.getMessage());
         }
 
-        runtimeStore.saveCasinoState(command.roomCode(), next);
+        runtimeStore.saveGameState(command.roomCode(), next);
         GameLoopService.RoomState nextRoomState = toRoomState(state.version(), room, next);
 
         return GameLoopService.LoopResult.success(
@@ -114,11 +133,19 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
         return new GameLoopService.RoomState(base.roomCode(), base.version(), base.publicState().deepCopy(), privateStateByPlayer);
     }
 
+    @SuppressWarnings("unchecked")
+    private Map<String, List<Integer>> getCasinoValueMap(String roomCode) {
+        return runtimeStore.getGameConfig(roomCode, CASINO_VALUE_MAP_KEY, Map.class)
+                .map(m -> (Map<String, List<Integer>>) m)
+                .orElse(null);
+    }
+
     private Optional<CasinoState> loadCasinoState(String roomCode) {
         try {
-            return Optional.of(runtimeStore.loadOrCreateCasinoState(roomCode, () -> {
+            CasinoState state = runtimeStore.loadOrInitGameState(roomCode, CasinoState.class, () -> {
                 throw new GameEngine.GameRuleException("Casino state missing");
-            }));
+            });
+            return Optional.of(state);
         } catch (GameEngine.GameRuleException exception) {
             return Optional.empty();
         }
@@ -144,11 +171,13 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
 
         try {
             List<String> participants = startedRoom.participantIds();
-            Map<String, List<Integer>> rules = runtimeStore.casinoValueMap(command.roomCode())
-                    .orElse(CasinoEngine.defaultValueMap());
+            Map<String, List<Integer>> rules = getCasinoValueMap(command.roomCode());
+            if (rules == null) {
+                rules = CasinoEngine.defaultValueMap();
+            }
             String dealer = participants.size() > 1 ? participants.get(1) : "p2";
             CasinoState next = engine.init(command.roomCode(), List.copyOf(participants), dealer, rules);
-            runtimeStore.saveCasinoState(command.roomCode(), next);
+            runtimeStore.saveGameState(command.roomCode(), next);
 
             GameLoopService.RoomState nextRoomState = toRoomState(state.version(), startedRoom, next);
             return GameLoopService.LoopResult.success(
@@ -220,6 +249,27 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
         return new GameLoopService.RoomState(room.roomCode(), version, publicState, privateStateByPlayer);
     }
 
+    private static Map<String, List<Integer>> parseCasinoValueMap(JsonNode valueMapNode) {
+        Map<String, List<Integer>> valueMap = new LinkedHashMap<>();
+        if (valueMapNode == null || !valueMapNode.isObject()) {
+            return valueMap;
+        }
+        valueMapNode.fields().forEachRemaining(entry -> {
+            JsonNode valuesNode = entry.getValue();
+            if (!valuesNode.isArray()) {
+                return;
+            }
+            List<Integer> values = new ArrayList<>();
+            valuesNode.forEach(value -> {
+                if (value.isInt()) {
+                    values.add(value.asInt());
+                }
+            });
+            valueMap.put(entry.getKey(), values);
+        });
+        return valueMap;
+    }
+
     private String readText(JsonNode payload, String field) {
         JsonNode node = payload == null ? null : payload.get(field);
         return node != null && node.isTextual() ? node.asText() : null;
@@ -233,7 +283,7 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
         if (node == null || !node.isArray()) {
             return List.of();
         }
-        List<String> values = new java.util.ArrayList<>();
+        List<String> values = new ArrayList<>();
         node.forEach(item -> {
             if (item.isTextual()) {
                 values.add(item.asText());

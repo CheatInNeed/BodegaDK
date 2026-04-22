@@ -5,11 +5,8 @@ package dk.bodegadk.runtime;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import dk.bodegadk.server.domain.games.krig.KrigState;
-import dk.bodegadk.server.domain.games.casino.CasinoState;
-import dk.bodegadk.server.domain.games.highcard.HighCardState;
+import dk.bodegadk.server.domain.engine.GameState;
 import jakarta.annotation.PreDestroy;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
@@ -34,27 +31,13 @@ public class InMemoryRuntimeStore {
     private static final String DEFAULT_GAME_TYPE = "snyd";
 
     private final SecureRandom random = new SecureRandom();
-    private final RoomMetadataStore roomMetadataStore;
-    private final GameCatalogService gameCatalogService;
+    private final ConcurrentMap<String, RoomRecord> rooms = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, SessionRecord> sessionsByToken = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, GameLoopService.RoomState> statesByRoom = new ConcurrentHashMap<>();
     // TEAM-DB-INTEGRATION: replace in-memory domain state map with durable game-state persistence.
-    private final ConcurrentMap<String, HighCardState> highCardStatesByRoom = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, KrigState> krigStatesByRoom = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, CasinoState> casinoStatesByRoom = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, GameState> gameStatesByRoom = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Integer> maxPlayersByGame = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ExecutorService> roomExecutors = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, Object> roomLocks = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, Map<String, List<Integer>>> casinoValueMapsByRoom = new ConcurrentHashMap<>();
-
-    public InMemoryRuntimeStore() {
-        this(new InMemoryRoomMetadataStore(), new GameCatalogService());
-    }
-
-    @Autowired
-    public InMemoryRuntimeStore(RoomMetadataStore roomMetadataStore, GameCatalogService gameCatalogService) {
-        this.roomMetadataStore = roomMetadataStore;
-        this.gameCatalogService = gameCatalogService;
-    }
 
     public String createRoom(String gameType) {
         return createRoom(gameType, false, null);
@@ -65,56 +48,95 @@ public class InMemoryRuntimeStore {
         String roomCode;
         do {
             roomCode = randomCode();
-        } while (roomMetadataStore.roomExists(roomCode));
-        roomMetadataStore.createRoom(roomCode, hostPlayerId, isPrivate, normalizedGameType, RoomStatus.LOBBY);
+        } while (rooms.putIfAbsent(roomCode, new RoomRecord(
+                roomCode,
+                hostPlayerId,
+                isPrivate,
+                normalizedGameType,
+                RoomStatus.LOBBY
+        )) != null);
         return roomCode;
     }
 
     public boolean roomExists(String roomCode) {
-        return roomMetadataStore.roomExists(roomCode);
+        return rooms.containsKey(roomCode);
     }
 
     public List<String> participants(String roomCode) {
-        return roomSnapshot(roomCode).map(RoomSnapshot::participantIds).orElse(List.of());
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return List.of();
+        }
+        synchronized (room) {
+            return room.participants.stream().map(PlayerSummary::playerId).toList();
+        }
     }
 
     public Optional<String> roomGameType(String roomCode) {
-        return roomSnapshot(roomCode).map(RoomSnapshot::selectedGame);
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return Optional.empty();
+        }
+        synchronized (room) {
+            return Optional.of(room.selectedGame);
+        }
     }
 
     public Optional<RoomSnapshot> roomSnapshot(String roomCode) {
-        return roomMetadataStore.room(roomCode).map(this::toSnapshot);
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return Optional.empty();
+        }
+        synchronized (room) {
+            return Optional.of(toSnapshot(room));
+        }
     }
 
     public List<RoomSummary> publicLobbyRooms() {
-        return roomMetadataStore.publicRooms().stream()
-                .filter(room -> room.participants().size() < maxPlayersFor(room.selectedGame()))
-                .map(this::toSummary)
+        return rooms.values().stream()
+                .map(room -> {
+                    synchronized (room) {
+                        if (room.isPrivate || room.status != RoomStatus.LOBBY) {
+                            return null;
+                        }
+                        return toSummary(room);
+                    }
+                })
+                .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(RoomSummary::roomCode))
                 .toList();
     }
 
     public boolean isParticipant(String roomCode, String playerId) {
-        return roomSnapshot(roomCode)
-                .map(room -> findParticipantIndex(room.participants, playerId) >= 0)
-                .orElse(false);
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return false;
+        }
+        synchronized (room) {
+            return findParticipantIndex(room.participants, playerId) >= 0;
+        }
     }
 
     public PlayerSession joinRoom(String roomCode, String playerId, String username, String token) {
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            throw new IllegalArgumentException("Room does not exist: " + roomCode);
+        }
+
         Instant now = Instant.now();
-        synchronized (roomLock(roomCode)) {
-            RoomSnapshot room = roomSnapshot(roomCode)
-                    .orElseThrow(() -> new IllegalArgumentException("Room does not exist: " + roomCode));
+        synchronized (room) {
+            PlayerSummary participant = new PlayerSummary(playerId, normalizeUsername(username));
             int existingIndex = findParticipantIndex(room.participants, playerId);
             if (existingIndex < 0 && room.participants.size() >= maxPlayersFor(room.selectedGame)) {
                 throw new IllegalStateException("Room is full");
             }
-            if (existingIndex < 0 && room.status == RoomStatus.IN_GAME && room.isPrivate) {
-                throw new IllegalStateException("Private room is already running");
+            if (existingIndex >= 0) {
+                room.participants.set(existingIndex, participant);
+            } else {
+                room.participants.add(participant);
             }
-            roomMetadataStore.upsertParticipant(roomCode, playerId, normalizeUsername(username));
             if (blank(room.hostPlayerId)) {
-                roomMetadataStore.updateRoomHost(roomCode, playerId);
+                room.hostPlayerId = playerId;
             }
         }
 
@@ -126,18 +148,17 @@ public class InMemoryRuntimeStore {
     public Optional<PlayerSession> resolveConnect(String roomCode, String token) {
         SessionRecord session = sessionsByToken.get(token);
         if (session == null || !session.roomCode.equals(roomCode)) {
-            synchronized (roomLock(roomCode)) {
-                RoomSnapshot room = roomSnapshot(roomCode).orElse(null);
-                if (room == null) {
-                    return Optional.empty();
-                }
+            RoomRecord room = rooms.get(roomCode);
+            if (room == null) {
+                return Optional.empty();
+            }
+            synchronized (room) {
                 if (room.participants.size() >= maxPlayersFor(room.selectedGame)) {
                     return Optional.empty();
                 }
                 String playerId = "p" + (room.participants.size() + 1);
-                roomMetadataStore.upsertParticipant(roomCode, playerId, null);
+                room.participants.add(new PlayerSummary(playerId, null));
                 sessionsByToken.put(token, new SessionRecord(roomCode, playerId));
-                refreshPlayers(roomCode);
                 return Optional.of(new PlayerSession(roomCode, playerId, token));
             }
         }
@@ -186,12 +207,12 @@ public class InMemoryRuntimeStore {
             return Optional.empty();
         }
 
-        RoomSnapshot room = roomSnapshot(roomCode).orElse(null);
+        RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             return Optional.empty();
         }
 
-        synchronized (roomLock(roomCode)) {
+        synchronized (room) {
             if (!Objects.equals(room.hostPlayerId, hostSession.playerId)) {
                 throw new IllegalStateException("Only the host can kick players");
             }
@@ -231,39 +252,42 @@ public class InMemoryRuntimeStore {
         statesByRoom.put(roomCode, state);
     }
 
-    public HighCardState loadOrCreateHighCardState(String roomCode, Supplier<HighCardState> initializer) {
-        return highCardStatesByRoom.computeIfAbsent(roomCode, key -> initializer.get());
+    @SuppressWarnings("unchecked")
+    public <S extends GameState> S loadOrInitGameState(String roomCode, Class<S> type, Supplier<S> initializer) {
+        GameState existing = gameStatesByRoom.get(roomCode);
+        if (existing != null && type.isInstance(existing)) {
+            return (S) existing;
+        }
+        S state = initializer.get();
+        gameStatesByRoom.put(roomCode, state);
+        return state;
     }
 
-    public void saveHighCardState(String roomCode, HighCardState state) {
-        highCardStatesByRoom.put(roomCode, state);
+    public void saveGameState(String roomCode, GameState state) {
+        gameStatesByRoom.put(roomCode, state);
     }
 
-    public KrigState loadOrCreateKrigState(String roomCode, Supplier<KrigState> initializer) {
-        return krigStatesByRoom.computeIfAbsent(roomCode, key -> initializer.get());
-    }
-
-    public void saveKrigState(String roomCode, KrigState state) {
-        krigStatesByRoom.put(roomCode, state);
+    public void removeGameState(String roomCode) {
+        gameStatesByRoom.remove(roomCode);
     }
 
     public Optional<RoomMutation> selectGame(String roomCode, String hostPlayerId, String selectedGame) {
-        RoomSnapshot room = roomSnapshot(roomCode).orElse(null);
+        RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             return Optional.empty();
         }
 
         RoomMutation mutation;
-        synchronized (roomLock(roomCode)) {
+        synchronized (room) {
             if (room.status != RoomStatus.LOBBY) {
                 throw new IllegalStateException("Cannot change game after match start");
             }
             if (!Objects.equals(room.hostPlayerId, hostPlayerId)) {
                 throw new IllegalStateException("Only the host can select the game");
             }
-            roomMetadataStore.updateRoomGameType(roomCode, normalizeGameType(selectedGame));
+            room.selectedGame = normalizeGameType(selectedGame);
             clearGameStates(roomCode);
-            mutation = RoomMutation.updated(roomSnapshot(roomCode).orElseThrow(), null);
+            mutation = RoomMutation.updated(toSnapshot(room), null);
         }
 
         refreshPlayers(roomCode);
@@ -271,21 +295,21 @@ public class InMemoryRuntimeStore {
     }
 
     public Optional<RoomMutation> markRoomInGame(String roomCode, String hostPlayerId) {
-        RoomSnapshot room = roomSnapshot(roomCode).orElse(null);
+        RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             return Optional.empty();
         }
 
         RoomMutation mutation;
-        synchronized (roomLock(roomCode)) {
+        synchronized (room) {
             if (room.status != RoomStatus.LOBBY) {
                 throw new IllegalStateException("Game already started");
             }
             if (!Objects.equals(room.hostPlayerId, hostPlayerId)) {
                 throw new IllegalStateException("Only the host can start the game");
             }
-            roomMetadataStore.updateRoomStatus(roomCode, RoomStatus.IN_GAME);
-            mutation = RoomMutation.updated(roomSnapshot(roomCode).orElseThrow(), null);
+            room.status = RoomStatus.IN_GAME;
+            mutation = RoomMutation.updated(toSnapshot(room), null);
         }
 
         refreshPlayers(roomCode);
@@ -293,40 +317,47 @@ public class InMemoryRuntimeStore {
     }
 
     public Optional<RoomMutation> resetRoomToLobby(String roomCode) {
-        RoomSnapshot room = roomSnapshot(roomCode).orElse(null);
+        RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             return Optional.empty();
         }
 
         RoomMutation mutation;
-        synchronized (roomLock(roomCode)) {
-            roomMetadataStore.updateRoomStatus(roomCode, RoomStatus.LOBBY);
-            mutation = RoomMutation.updated(roomSnapshot(roomCode).orElseThrow(), null);
+        synchronized (room) {
+            room.status = RoomStatus.LOBBY;
+            mutation = RoomMutation.updated(toSnapshot(room), null);
         }
         refreshPlayers(roomCode);
         return Optional.of(mutation);
     }
 
-    public CasinoState loadOrCreateCasinoState(String roomCode, Supplier<CasinoState> initializer) {
-        return casinoStatesByRoom.computeIfAbsent(roomCode, key -> initializer.get());
+    public void putGameConfig(String roomCode, String key, Object value) {
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return;
+        }
+        synchronized (room) {
+            room.gameConfig.put(key, value);
+        }
     }
 
-    public void saveCasinoState(String roomCode, CasinoState state) {
-        casinoStatesByRoom.put(roomCode, state);
-    }
-
-    public void saveCasinoValueMap(String roomCode, Map<String, List<Integer>> valueMap) {
-        casinoValueMapsByRoom.put(roomCode, new ConcurrentHashMap<>(valueMap));
-    }
-
-    public Optional<Map<String, List<Integer>>> casinoValueMap(String roomCode) {
-        Map<String, List<Integer>> valueMap = casinoValueMapsByRoom.get(roomCode);
-        if (valueMap == null) {
+    @SuppressWarnings("unchecked")
+    public <T> Optional<T> getGameConfig(String roomCode, String key, Class<T> type) {
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
             return Optional.empty();
         }
-        Map<String, List<Integer>> copy = new ConcurrentHashMap<>();
-        valueMap.forEach((card, values) -> copy.put(card, List.copyOf(values)));
-        return Optional.of(copy);
+        synchronized (room) {
+            Object value = room.gameConfig.get(key);
+            if (value != null && type.isInstance(value)) {
+                return Optional.of((T) value);
+            }
+            return Optional.empty();
+        }
+    }
+
+    public void registerMaxPlayers(String gameType, int maxPlayers) {
+        maxPlayersByGame.put(normalizeGameType(gameType), maxPlayers);
     }
 
     public void submit(String roomCode, Runnable command) {
@@ -350,50 +381,43 @@ public class InMemoryRuntimeStore {
     }
 
     private Optional<RoomMutation> removePlayer(String roomCode, String playerId) {
-        RoomSnapshot room = roomSnapshot(roomCode).orElse(null);
+        RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             removeSessionsForPlayer(roomCode, playerId);
             return Optional.empty();
         }
 
         RoomMutation mutation;
-        boolean resetKrigState = false;
-        synchronized (roomLock(roomCode)) {
-            RoomSnapshot current = roomSnapshot(roomCode).orElse(null);
-            if (current == null) {
-                removeSessionsForPlayer(roomCode, playerId);
-                return Optional.empty();
-            }
-            int participantIndex = findParticipantIndex(current.participants, playerId);
+        boolean resetGameState = false;
+        synchronized (room) {
+            int participantIndex = findParticipantIndex(room.participants, playerId);
             if (participantIndex < 0) {
                 removeSessionsForPlayer(roomCode, playerId);
                 return Optional.empty();
             }
-            roomMetadataStore.removeParticipant(roomCode, playerId);
+            room.participants.remove(participantIndex);
 
             removeSessionsForPlayer(roomCode, playerId);
 
-            RoomSnapshot updated = roomSnapshot(roomCode).orElseThrow();
-            if (updated.participants.isEmpty()) {
-                roomMetadataStore.deleteRoom(roomCode);
+            if (room.participants.isEmpty()) {
+                rooms.remove(roomCode, room);
                 clearRoomResources(roomCode);
                 mutation = RoomMutation.deleted(roomCode, playerId);
             } else {
-                if (Objects.equals(updated.hostPlayerId, playerId)) {
-                    roomMetadataStore.updateRoomHost(roomCode, updated.participants.getFirst().playerId());
+                if (Objects.equals(room.hostPlayerId, playerId)) {
+                    room.hostPlayerId = room.participants.getFirst().playerId();
                 }
-                RoomSnapshot next = roomSnapshot(roomCode).orElseThrow();
-                if (next.status == RoomStatus.IN_GAME && "krig".equals(normalizeGameType(next.selectedGame)) && next.participants.size() < 2) {
-                    roomMetadataStore.updateRoomStatus(roomCode, RoomStatus.LOBBY);
-                    resetKrigState = true;
+                if (room.status == RoomStatus.IN_GAME && "krig".equals(normalizeGameType(room.selectedGame)) && room.participants.size() < 2) {
+                    room.status = RoomStatus.LOBBY;
+                    resetGameState = true;
                 }
-                mutation = RoomMutation.updated(roomSnapshot(roomCode).orElseThrow(), playerId);
+                mutation = RoomMutation.updated(toSnapshot(room), playerId);
             }
         }
 
         if (!mutation.deleted()) {
-            if (resetKrigState) {
-                krigStatesByRoom.remove(roomCode);
+            if (resetGameState) {
+                gameStatesByRoom.remove(roomCode);
             }
             refreshPlayers(roomCode);
         }
@@ -405,7 +429,7 @@ public class InMemoryRuntimeStore {
         publicState.put("roomCode", roomCode);
 
         ArrayNode players = JsonNodeFactory.instance.arrayNode();
-        RoomSnapshot room = roomSnapshot(roomCode).orElse(null);
+        RoomRecord room = rooms.get(roomCode);
         if (room == null) {
             publicState.set("players", players);
             publicState.putNull("hostPlayerId");
@@ -415,47 +439,49 @@ public class InMemoryRuntimeStore {
             return state.withPublicState(publicState);
         }
 
-        room.participants.forEach(player -> {
-            ObjectNode playerState = JsonNodeFactory.instance.objectNode();
-            playerState.put("playerId", player.playerId());
-            if (player.username() == null) {
-                playerState.putNull("username");
+        synchronized (room) {
+            room.participants.forEach(player -> {
+                ObjectNode playerState = JsonNodeFactory.instance.objectNode();
+                playerState.put("playerId", player.playerId());
+                if (player.username() == null) {
+                    playerState.putNull("username");
+                } else {
+                    playerState.put("username", player.username());
+                }
+                players.add(playerState);
+            });
+            publicState.set("players", players);
+            if (blank(room.hostPlayerId)) {
+                publicState.putNull("hostPlayerId");
             } else {
-                playerState.put("username", player.username());
+                publicState.put("hostPlayerId", room.hostPlayerId);
             }
-            players.add(playerState);
-        });
-        publicState.set("players", players);
-        if (blank(room.hostPlayerId)) {
-            publicState.putNull("hostPlayerId");
-        } else {
-            publicState.put("hostPlayerId", room.hostPlayerId);
+            publicState.put("selectedGame", room.selectedGame);
+            publicState.put("status", room.status.name());
+            publicState.put("isPrivate", room.isPrivate);
         }
-        publicState.put("selectedGame", room.selectedGame);
-        publicState.put("status", room.status.name());
-        publicState.put("isPrivate", room.isPrivate);
         return state.withPublicState(publicState);
     }
 
-    private RoomSummary toSummary(RoomMetadataStore.StoredRoom room) {
+    private RoomSummary toSummary(RoomRecord room) {
         return new RoomSummary(
-                room.roomCode(),
-                room.hostPlayerId(),
-                room.selectedGame(),
-                room.status().name(),
-                room.participants().size(),
-                List.copyOf(room.participants())
+                room.roomCode,
+                room.hostPlayerId,
+                room.selectedGame,
+                room.status.name(),
+                room.participants.size(),
+                List.copyOf(room.participants)
         );
     }
 
-    private RoomSnapshot toSnapshot(RoomMetadataStore.StoredRoom room) {
+    private RoomSnapshot toSnapshot(RoomRecord room) {
         return new RoomSnapshot(
-                room.roomCode(),
-                room.hostPlayerId(),
-                room.isPrivate(),
-                room.selectedGame(),
-                room.status(),
-                List.copyOf(room.participants())
+                room.roomCode,
+                room.hostPlayerId,
+                room.isPrivate,
+                room.selectedGame,
+                room.status,
+                List.copyOf(room.participants)
         );
     }
 
@@ -475,14 +501,17 @@ public class InMemoryRuntimeStore {
         if (executor != null) {
             executor.shutdown();
         }
-        roomLocks.remove(roomCode);
     }
 
     private void clearGameStates(String roomCode) {
-        highCardStatesByRoom.remove(roomCode);
-        krigStatesByRoom.remove(roomCode);
-        casinoStatesByRoom.remove(roomCode);
-        casinoValueMapsByRoom.remove(roomCode);
+        gameStatesByRoom.remove(roomCode);
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return;
+        }
+        synchronized (room) {
+            room.gameConfig.clear();
+        }
     }
 
     private int findParticipantIndex(List<PlayerSummary> participants, String playerId) {
@@ -495,11 +524,14 @@ public class InMemoryRuntimeStore {
     }
 
     private String normalizeGameType(String gameType) {
-        return gameCatalogService.normalize(gameType);
+        if (gameType == null || gameType.isBlank()) {
+            return DEFAULT_GAME_TYPE;
+        }
+        return gameType.trim().toLowerCase(Locale.ROOT);
     }
 
     private int maxPlayersFor(String gameType) {
-        return gameCatalogService.maxPlayers(gameType);
+        return maxPlayersByGame.getOrDefault(normalizeGameType(gameType), Integer.MAX_VALUE);
     }
 
     private String normalizeUsername(String username) {
@@ -585,6 +617,24 @@ public class InMemoryRuntimeStore {
     public record ExpiredSession(String token, String roomCode, String playerId, RoomMutation mutation) {
     }
 
+    private static final class RoomRecord {
+        private final String roomCode;
+        private final List<PlayerSummary> participants = new ArrayList<>();
+        private String hostPlayerId;
+        private final boolean isPrivate;
+        private String selectedGame;
+        private RoomStatus status;
+        private final Map<String, Object> gameConfig = new ConcurrentHashMap<>();
+
+        private RoomRecord(String roomCode, String hostPlayerId, boolean isPrivate, String selectedGame, RoomStatus status) {
+            this.roomCode = roomCode;
+            this.hostPlayerId = hostPlayerId;
+            this.isPrivate = isPrivate;
+            this.selectedGame = selectedGame;
+            this.status = status;
+        }
+    }
+
     private record SessionRecord(String roomCode, String playerId, Instant lastHeartbeat, boolean connected) {
         private SessionRecord(String roomCode, String playerId) {
             this(roomCode, playerId, Instant.now(), false);
@@ -597,9 +647,5 @@ public class InMemoryRuntimeStore {
         private SessionRecord disconnected() {
             return new SessionRecord(roomCode, playerId, lastHeartbeat, false);
         }
-    }
-
-    private Object roomLock(String roomCode) {
-        return roomLocks.computeIfAbsent(roomCode, key -> new Object());
     }
 }

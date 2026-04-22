@@ -123,12 +123,12 @@ let casinoSelectedStackIds: string[] = [];
 
 function supportsLobbyLifecycle(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
-    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino';
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd';
 }
 
 function supportsRealtimeQuickPlay(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
-    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino';
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd';
 }
 
 function clearQuickPlayPolling() {
@@ -911,6 +911,11 @@ function wireRoomEvents() {
         const claimRankInput = document.getElementById('claimRankInput') as HTMLInputElement | null;
         const claimRank = claimRankInput?.value.trim().toUpperCase() || 'A';
         roomSession?.sendIntent({ type: 'PLAY_SELECTED', claimRank });
+    });
+
+    const flipButton = document.querySelector<HTMLButtonElement>('button[data-action="flip-card"]');
+    flipButton?.addEventListener('click', () => {
+        roomSession?.sendIntent({ type: 'FLIP_CARD' });
     });
 
     const callSnydButton = document.querySelector<HTMLButtonElement>('button[data-action="call-snyd"]');

@@ -27,6 +27,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String KRIG_GAME_TYPE = "krig";
     private static final String CASINO_GAME_TYPE = "casino";
     private static final String PLAY_CARDS = "PLAY_CARDS";
+    private static final String FLIP_CARD = "FLIP_CARD";
     private static final String REQUEST_REMATCH = "REQUEST_REMATCH";
     private static final String SELECT_GAME = "SELECT_GAME";
     private static final String START_GAME = "START_GAME";
@@ -68,6 +69,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             case SELECT_GAME -> handleSelectGame(state, command, room);
             case START_GAME -> handleStartGame(state, command, room);
             case PLAY_CARDS -> handlePlayCards(state, command, room);
+            case FLIP_CARD -> handleFlipCard(state, command, room);
             case REQUEST_REMATCH -> handleRequestRematch(state, command, room);
             default -> GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         };
@@ -87,15 +89,15 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
 
         return switch (normalizedGame(room.selectedGame())) {
             case HIGHCARD_GAME_TYPE -> {
-                HighCardState current = runtimeStore.loadOrCreateHighCardState(
-                        state.roomCode(),
+                HighCardState current = runtimeStore.loadOrInitGameState(
+                        state.roomCode(), HighCardState.class,
                         () -> highCardEngine.init(room.participantIds())
                 );
                 yield toHighCardRoomState(state, room, playerId, current);
             }
             case KRIG_GAME_TYPE -> {
-                KrigState current = runtimeStore.loadOrCreateKrigState(
-                        state.roomCode(),
+                KrigState current = runtimeStore.loadOrInitGameState(
+                        state.roomCode(), KrigState.class,
                         () -> krigEngine.init(room.participantIds())
                 );
                 yield toKrigRoomState(state, room, playerId, current);
@@ -165,12 +167,12 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             GameLoopService.RoomState nextState = switch (selectedGame) {
                 case HIGHCARD_GAME_TYPE -> {
                     HighCardState highCardState = highCardEngine.init(startedRoom.participantIds());
-                    runtimeStore.saveHighCardState(command.roomCode(), highCardState);
+                    runtimeStore.saveGameState(command.roomCode(), highCardState);
                     yield toHighCardRoomState(state, startedRoom, command.playerId(), highCardState);
                 }
                 case KRIG_GAME_TYPE -> {
                     KrigState krigState = krigEngine.init(startedRoom.participantIds());
-                    runtimeStore.saveKrigState(command.roomCode(), krigState);
+                    runtimeStore.saveGameState(command.roomCode(), krigState);
                     yield toKrigRoomState(state, startedRoom, command.playerId(), krigState);
                 }
                 default -> throw new IllegalStateException("Unsupported game type");
@@ -195,11 +197,27 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
         }
 
-        return switch (selectedGame) {
-            case HIGHCARD_GAME_TYPE -> applyHighCard(state, command, room);
-            case KRIG_GAME_TYPE -> applyKrig(state, command, room);
-            default -> GameLoopService.LoopResult.error("ENGINE_NOT_READY: no engine available for room/game type");
-        };
+        if (!HIGHCARD_GAME_TYPE.equals(selectedGame)) {
+            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        }
+
+        return applyHighCard(state, command, room);
+    }
+
+    private GameLoopService.LoopResult handleFlipCard(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        String selectedGame = normalizedGame(room.selectedGame());
+        if (!KRIG_GAME_TYPE.equals(selectedGame)) {
+            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        }
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        return applyKrig(state, command, room);
     }
 
     private GameLoopService.LoopResult handleRequestRematch(
@@ -215,8 +233,8 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
         }
 
-        KrigState current = runtimeStore.loadOrCreateKrigState(
-                command.roomCode(),
+        KrigState current = runtimeStore.loadOrInitGameState(
+                command.roomCode(), KrigState.class,
                 () -> krigEngine.init(room.participantIds())
         );
 
@@ -227,7 +245,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + ruleException.getMessage());
         }
 
-        runtimeStore.saveKrigState(command.roomCode(), next);
+        runtimeStore.saveGameState(command.roomCode(), next);
         GameLoopService.RoomState nextRoomState = toKrigRoomState(state, room, command.playerId(), next);
 
         Map<String, JsonNode> privateUpdates = new HashMap<>();
@@ -261,8 +279,8 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         }
 
-        HighCardState current = runtimeStore.loadOrCreateHighCardState(
-                command.roomCode(),
+        HighCardState current = runtimeStore.loadOrInitGameState(
+                command.roomCode(), HighCardState.class,
                 () -> highCardEngine.init(room.participantIds())
         );
         if (!isAllowedActor(current, command.playerId())) {
@@ -276,7 +294,7 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + ruleException.getMessage());
         }
 
-        runtimeStore.saveHighCardState(command.roomCode(), next);
+        runtimeStore.saveGameState(command.roomCode(), next);
         GameLoopService.RoomState nextRoomState = toHighCardRoomState(state, room, command.playerId(), next);
 
         Map<String, JsonNode> privateUpdates = new HashMap<>();
@@ -304,19 +322,19 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         }
 
-        KrigState current = runtimeStore.loadOrCreateKrigState(
-                command.roomCode(),
+        KrigState current = runtimeStore.loadOrInitGameState(
+                command.roomCode(), KrigState.class,
                 () -> krigEngine.init(room.participantIds())
         );
 
         KrigState next;
         try {
-            next = krigEngine.apply(new KrigAction(command.playerId(), cardCode), current);
+            next = krigEngine.apply(new KrigAction(command.playerId()), current);
         } catch (GameEngine.GameRuleException ruleException) {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + ruleException.getMessage());
         }
 
-        runtimeStore.saveKrigState(command.roomCode(), next);
+        runtimeStore.saveGameState(command.roomCode(), next);
         GameLoopService.RoomState nextRoomState = toKrigRoomState(state, room, command.playerId(), next);
 
         Map<String, JsonNode> privateUpdates = new HashMap<>();

@@ -83,6 +83,7 @@ export type SelectGameMessage = WsEnvelope<'SELECT_GAME', { game: string }>;
 export type StartGameMessage = WsEnvelope<'START_GAME', Record<string, never>>;
 export type RequestRematchMessage = WsEnvelope<'REQUEST_REMATCH', Record<string, never>>;
 export type PlayCardsMessage = WsEnvelope<'PLAY_CARDS', { cards: string[]; claimRank: string }>;
+export type FlipCardMessage = WsEnvelope<'FLIP_CARD', Record<string, never>>;
 export type CallSnydMessage = WsEnvelope<'CALL_SNYD', Record<string, never>>;
 export type CasinoPlayMoveMessage = WsEnvelope<'CASINO_PLAY_MOVE', {
     handCard: string;
@@ -105,6 +106,7 @@ export type ClientToServerMessage =
     | StartGameMessage
     | RequestRematchMessage
     | PlayCardsMessage
+    | FlipCardMessage
     | CallSnydMessage
     | CasinoPlayMoveMessage
     | CasinoBuildStackMessage
