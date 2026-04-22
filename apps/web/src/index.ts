@@ -536,6 +536,7 @@ function renderRoomContent(): string {
         winnerPlayerId: roomState.winnerPlayerId,
         winnerLabel: resolvePlayerName(playerNames, roomState.winnerPlayerId),
         handTrayOpen: roomHandTrayOpen,
+        showHandToggle: adapter.id !== krigAdapter.id,
         bodyHtml,
         suppressWinnerBanner,
     });

@@ -317,11 +317,6 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             GameLoopService.ActionCommand command,
             InMemoryRuntimeStore.RoomSnapshot room
     ) {
-        String cardCode = parseSingleCard(command.payloadRaw());
-        if (cardCode == null) {
-            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
-        }
-
         KrigState current = runtimeStore.loadOrInitGameState(
                 command.roomCode(), KrigState.class,
                 () -> krigEngine.init(room.participantIds())

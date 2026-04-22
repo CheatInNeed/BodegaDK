@@ -2238,14 +2238,19 @@ select.input {
     justify-content: center;
 }
 
-.room-krig .krig-center-actions {
+.room-krig .krig-floating-actions {
+    position: fixed;
+    left: 50%;
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
     justify-content: center;
-    margin-top: 16px;
+    z-index: 46;
 }
 
-.room-krig .krig-center-actions .btn,
+.room-krig .krig-floating-actions .btn,
 .room-krig .krig-minimal-actions .btn {
     min-width: 180px;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
 }
 
 .room-krig .private-panel {
