@@ -100,6 +100,61 @@ Joiner et eksisterende room.
 
 ------------------------------------------------------------------------
 
+## POST /rooms/{roomCode}/visibility
+
+Host-only endpoint used while the room is still in `LOBBY`.
+
+### Request
+
+``` json
+{
+  "actorToken": "session-token",
+  "isPrivate": true
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+The backend updates lobby visibility immediately and broadcasts the new
+`isPrivate` value to all connected room clients through `PUBLIC_UPDATE`.
+
+------------------------------------------------------------------------
+
+## POST /rooms/{roomCode}/claim-identity
+
+Lobby-only endpoint used to migrate an already joined session from one
+player identity to another without giving up the seat.
+
+### Request
+
+``` json
+{
+  "token": "session-token",
+  "playerId": "supabase-user-id-or-guest-id",
+  "username": "Alice"
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+The backend updates the participant identity in place, preserves host
+ownership when relevant, and broadcasts the refreshed player list through
+`PUBLIC_UPDATE`.
+
+------------------------------------------------------------------------
+
 ## POST /matchmaking/queue
 
 Sætter en spiller i quick-play kø.

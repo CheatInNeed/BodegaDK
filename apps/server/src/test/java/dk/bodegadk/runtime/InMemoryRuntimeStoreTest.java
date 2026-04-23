@@ -7,6 +7,7 @@ import java.time.Duration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class InMemoryRuntimeStoreTest {
 
@@ -87,5 +88,51 @@ class InMemoryRuntimeStoreTest {
         InMemoryRuntimeStore.RoomSnapshot room = store.roomSnapshot(roomCode).orElseThrow();
         assertEquals("LOBBY", room.status().name());
         assertEquals(1, room.participants().size());
+    }
+
+    @Test
+    void hostCanToggleLobbyVisibility() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        String roomCode = store.createRoom("snyd", false, "p1");
+        store.joinRoom(roomCode, "p1", "alice", "token-p1");
+
+        store.updateVisibility(roomCode, "token-p1", true);
+
+        InMemoryRuntimeStore.RoomSnapshot room = store.roomSnapshot(roomCode).orElseThrow();
+        assertTrue(room.isPrivate());
+    }
+
+    @Test
+    void nonHostCannotToggleLobbyVisibility() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        String roomCode = store.createRoom("snyd", false, "p1");
+        store.joinRoom(roomCode, "p1", "alice", "token-p1");
+        store.joinRoom(roomCode, "p2", "bob", "token-p2");
+
+        assertThrows(IllegalStateException.class, () -> store.updateVisibility(roomCode, "token-p2", true));
+    }
+
+    @Test
+    void claimSessionIdentityMigratesHostSeat() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        String roomCode = store.createRoom("snyd", false, "guest-1");
+        store.joinRoom(roomCode, "guest-1", null, "token-p1");
+
+        store.claimSessionIdentity(roomCode, "token-p1", "user-123", "alice");
+
+        InMemoryRuntimeStore.RoomSnapshot room = store.roomSnapshot(roomCode).orElseThrow();
+        assertEquals("user-123", room.hostPlayerId());
+        assertEquals("user-123", room.participants().getFirst().playerId());
+        assertEquals("alice", room.participants().getFirst().username());
+    }
+
+    @Test
+    void claimSessionIdentityRejectsDuplicateTargetIdentity() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        String roomCode = store.createRoom("snyd", false, "guest-1");
+        store.joinRoom(roomCode, "guest-1", null, "token-p1");
+        store.joinRoom(roomCode, "user-123", "alice", "token-p2");
+
+        assertThrows(IllegalStateException.class, () -> store.claimSessionIdentity(roomCode, "token-p1", "user-123", "alice"));
     }
 }

@@ -21,6 +21,7 @@ import java.util.Optional;
 @Component
 public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String CASINO_GAME_TYPE = "casino";
+    private static final String SELECT_GAME = "SELECT_GAME";
     private static final String START_GAME = "START_GAME";
     private static final String CASINO_VALUE_MAP_KEY = "casinoValueMap";
 
@@ -72,6 +73,9 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
         }
         InMemoryRuntimeStore.RoomSnapshot room = roomOptional.get();
 
+        if (SELECT_GAME.equals(command.type())) {
+            return handleSelectGame(command);
+        }
         if (START_GAME.equals(command.type())) {
             return handleStartGame(state, command, room);
         }
@@ -131,6 +135,23 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
         privateState.put("playerId", playerId);
         privateStateByPlayer.put(playerId, privateState);
         return new GameLoopService.RoomState(base.roomCode(), base.version(), base.publicState().deepCopy(), privateStateByPlayer);
+    }
+
+    private GameLoopService.LoopResult handleSelectGame(GameLoopService.ActionCommand command) {
+        String requestedGame = normalizeLobbySelection(command.payloadRaw().path("game").asText(""));
+        if (!supportsLobbySelection(requestedGame)) {
+            return GameLoopService.LoopResult.error("ENGINE_NOT_READY: no engine available for room/game type");
+        }
+
+        try {
+            runtimeStore.selectGame(command.roomCode(), command.playerId(), requestedGame)
+                    .orElseThrow(() -> new IllegalStateException("Room not found"));
+        } catch (IllegalStateException exception) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + exception.getMessage());
+        }
+
+        GameLoopService.RoomState nextState = runtimeStore.refreshPlayers(command.roomCode());
+        return GameLoopService.LoopResult.success(nextState, nextState.publicState(), Map.of(), false, null);
     }
 
     @SuppressWarnings("unchecked")
@@ -268,6 +289,21 @@ public class CasinoEnginePortAdapter implements GameLoopService.EnginePort {
             valueMap.put(entry.getKey(), values);
         });
         return valueMap;
+    }
+
+    private boolean supportsLobbySelection(String gameType) {
+        return CASINO_GAME_TYPE.equals(gameType)
+                || "highcard".equals(gameType)
+                || "krig".equals(gameType)
+                || "snyd".equals(gameType);
+    }
+
+    private String normalizeLobbySelection(String gameType) {
+        if (gameType == null) {
+            return "";
+        }
+        String normalized = gameType.trim().toLowerCase(Locale.ROOT);
+        return "game.cheat".equals(normalized) ? "snyd" : normalized;
     }
 
     private String readText(JsonNode payload, String field) {
