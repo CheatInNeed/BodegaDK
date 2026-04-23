@@ -912,9 +912,9 @@ function wireViewEvents() {
     });
 
     document.querySelectorAll<HTMLElement>('[data-action="open-game"]').forEach((btn) => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
             const game = normalizeGameKey(btn.dataset.game ?? '');
-            if (supportsRealtimeQuickPlay(game)) {
+            if (supportsRealtimeQuickPlay(game) && !(e as MouseEvent).shiftKey) {
                 void handleQuickPlay(game);
                 return;
             }
@@ -922,7 +922,7 @@ function wireViewEvents() {
             navigate({
                 view: 'room',
                 game,
-                room: state.route.room ?? 'ABC123',
+                room: `DEV-${game}`,
                 token: state.route.token ?? randomToken(),
                 mock: true,
             });

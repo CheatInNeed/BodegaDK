@@ -46,7 +46,13 @@ type MockSnydRoomData = MockRoomData & {
     game: 'snyd';
 };
 
-type AnyMockRoomData = MockCasinoRoomData | MockSnydRoomData;
+type MockFemRoomData = {
+    game: 'fem';
+    roomCode: string;
+    tokens: Record<string, string>;
+};
+
+type AnyMockRoomData = MockCasinoRoomData | MockSnydRoomData | MockFemRoomData;
 
 type BroadcastPayload = {
     roomCode: string;
@@ -85,7 +91,9 @@ export function createMockServerTransport(): RoomTransport {
 
             if (message.type === 'CONNECT') {
                 currentRoomCode = message.payload.roomCode;
-                const desiredGame = message.payload.game?.toLowerCase() === 'casino' ? 'casino' : 'snyd';
+                const gameLower = message.payload.game?.toLowerCase();
+                const desiredGame: 'snyd' | 'casino' | 'fem' =
+                    gameLower === 'casino' ? 'casino' : gameLower === 'fem' ? 'fem' : 'snyd';
                 let room: AnyMockRoomData;
                 try {
                     room = readOrCreateRoom(
@@ -115,7 +123,7 @@ export function createMockServerTransport(): RoomTransport {
                 if (!registeredPlayer) {
                     handlers.onMessage({
                         type: 'ERROR',
-                        payload: { message: 'Casino room is full (2 players max)' },
+                        payload: { message: 'Room is full' },
                     });
                     return;
                 }
@@ -139,6 +147,10 @@ export function createMockServerTransport(): RoomTransport {
             if (!currentRoomCode || !myPlayerId) return;
 
             const room = readOrCreateRoom(currentRoomCode, 'snyd');
+
+            if (room.game === 'fem') {
+                return;
+            }
 
             if (room.game === 'casino') {
                 if (
@@ -369,14 +381,17 @@ function broadcastCasinoState(room: MockCasinoRoomData) {
 
 function readOrCreateRoom(
     roomCode: string,
-    desiredGame: 'snyd' | 'casino',
+    desiredGame: 'snyd' | 'casino' | 'fem',
     requestedRules?: CasinoValueMap,
 ): AnyMockRoomData {
     const key = getStorageKey(roomCode);
     const raw = localStorage.getItem(key);
     if (raw) {
         try {
-            return JSON.parse(raw) as AnyMockRoomData;
+            const stored = JSON.parse(raw) as AnyMockRoomData;
+            if (stored.game === desiredGame) return stored;
+            // Game type mismatch — discard stale entry and create fresh.
+            localStorage.removeItem(key);
         } catch {
             localStorage.removeItem(key);
         }
@@ -402,6 +417,12 @@ function readOrCreateRoom(
                 rules: { valueMap: requestedRules },
             }),
         };
+        saveRoom(room);
+        return room;
+    }
+
+    if (desiredGame === 'fem') {
+        const room: MockFemRoomData = { game: 'fem', roomCode, tokens: {} };
         saveRoom(room);
         return room;
     }
@@ -432,9 +453,9 @@ function registerToken(room: AnyMockRoomData, token: string): string | null {
     if (room.tokens[token]) return room.tokens[token];
 
     const usedPlayerIds = new Set(Object.values(room.tokens));
-    const players = room.game === 'casino' ? ['p1', 'p2'] : room.players;
+    const players = room.game === 'casino' || room.game === 'fem' ? ['p1', 'p2'] : room.players;
     const available = players.find((playerId) => !usedPlayerIds.has(playerId));
-    if (!available && room.game === 'casino') {
+    if (!available && (room.game === 'casino' || room.game === 'fem')) {
         return null;
     }
     const playerId = available ?? players[0];
@@ -452,6 +473,15 @@ function makeSnapshot(room: AnyMockRoomData, playerId: string): ServerToClientMe
             },
         };
     }
+    if (room.game === 'fem') {
+        return {
+            type: 'STATE_SNAPSHOT',
+            payload: {
+                publicState: makeFemPublicState(),
+                privateState: makeFemPrivateState(playerId),
+            },
+        };
+    }
     return {
         type: 'STATE_SNAPSHOT',
         payload: {
@@ -459,6 +489,43 @@ function makeSnapshot(room: AnyMockRoomData, playerId: string): ServerToClientMe
             privateState: makePrivateState(room, playerId),
         },
     };
+}
+
+function makeFemPublicState(): Record<string, unknown> {
+    return {
+        players: ['p1', 'p2'],
+        turnPlayerId: 'p1',
+        roundNumber: 2,
+        scores: { p1: 150, p2: 80 },
+        stockPileCount: 28,
+        discardPileTop: 'HQ',
+        melds: [
+            {
+                id: 'meld-1',
+                suit: 'H',
+                cards: ['HA', 'H2', 'H3', 'H4'],
+                pointsPerPlayer: { p1: 40 },
+            },
+            {
+                id: 'meld-2',
+                suit: 'D',
+                cards: ['DA', 'D2', 'D3'],
+                pointsPerPlayer: { p2: 30 },
+            },
+        ],
+        playerCardCounts: { p1: 10, p2: 11 },
+        phase: 'PLAYING',
+        discardGrabPhase: false,
+        grabPriorityPlayerId: null,
+        winnerPlayerId: null,
+    };
+}
+
+function makeFemPrivateState(playerId: string): Record<string, unknown> {
+    const hand = playerId === 'p1'
+        ? ['H5', 'H6', 'H7', 'D7', 'D8', 'SA', 'CA', 'DA', 'S10', 'CK']
+        : ['C5', 'C6', 'C7', 'S5', 'S6', 'HK', 'DK', 'CQ', 'SQ', 'H9', 'D9'];
+    return { playerId, hand, projectedRoundScore: playerId === 'p1' ? 40 : 30 };
 }
 
 function makeCasinoPublicState(room: MockCasinoRoomData): CasinoPublicState {
