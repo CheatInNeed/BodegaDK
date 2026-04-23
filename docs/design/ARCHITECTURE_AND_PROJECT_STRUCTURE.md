@@ -200,7 +200,7 @@ UI-side source of truth for active live card rooms:
           games/
             common/
             snyd/
-            fivehundred/
+            fem/
             dice/
 
         persistence/

@@ -442,7 +442,8 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
     }
 
     private boolean supportsLobbySelection(String gameType) {
-        return isSupportedGame(gameType) || CASINO_GAME_TYPE.equals(gameType);
+        return isSupportedGame(gameType) || CASINO_GAME_TYPE.equals(gameType)
+                || "fem".equals(gameType);
     }
 
     private String normalizedGame(String gameType) {

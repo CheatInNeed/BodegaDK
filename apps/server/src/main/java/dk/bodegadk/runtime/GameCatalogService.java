@@ -16,6 +16,7 @@ public class GameCatalogService {
         register(new GameDefinition("krig", 2, 2, true, true, true, true));
         register(new GameDefinition("casino", 2, 2, true, true, true, true));
         register(new GameDefinition("snyd", 2, 6, false, true, true, true));
+        register(new GameDefinition("fem", 2, 6, false, true, true, true));
         register(new GameDefinition("poker", 2, 8, false, false, false, false));
     }
 
