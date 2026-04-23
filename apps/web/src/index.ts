@@ -14,9 +14,12 @@ import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
 import { casinoAdapter } from './games/casino/adapter.js';
 import { renderCasinoRoom } from './games/casino/view.js';
+import { femAdapter } from './games/fem-hundrede/adapter.js';
+import { renderFemRoom, type FemViewModel } from './games/fem-hundrede/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
+import { loadProfileData, renderProfilePage } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
     cancelMatchmakingTicket,
@@ -39,6 +42,7 @@ const adapters: GenericAdapter[] = [
     casinoAdapter as GenericAdapter,
     highcardAdapter as GenericAdapter,
     krigAdapter as GenericAdapter,
+    femAdapter as GenericAdapter,
 ];
 
 type ThemeId = 'bodega' | 'harbor' | 'parlor';
@@ -120,6 +124,7 @@ let roomHeartbeatTimer: number | null = null;
 let roomHeartbeatKey: string | null = null;
 let roomHeartbeatInFlight = false;
 let lobbyCopyFeedbackTimer: number | null = null;
+let profileDataCache: Awaited<ReturnType<typeof loadProfileData>> | null = null;
 
 function getInitialTheme(): ThemeId {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -139,12 +144,12 @@ let casinoSelectedStackIds: string[] = [];
 
 function supportsLobbyLifecycle(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
-    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd';
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd' || normalized === 'fem';
 }
 
 function supportsRealtimeQuickPlay(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
-    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd';
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd' || normalized === 'fem';
 }
 
 function clearQuickPlayPolling() {
@@ -381,6 +386,9 @@ function renderView() {
         </p>
       </div>
     `;
+    } else if (state.view === 'profile') {
+        cleanupRoomSession();
+        main.innerHTML = renderProfileView();
     } else if (state.view === 'room') {
         main.innerHTML = renderRoomContent();
     }
@@ -538,6 +546,10 @@ function renderRoomContent(): string {
     });
     let bodyHtml = '';
 
+    if (adapter.id === femAdapter.id) {
+        return renderFemRoom(viewModel as FemViewModel);
+    }
+
     if (adapter.id === casinoAdapter.id) {
         const casinoViewModel = viewModel as Parameters<typeof renderCasinoRoom>[0];
         const validStackIds = new Set(casinoViewModel.tableStacks.map((stack) => stack.stackId));
@@ -554,11 +566,7 @@ function renderRoomContent(): string {
             roomHandTrayOpen,
         );
     } else if (adapter.id === krigAdapter.id) {
-        bodyHtml = renderKrigRoom(
-            viewModel as Parameters<typeof renderKrigRoom>[0],
-            layoutSpec,
-            roomHandTrayOpen,
-        );
+        return renderKrigRoom(viewModel as Parameters<typeof renderKrigRoom>[0]);
     } else {
         bodyHtml = renderSnydRoom(
             viewModel as Parameters<typeof renderSnydRoom>[0],
@@ -710,7 +718,23 @@ function playCards() {
 
 function renderActiveQueueBar() {
     const ticket = quickPlayState.ticket;
-    if (!ticket || (ticket.status !== 'WAITING' && ticket.status !== 'MATCHED')) return '';
+    if (!ticket || (ticket.status !== 'WAITING' && ticket.status !== 'MATCHED')) {
+        if (quickPlayState.errorMessage) {
+            return `<section class="active-queue-bar active-queue-bar-error" aria-live="polite">
+      <div class="active-queue-copy">
+        <span class="active-queue-error">${quickPlayState.errorMessage}</span>
+      </div>
+    </section>`;
+        }
+        if (quickPlayState.loading) {
+            return `<section class="active-queue-bar" aria-live="polite">
+      <div class="active-queue-copy">
+        <span data-i18n="queue.bar.joining"></span>
+      </div>
+    </section>`;
+        }
+        return '';
+    }
 
     const targetPlayers = Math.max(ticket.minPlayers, ticket.queuedPlayers);
     const elapsedSeconds = quickPlayState.startedAtMs
@@ -841,6 +865,23 @@ function renderHomepage() {
   `;
 }
 
+function renderProfileView(): string {
+    if (profileDataCache) {
+        return renderProfilePage(state.lang, profileDataCache);
+    }
+
+    // Load async, then re-render
+    void loadProfileData().then((data) => {
+        profileDataCache = data;
+        renderView();
+    });
+
+    return `
+    <h1 class="h1" data-i18n="profile.title"></h1>
+    <p class="sub">${state.lang === 'en' ? 'Loading...' : 'Indlæser...'}</p>
+  `;
+}
+
 function renderHomepagePlaceholderCard(input: {
     titleKey: string;
     className?: string;
@@ -893,9 +934,9 @@ function wireViewEvents() {
     });
 
     document.querySelectorAll<HTMLElement>('[data-action="open-game"]').forEach((btn) => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
             const game = normalizeGameKey(btn.dataset.game ?? '');
-            if (supportsRealtimeQuickPlay(game)) {
+            if (supportsRealtimeQuickPlay(game) && !(e as MouseEvent).shiftKey) {
                 void handleQuickPlay(game);
                 return;
             }
@@ -903,7 +944,7 @@ function wireViewEvents() {
             navigate({
                 view: 'room',
                 game,
-                room: state.route.room ?? 'ABC123',
+                room: `DEV-${game}`,
                 token: state.route.token ?? randomToken(),
                 mock: true,
             });
@@ -939,6 +980,17 @@ function wireViewEvents() {
 
     document.querySelector<HTMLButtonElement>('button[data-action="home-create-lobby"]')?.addEventListener('click', () => {
         void handleHomepageCreateLobby();
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="profile-customize"]')?.addEventListener('click', () => {
+        navigate('/custom');
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="profile-logout"]')?.addEventListener('click', async () => {
+        if (!supabase) return;
+        await supabase.auth.signOut();
+        profileDataCache = null;
+        navigate({ view: 'home' });
     });
 }
 
@@ -999,7 +1051,7 @@ function wireEvents() {
 
     const profileBtn = document.getElementById('profileBtn') as HTMLButtonElement | null;
     if (profileBtn) {
-        profileBtn.onclick = () => alert('You are not logged in.');
+        profileBtn.onclick = () => navigate({ view: 'profile' });
     }
 }
 
@@ -1086,6 +1138,39 @@ function wireRoomEvents() {
     });
 
     triggerCasinoQuickMerge();
+
+    document.querySelectorAll<HTMLElement>('[data-action="fem-draw-stock"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DRAW_FROM_STOCK' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-draw-discard"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DRAW_FROM_DISCARD' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-take-pile"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_TAKE_DISCARD_PILE' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-lay-meld"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_LAY_MELD' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-discard"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DISCARD' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-pass-grab"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_PASS_GRAB' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-extend-meld"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const meldId = el.dataset.meldId;
+            if (!meldId) return;
+            roomSession?.sendIntent({ type: 'FEM_EXTEND_MELD', meldId });
+        });
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-claim-discard"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const meldId = el.dataset.meldId;
+            if (!meldId) return;
+            roomSession?.sendIntent({ type: 'FEM_CLAIM_DISCARD', meldId });
+        });
+    });
 }
 
 function wireLobbyEvents() {
@@ -1450,7 +1535,7 @@ function applyAuthUI() {
         signupBtn.textContent = state.lang === 'en' ? 'Create account' : 'Opret konto';
         signupBtn.onclick = () => navigate('/signup');
         profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
-        profileBtn.onclick = () => alert('You are not logged in.');
+        profileBtn.onclick = () => navigate({ view: 'profile' });
 
         if (avatarDisplay) {
             avatarDisplay.classList.add('hidden');
@@ -1465,14 +1550,8 @@ function applyAuthUI() {
     profileBtn.removeAttribute('data-i18n');
     signupBtn.textContent = 'Customize player';
     signupBtn.onclick = () => navigate('/custom');
-    profileBtn.textContent = 'Logout';
-    profileBtn.onclick = async () => {
-        if (!supabase) {
-            return;
-        }
-        await supabase.auth.signOut();
-        navigate('/');
-    };
+    profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
+    profileBtn.onclick = () => navigate({ view: 'profile' });
 
     if (!avatarDisplay) return;
     if (!authUiState.avatar) {
@@ -1606,6 +1685,7 @@ function normalizeGameKey(game: string): string {
     if (game === 'game.krig') return KRIG_GAME_ID;
     if (game === 'casino') return 'casino';
     if (game === 'single.card.highest.wins') return HIGHCARD_GAME_ID;
+    if (game === 'game.500') return 'fem';
     if (game === 'single-card-highest-wins') return HIGHCARD_GAME_ID;
     return game;
 }

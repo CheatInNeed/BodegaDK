@@ -5,10 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.server.domain.engine.GameEngine;
-import dk.bodegadk.server.domain.games.snyd.SnydAction;
-import dk.bodegadk.server.domain.games.snyd.SnydEngine;
-import dk.bodegadk.server.domain.games.snyd.SnydState;
-import dk.bodegadk.server.domain.games.snyd.SnydViewProjector;
+import dk.bodegadk.server.domain.games.fem.FemAction;
+import dk.bodegadk.server.domain.games.fem.FemEngine;
+import dk.bodegadk.server.domain.games.fem.FemState;
+import dk.bodegadk.server.domain.games.fem.FemViewProjector;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -20,29 +20,36 @@ import java.util.Map;
 import java.util.Optional;
 
 @Component
-public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
-    private static final String SNYD_GAME_TYPE = "snyd";
+public class FemEnginePortAdapter implements GameLoopService.EnginePort {
+    private static final String FEM_GAME_TYPE = "fem";
     private static final String SELECT_GAME = "SELECT_GAME";
     private static final String START_GAME = "START_GAME";
-    private static final String PLAY_CARDS = "PLAY_CARDS";
-    private static final String CALL_SNYD = "CALL_SNYD";
+    private static final String DRAW_FROM_STOCK = "DRAW_FROM_STOCK";
+    private static final String DRAW_FROM_DISCARD = "DRAW_FROM_DISCARD";
+    private static final String TAKE_DISCARD_PILE = "TAKE_DISCARD_PILE";
+    private static final String LAY_MELD = "LAY_MELD";
+    private static final String EXTEND_MELD = "EXTEND_MELD";
+    private static final String SWAP_JOKER = "SWAP_JOKER";
+    private static final String DISCARD = "DISCARD";
+    private static final String CLAIM_DISCARD = "CLAIM_DISCARD";
+    private static final String PASS_GRAB = "PASS_GRAB";
 
     private final InMemoryRuntimeStore runtimeStore;
     private final ObjectMapper objectMapper;
-    private final SnydEngine engine = new SnydEngine();
-    private final SnydViewProjector projector = new SnydViewProjector();
+    private final FemEngine engine = new FemEngine();
+    private final FemViewProjector projector = new FemViewProjector();
 
-    public SnydEnginePortAdapter(InMemoryRuntimeStore runtimeStore, ObjectMapper objectMapper) {
+    public FemEnginePortAdapter(InMemoryRuntimeStore runtimeStore, ObjectMapper objectMapper) {
         this.runtimeStore = runtimeStore;
         this.objectMapper = objectMapper;
-        runtimeStore.registerMaxPlayers(SNYD_GAME_TYPE, 6);
+        runtimeStore.registerMaxPlayers(FEM_GAME_TYPE, 6);
     }
 
     @Override
     public boolean supports(String roomCode) {
         return runtimeStore.roomGameType(roomCode)
                 .map(gt -> gt.trim().toLowerCase(Locale.ROOT))
-                .filter(SNYD_GAME_TYPE::equals)
+                .filter(FEM_GAME_TYPE::equals)
                 .isPresent();
     }
 
@@ -64,8 +71,15 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
         return switch (command.type()) {
             case SELECT_GAME -> handleSelectGame(state, command, room);
             case START_GAME -> handleStartGame(state, command, room);
-            case PLAY_CARDS -> handlePlayCards(state, command, room);
-            case CALL_SNYD -> handleCallSnyd(state, command, room);
+            case DRAW_FROM_STOCK -> handleDrawFromStock(state, command, room);
+            case DRAW_FROM_DISCARD -> handleDrawFromDiscard(state, command, room);
+            case TAKE_DISCARD_PILE -> handleTakeDiscardPile(state, command, room);
+            case LAY_MELD -> handleLayMeld(state, command, room);
+            case EXTEND_MELD -> handleExtendMeld(state, command, room);
+            case SWAP_JOKER -> handleSwapJoker(state, command, room);
+            case DISCARD -> handleDiscard(state, command, room);
+            case CLAIM_DISCARD -> handleClaimDiscard(state, command, room);
+            case PASS_GRAB -> handlePassGrab(state, command, room);
             default -> GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         };
     }
@@ -86,8 +100,8 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
             return toLobbyRoomState(runtimeStore.refreshPlayers(state.roomCode()), playerId);
         }
 
-        return loadSnydState(state.roomCode())
-                .map(current -> toSnydRoomState(state, room, playerId, current))
+        return loadFemState(state.roomCode())
+                .map(current -> toFemRoomState(state, room, playerId, current))
                 .orElse(state);
     }
 
@@ -136,10 +150,10 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
 
         try {
             List<String> participants = startedRoom.participantIds();
-            SnydState next = engine.init(participants);
+            FemState next = engine.init(participants);
             runtimeStore.saveGameState(command.roomCode(), next);
 
-            GameLoopService.RoomState nextRoomState = toSnydRoomState(state, startedRoom, command.playerId(), next);
+            GameLoopService.RoomState nextRoomState = toFemRoomState(state, startedRoom, command.playerId(), next);
             return GameLoopService.LoopResult.success(
                     nextRoomState,
                     nextRoomState.publicState(),
@@ -153,9 +167,54 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
         }
     }
 
-    /* ── PLAY_CARDS ── */
+    /* ── DRAW_FROM_STOCK ── */
 
-    private GameLoopService.LoopResult handlePlayCards(
+    private GameLoopService.LoopResult handleDrawFromStock(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        FemAction action = new FemAction.DrawFromStock(command.playerId());
+        return applyGameAction(state, command, room, action);
+    }
+
+    /* ── DRAW_FROM_DISCARD ── */
+
+    private GameLoopService.LoopResult handleDrawFromDiscard(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        FemAction action = new FemAction.DrawFromDiscard(command.playerId());
+        return applyGameAction(state, command, room, action);
+    }
+
+    /* ── TAKE_DISCARD_PILE ── */
+
+    private GameLoopService.LoopResult handleTakeDiscardPile(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        FemAction action = new FemAction.TakeDiscardPile(command.playerId());
+        return applyGameAction(state, command, room, action);
+    }
+
+    /* ── LAY_MELD ── */
+
+    private GameLoopService.LoopResult handleLayMeld(
             GameLoopService.RoomState state,
             GameLoopService.ActionCommand command,
             InMemoryRuntimeStore.RoomSnapshot room
@@ -166,18 +225,17 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
 
         JsonNode payload = command.payloadRaw();
         List<String> cards = readStringList(payload.path("cards"));
-        String claimRank = readText(payload, "claimRank");
-        if (cards.isEmpty() || claimRank == null) {
+        if (cards.isEmpty()) {
             return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         }
 
-        SnydAction action = new SnydAction.PlayCards(command.playerId(), cards, claimRank);
+        FemAction action = new FemAction.LayMeld(command.playerId(), cards);
         return applyGameAction(state, command, room, action);
     }
 
-    /* ── CALL_SNYD ── */
+    /* ── EXTEND_MELD ── */
 
-    private GameLoopService.LoopResult handleCallSnyd(
+    private GameLoopService.LoopResult handleExtendMeld(
             GameLoopService.RoomState state,
             GameLoopService.ActionCommand command,
             InMemoryRuntimeStore.RoomSnapshot room
@@ -186,7 +244,94 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
         }
 
-        SnydAction action = new SnydAction.CallSnyd(command.playerId());
+        JsonNode payload = command.payloadRaw();
+        String meldId = readText(payload, "meldId");
+        String card = readText(payload, "card");
+        if (meldId == null || card == null) {
+            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        }
+
+        FemAction action = new FemAction.ExtendMeld(command.playerId(), meldId, card);
+        return applyGameAction(state, command, room, action);
+    }
+
+    /* ── SWAP_JOKER ── */
+
+    private GameLoopService.LoopResult handleSwapJoker(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        JsonNode payload = command.payloadRaw();
+        String meldId = readText(payload, "meldId");
+        String jokerCode = readText(payload, "jokerCode");
+        String realCardCode = readText(payload, "realCardCode");
+        if (meldId == null || jokerCode == null || realCardCode == null) {
+            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        }
+
+        FemAction action = new FemAction.SwapJoker(command.playerId(), meldId, jokerCode, realCardCode);
+        return applyGameAction(state, command, room, action);
+    }
+
+    /* ── DISCARD ── */
+
+    private GameLoopService.LoopResult handleDiscard(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        JsonNode payload = command.payloadRaw();
+        String card = readText(payload, "card");
+        if (card == null) {
+            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        }
+
+        FemAction action = new FemAction.Discard(command.playerId(), card);
+        return applyGameAction(state, command, room, action);
+    }
+
+    /* ── CLAIM_DISCARD ── */
+
+    private GameLoopService.LoopResult handleClaimDiscard(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        JsonNode payload = command.payloadRaw();
+        String meldId = readText(payload, "meldId");
+        if (meldId == null) {
+            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        }
+
+        FemAction action = new FemAction.ClaimDiscard(command.playerId(), meldId);
+        return applyGameAction(state, command, room, action);
+    }
+
+    /* ── PASS_GRAB ── */
+
+    private GameLoopService.LoopResult handlePassGrab(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        FemAction action = new FemAction.PassGrab(command.playerId());
         return applyGameAction(state, command, room, action);
     }
 
@@ -196,12 +341,12 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
             GameLoopService.RoomState state,
             GameLoopService.ActionCommand command,
             InMemoryRuntimeStore.RoomSnapshot room,
-            SnydAction action
+            FemAction action
     ) {
-        SnydState current = loadSnydState(command.roomCode())
-                .orElseThrow(() -> new GameEngine.GameRuleException("Snyd state missing"));
+        FemState current = loadFemState(command.roomCode())
+                .orElseThrow(() -> new GameEngine.GameRuleException("Fem state missing"));
 
-        SnydState next;
+        FemState next;
         try {
             next = engine.apply(action, current);
         } catch (GameEngine.GameRuleException exception) {
@@ -209,7 +354,7 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
         }
 
         runtimeStore.saveGameState(command.roomCode(), next);
-        GameLoopService.RoomState nextRoomState = toSnydRoomState(state, room, command.playerId(), next);
+        GameLoopService.RoomState nextRoomState = toFemRoomState(state, room, command.playerId(), next);
 
         return GameLoopService.LoopResult.success(
                 nextRoomState,
@@ -222,10 +367,10 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
 
     /* ── State helpers ── */
 
-    private Optional<SnydState> loadSnydState(String roomCode) {
+    private Optional<FemState> loadFemState(String roomCode) {
         try {
-            SnydState state = runtimeStore.loadOrInitGameState(roomCode, SnydState.class, () -> {
-                throw new GameEngine.GameRuleException("Snyd state missing");
+            FemState state = runtimeStore.loadOrInitGameState(roomCode, FemState.class, () -> {
+                throw new GameEngine.GameRuleException("Fem state missing");
             });
             return Optional.of(state);
         } catch (GameEngine.GameRuleException exception) {
@@ -241,11 +386,11 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
         return new GameLoopService.RoomState(base.roomCode(), base.version(), base.publicState().deepCopy(), privateStateByPlayer);
     }
 
-    private GameLoopService.RoomState toSnydRoomState(
+    private GameLoopService.RoomState toFemRoomState(
             GameLoopService.RoomState base,
             InMemoryRuntimeStore.RoomSnapshot room,
             String actorPlayerId,
-            SnydState gameState
+            FemState gameState
     ) {
         ObjectNode publicState = objectMapper.valueToTree(projector.toPublicView(gameState));
         enrichPublicState(publicState, base.version(), room);
@@ -297,11 +442,11 @@ public class SnydEnginePortAdapter implements GameLoopService.EnginePort {
     }
 
     private boolean supportsLobbySelection(String gameType) {
-        return SNYD_GAME_TYPE.equals(gameType)
+        return FEM_GAME_TYPE.equals(gameType)
+                || "snyd".equals(gameType)
                 || "highcard".equals(gameType)
                 || "krig".equals(gameType)
-                || "casino".equals(gameType)
-                || "fem".equals(gameType);
+                || "casino".equals(gameType);
     }
 
     private String normalizeGame(String gameType) {
