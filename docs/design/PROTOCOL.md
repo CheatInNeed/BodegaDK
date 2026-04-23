@@ -384,6 +384,30 @@ requested a rematch, the server deals a fresh match and returns to
 
 ------------------------------------------------------------------------
 
+## SELECT_GAME
+
+``` json
+{
+  "type": "SELECT_GAME",
+  "payload": {
+    "game": "krig"
+  }
+}
+```
+
+`SELECT_GAME` håndteres nu centralt i room/lobby-laget, ikke i de enkelte
+game adapters.
+
+- kun værten må skifte spil
+- skift er kun gyldigt mens rummet har status `LOBBY`
+- target game valideres via `GameCatalogService`
+- alle `lobbyEnabled` spil kan skifte til alle andre `lobbyEnabled` spil
+  inklusive `krig`
+- kommandoen opdaterer kun room metadata (`selectedGame`); engine state
+  oprettes først ved `START_GAME`
+
+------------------------------------------------------------------------
+
 ## START_GAME
 
 ``` json
