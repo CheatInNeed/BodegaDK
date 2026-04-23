@@ -696,7 +696,23 @@ function playCards() {
 
 function renderActiveQueueBar() {
     const ticket = quickPlayState.ticket;
-    if (!ticket || (ticket.status !== 'WAITING' && ticket.status !== 'MATCHED')) return '';
+    if (!ticket || (ticket.status !== 'WAITING' && ticket.status !== 'MATCHED')) {
+        if (quickPlayState.errorMessage) {
+            return `<section class="active-queue-bar active-queue-bar-error" aria-live="polite">
+      <div class="active-queue-copy">
+        <span class="active-queue-error">${quickPlayState.errorMessage}</span>
+      </div>
+    </section>`;
+        }
+        if (quickPlayState.loading) {
+            return `<section class="active-queue-bar" aria-live="polite">
+      <div class="active-queue-copy">
+        <span data-i18n="queue.bar.joining"></span>
+      </div>
+    </section>`;
+        }
+        return '';
+    }
 
     const targetPlayers = Math.max(ticket.minPlayers, ticket.queuedPlayers);
     const elapsedSeconds = quickPlayState.startedAtMs
