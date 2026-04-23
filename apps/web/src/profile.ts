@@ -1,98 +1,136 @@
-import { navigate } from './index.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
-import { applyI18n, getInitialLang, t } from './i18n.js';
+import { t, type Lang } from './i18n.js';
 
-export async function renderProfile() {
-    const app = document.getElementById('app');
-    if (!app) return;
-
-    const lang = getInitialLang();
-
-    let username = 'BodegaSpiller';
-    let email = 'spiller@bodegadk.dk';
-    let country = 'Danmark';
-    let avatarColor = '#ffb300';
-    let avatarShape = 'circle';
-    let isLive = false;
-
-    if (isSupabaseConfigured && supabase) {
-        const { data } = await supabase.auth.getUser();
-        const user = data.user;
-
-        if (user) {
-            isLive = true;
-
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('username, country')
-                .eq('id', user.id)
-                .single();
-
-            const { data: avatar } = await supabase
-                .from('avatars')
-                .select('avatar_color, avatar_shape')
-                .eq('user_id', user.id)
-                .single();
-
-            username = profile?.username ?? '—';
-            country = profile?.country ?? '—';
-            email = user.email ?? '—';
-            avatarColor = avatar?.avatar_color ?? '';
-            avatarShape = avatar?.avatar_shape ?? 'square';
-        }
-    }
-
-    const borderRadius = avatarShape === 'circle' ? '50%' : '8px';
-
-    app.innerHTML = `
-    <div class="auth-page">
-      <div class="card auth-card profile-card">
-        ${!isLive ? `<div class="profile-demo-badge" data-i18n="profile.demo">${t(lang, 'profile.demo')}</div>` : ''}
-        <div class="profile-header">
-          ${avatarColor
-              ? `<div class="avatar profile-avatar" style="background:${avatarColor};border-radius:${borderRadius}"></div>`
-              : `<div class="avatar profile-avatar profile-avatar-empty"></div>`
-          }
-          <h1 class="card-title">${escapeHtml(username)}</h1>
-        </div>
-
-        <div class="profile-fields">
-          <div class="profile-field">
-            <span class="profile-label" data-i18n="auth.field.email">${t(lang, 'auth.field.email')}</span>
-            <span class="profile-value">${escapeHtml(email)}</span>
-          </div>
-          <div class="profile-field">
-            <span class="profile-label" data-i18n="auth.field.username">${t(lang, 'auth.field.username')}</span>
-            <span class="profile-value">${escapeHtml(username)}</span>
-          </div>
-          <div class="profile-field">
-            <span class="profile-label" data-i18n="auth.field.country">${t(lang, 'auth.field.country')}</span>
-            <span class="profile-value">${escapeHtml(country)}</span>
-          </div>
-        </div>
-
-        <div class="profile-actions">
-          <button class="btn" id="profileCustomizeBtn" data-i18n="profile.customize">${t(lang, 'profile.customize')}</button>
-          ${isLive ? `<button class="btn danger" id="profileLogoutBtn" data-i18n="profile.logout">${t(lang, 'profile.logout')}</button>` : ''}
-          <button class="btn" id="profileBackBtn" data-i18n="profile.back">${t(lang, 'profile.back')}</button>
-        </div>
-      </div>
-    </div>`;
-
-    applyI18n(app, lang);
-    wireProfileEvents(isLive);
+interface ProfileData {
+    username: string;
+    email: string;
+    country: string;
+    avatarColor: string;
+    avatarShape: string;
+    isLive: boolean;
 }
 
-function wireProfileEvents(isLive: boolean) {
-    document.getElementById('profileCustomizeBtn')?.addEventListener('click', () => navigate('/custom'));
-    if (isLive) {
-        document.getElementById('profileLogoutBtn')?.addEventListener('click', async () => {
-            if (!supabase) return;
-            await supabase.auth.signOut();
-            navigate('/');
-        });
+const placeholderProfile: ProfileData = {
+    username: 'BodegaSpiller',
+    email: 'spiller@bodegadk.dk',
+    country: 'Danmark',
+    avatarColor: '#ffb300',
+    avatarShape: 'circle',
+    isLive: false,
+};
+
+export async function loadProfileData(): Promise<ProfileData> {
+    if (!isSupabaseConfigured || !supabase) {
+        return placeholderProfile;
     }
-    document.getElementById('profileBackBtn')?.addEventListener('click', () => navigate('/'));
+
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+
+    if (!user) {
+        return placeholderProfile;
+    }
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, country')
+        .eq('id', user.id)
+        .single();
+
+    const { data: avatar } = await supabase
+        .from('avatars')
+        .select('avatar_color, avatar_shape')
+        .eq('user_id', user.id)
+        .single();
+
+    return {
+        username: profile?.username ?? '—',
+        email: user.email ?? '—',
+        country: profile?.country ?? '—',
+        avatarColor: avatar?.avatar_color ?? '',
+        avatarShape: avatar?.avatar_shape ?? 'square',
+        isLive: true,
+    };
+}
+
+export function renderProfilePage(lang: Lang, data: ProfileData): string {
+    const borderRadius = data.avatarShape === 'circle' ? '50%' : '8px';
+    const avatarHtml = data.avatarColor
+        ? `<div class="avatar profile-hero-avatar" style="background:${data.avatarColor};border-radius:${borderRadius}"></div>`
+        : `<div class="avatar profile-hero-avatar profile-avatar-empty"></div>`;
+
+    return `
+    <section class="profile-layout">
+      ${!data.isLive ? `<div class="profile-demo-badge" data-i18n="profile.demo"></div>` : ''}
+
+      <section class="card profile-hero-card">
+        <div class="profile-hero">
+          ${avatarHtml}
+          <div class="profile-hero-info">
+            <h1 class="profile-hero-name">${escapeHtml(data.username)}</h1>
+            <p class="profile-hero-sub">${escapeHtml(data.email)}</p>
+          </div>
+        </div>
+        <div class="profile-hero-actions">
+          <button class="btn primary" data-action="profile-customize" data-i18n="profile.customize"></button>
+          ${data.isLive ? `<button class="btn danger" data-action="profile-logout" data-i18n="profile.logout"></button>` : ''}
+        </div>
+      </section>
+
+      <section class="profile-content-grid">
+        <article class="card profile-section-card">
+          <div class="profile-section-header">
+            <p class="home-eyebrow" data-i18n="profile.section.info"></p>
+            <div class="card-title" data-i18n="profile.section.infoTitle"></div>
+          </div>
+          <div class="profile-fields">
+            <div class="profile-field">
+              <span class="profile-label" data-i18n="auth.field.username"></span>
+              <span class="profile-value">${escapeHtml(data.username)}</span>
+            </div>
+            <div class="profile-field">
+              <span class="profile-label" data-i18n="auth.field.email"></span>
+              <span class="profile-value">${escapeHtml(data.email)}</span>
+            </div>
+            <div class="profile-field">
+              <span class="profile-label" data-i18n="auth.field.country"></span>
+              <span class="profile-value">${escapeHtml(data.country)}</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="card profile-section-card profile-placeholder-card" aria-disabled="true">
+          <div class="profile-section-header">
+            <div>
+              <div class="card-title" data-i18n="profile.section.statsTitle"></div>
+            </div>
+            <span class="home-placeholder-tag" data-i18n="home.action.comingSoon"></span>
+          </div>
+          <p class="card-desc" data-i18n="profile.section.statsDesc"></p>
+        </article>
+
+        <article class="card profile-section-card profile-placeholder-card" aria-disabled="true">
+          <div class="profile-section-header">
+            <div>
+              <div class="card-title" data-i18n="profile.section.historyTitle"></div>
+            </div>
+            <span class="home-placeholder-tag" data-i18n="home.action.comingSoon"></span>
+          </div>
+          <p class="card-desc" data-i18n="profile.section.historyDesc"></p>
+        </article>
+
+        <article class="card profile-section-card profile-placeholder-card" aria-disabled="true">
+          <div class="profile-section-header">
+            <div>
+              <div class="card-title" data-i18n="profile.section.achievementsTitle"></div>
+            </div>
+            <span class="home-placeholder-tag" data-i18n="home.action.comingSoon"></span>
+          </div>
+          <p class="card-desc" data-i18n="profile.section.achievementsDesc"></p>
+        </article>
+      </section>
+    </section>
+  `;
 }
 
 function escapeHtml(str: string): string {

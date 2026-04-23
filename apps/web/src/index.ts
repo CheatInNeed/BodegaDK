@@ -19,7 +19,7 @@ import { renderFemHundredeGame } from './games/fem-hundrede/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
-import { renderProfile } from './profile.js';
+import { loadProfileData, renderProfilePage } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
     cancelMatchmakingTicket,
@@ -113,6 +113,7 @@ let quickPlayGeneration = 0;
 let roomHeartbeatTimer: number | null = null;
 let roomHeartbeatKey: string | null = null;
 let roomHeartbeatInFlight = false;
+let profileDataCache: Awaited<ReturnType<typeof loadProfileData>> | null = null;
 
 function getInitialTheme(): ThemeId {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -217,10 +218,6 @@ function renderApp() {
     }
     if (path === '/custom') {
         renderCustom();
-        return;
-    }
-    if (path === '/profile') {
-        void renderProfile();
         return;
     }
 
@@ -384,6 +381,9 @@ function renderView() {
         </p>
       </div>
     `;
+    } else if (state.view === 'profile') {
+        cleanupRoomSession();
+        main.innerHTML = renderProfileView();
     } else if (state.view === 'room') {
         if (state.route.game === 'fem-hundrede') {
             if (roomSession) {
@@ -842,6 +842,23 @@ function renderHomepage() {
   `;
 }
 
+function renderProfileView(): string {
+    if (profileDataCache) {
+        return renderProfilePage(state.lang, profileDataCache);
+    }
+
+    // Load async, then re-render
+    void loadProfileData().then((data) => {
+        profileDataCache = data;
+        renderView();
+    });
+
+    return `
+    <h1 class="h1" data-i18n="profile.title"></h1>
+    <p class="sub">${state.lang === 'en' ? 'Loading...' : 'Indlæser...'}</p>
+  `;
+}
+
 function renderHomepagePlaceholderCard(input: {
     titleKey: string;
     className?: string;
@@ -941,6 +958,17 @@ function wireViewEvents() {
     document.querySelector<HTMLButtonElement>('button[data-action="home-create-lobby"]')?.addEventListener('click', () => {
         void handleHomepageCreateLobby();
     });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="profile-customize"]')?.addEventListener('click', () => {
+        navigate('/custom');
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="profile-logout"]')?.addEventListener('click', async () => {
+        if (!supabase) return;
+        await supabase.auth.signOut();
+        profileDataCache = null;
+        navigate({ view: 'home' });
+    });
 }
 
 function wireEvents() {
@@ -993,7 +1021,7 @@ function wireEvents() {
 
     const profileBtn = document.getElementById('profileBtn') as HTMLButtonElement | null;
     if (profileBtn) {
-        profileBtn.onclick = () => navigate('/profile');
+        profileBtn.onclick = () => navigate({ view: 'profile' });
     }
 }
 
@@ -1457,7 +1485,7 @@ function applyAuthUI() {
         signupBtn.textContent = state.lang === 'en' ? 'Create account' : 'Opret konto';
         signupBtn.onclick = () => navigate('/signup');
         profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
-        profileBtn.onclick = () => navigate('/profile');
+        profileBtn.onclick = () => navigate({ view: 'profile' });
 
         if (avatarDisplay) {
             avatarDisplay.classList.add('hidden');
@@ -1473,7 +1501,7 @@ function applyAuthUI() {
     signupBtn.textContent = 'Customize player';
     signupBtn.onclick = () => navigate('/custom');
     profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
-    profileBtn.onclick = () => navigate('/profile');
+    profileBtn.onclick = () => navigate({ view: 'profile' });
 
     if (!avatarDisplay) return;
     if (!authUiState.avatar) {
