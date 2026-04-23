@@ -2719,3 +2719,67 @@ select.input {
 .selected {
     border: 3px solid var(--color-text-strong);
 }
+
+/* Profile page */
+.profile-card {
+    max-width: 420px;
+}
+
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.profile-avatar {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+}
+
+.profile-avatar-empty {
+    background: var(--color-surface-soft);
+    border-radius: 8px;
+}
+
+.profile-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.profile-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--color-surface-soft);
+    border-radius: 8px;
+}
+
+.profile-label {
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+.profile-value {
+    color: var(--color-text-strong);
+    font-weight: 500;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn.danger {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+.btn.danger:hover {
+    background: var(--color-danger-soft);
+}

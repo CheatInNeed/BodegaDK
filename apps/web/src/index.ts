@@ -17,6 +17,7 @@ import { renderCasinoRoom } from './games/casino/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
+import { renderProfile } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
     cancelMatchmakingTicket,
@@ -210,6 +211,10 @@ function renderApp() {
     }
     if (path === '/custom') {
         renderCustom();
+        return;
+    }
+    if (path === '/profile') {
+        void renderProfile();
         return;
     }
 
@@ -966,7 +971,7 @@ function wireEvents() {
 
     const profileBtn = document.getElementById('profileBtn') as HTMLButtonElement | null;
     if (profileBtn) {
-        profileBtn.onclick = () => alert('You are not logged in.');
+        profileBtn.onclick = () => navigate('/profile');
     }
 }
 
@@ -1366,7 +1371,7 @@ function applyAuthUI() {
         signupBtn.textContent = state.lang === 'en' ? 'Create account' : 'Opret konto';
         signupBtn.onclick = () => navigate('/signup');
         profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
-        profileBtn.onclick = () => alert('You are not logged in.');
+        profileBtn.onclick = () => navigate('/profile');
 
         if (avatarDisplay) {
             avatarDisplay.classList.add('hidden');
@@ -1381,14 +1386,8 @@ function applyAuthUI() {
     profileBtn.removeAttribute('data-i18n');
     signupBtn.textContent = 'Customize player';
     signupBtn.onclick = () => navigate('/custom');
-    profileBtn.textContent = 'Logout';
-    profileBtn.onclick = async () => {
-        if (!supabase) {
-            return;
-        }
-        await supabase.auth.signOut();
-        navigate('/');
-    };
+    profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
+    profileBtn.onclick = () => navigate('/profile');
 
     if (!avatarDisplay) return;
     if (!authUiState.avatar) {
