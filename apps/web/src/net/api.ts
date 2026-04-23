@@ -134,6 +134,22 @@ export async function updateRoomVisibility(input: { roomCode: string; actorToken
     return parseJsonResponse<RoomActionResponse>(response, 'Failed to update room visibility');
 }
 
+export async function claimRoomIdentity(input: { roomCode: string; token: string; playerId: string; username?: string }): Promise<RoomActionResponse> {
+    const response = await fetch(`${resolveApiBaseUrl()}/rooms/${encodeURIComponent(input.roomCode)}/claim-identity`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            token: input.token,
+            playerId: input.playerId,
+            username: input.username,
+        }),
+    });
+
+    return parseJsonResponse<RoomActionResponse>(response, 'Failed to claim room identity');
+}
+
 export async function enqueueMatchmaking(input: {
     gameType: string;
     playerId: string;

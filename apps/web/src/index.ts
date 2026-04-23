@@ -20,6 +20,7 @@ import { renderCustom } from './custom.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
     cancelMatchmakingTicket,
+    claimRoomIdentity,
     createRoom,
     enqueueMatchmaking,
     getMatchmakingTicket,
@@ -1197,6 +1198,7 @@ async function handleCreateLobby() {
     renderView();
 
     try {
+        await leavePreservedLobbyBeforeTransition();
         const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
             isPrivate: lobbyBrowserState.createPrivate,
@@ -1237,6 +1239,7 @@ async function handleJoinByCode(rawRoomCode: string) {
     renderView();
 
     try {
+        await leavePreservedLobbyBeforeTransition(roomCode);
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
@@ -1269,6 +1272,7 @@ async function handleHomepageCreateLobby() {
     renderView();
 
     try {
+        await leavePreservedLobbyBeforeTransition();
         const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
             gameType: FALLBACK_LOBBY_GAME_ID,
@@ -1310,6 +1314,7 @@ async function handleHomepageJoin() {
     renderView();
 
     try {
+        await leavePreservedLobbyBeforeTransition(roomCode);
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
@@ -1401,14 +1406,16 @@ async function syncActiveLobbyParticipantProfile() {
     if (!sessionState.playerId) return;
 
     const username = authUiState.user?.username?.trim() || null;
+    const nextPlayerId = authUiState.user?.id?.trim() || randomToken();
 
     try {
-        await joinRoom({
+        await claimRoomIdentity({
             roomCode: activeLobby.room,
-            playerId: sessionState.playerId,
+            playerId: nextPlayerId,
             username: username ?? undefined,
             token: activeLobby.token,
         });
+        restartActiveLobbySession(activeLobby);
     } catch (error) {
         console.warn('[lobby] failed to sync participant profile after auth change', error);
     }
@@ -2059,6 +2066,39 @@ function clearActiveLobby() {
     activeLobbyState.route = null;
 }
 
+function restartActiveLobbySession(route: AppRoute) {
+    if (!route.room || !route.token) {
+        return;
+    }
+
+    cleanupRoomSession();
+    ensureRoomSession(
+        route.game ?? FALLBACK_LOBBY_GAME_ID,
+        route.room,
+        route.token,
+        route.mock,
+    );
+}
+
+async function leavePreservedLobbyBeforeTransition(targetRoomCode?: string | null) {
+    const activeLobby = resolveActiveLobbyRoute();
+    if (!activeLobby?.room || !activeLobby.token) {
+        return;
+    }
+    if (targetRoomCode && activeLobby.room === targetRoomCode) {
+        return;
+    }
+
+    try {
+        await leaveRoom({ roomCode: activeLobby.room, token: activeLobby.token });
+    } catch (error) {
+        console.warn('[lobby] failed to leave preserved lobby before transition', error);
+    } finally {
+        clearActiveLobby();
+        cleanupRoomSession();
+    }
+}
+
 function shouldPreserveLobbySession(): boolean {
     if (!activeLobbyState.route || !roomSession) {
         return false;
@@ -2079,7 +2119,12 @@ function syncActiveLobbySessionState() {
     if (status !== 'LOBBY') {
         clearActiveLobby();
     }
-    if (sessionState.lastError === 'Room closed' || sessionState.lastError === 'SESSION_CLOSED') {
+    if (
+        sessionState.connection === 'error'
+        || sessionState.connection === 'reconnecting'
+        || sessionState.lastError === 'Room closed'
+        || sessionState.lastError === 'SESSION_CLOSED'
+    ) {
         clearActiveLobby();
     }
 }

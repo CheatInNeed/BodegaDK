@@ -129,6 +129,27 @@ public class RoomController {
         }
     }
 
+    @PostMapping("/{roomCode}/claim-identity")
+    @ResponseStatus(HttpStatus.OK)
+    public RoomActionResponse claimIdentity(@PathVariable String roomCode, @RequestBody ClaimIdentityRequest request) {
+        if (request == null || blank(request.token()) || blank(request.playerId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "token and playerId are required");
+        }
+
+        try {
+            InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.claimSessionIdentity(
+                    roomCode,
+                    request.token(),
+                    request.playerId(),
+                    request.username()
+            ).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room or session not found"));
+            gameWsHandler.publishRoomMutation(mutation);
+            return new RoomActionResponse(true);
+        } catch (IllegalStateException exception) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, exception.getMessage());
+        }
+    }
+
     private boolean blank(String value) {
         return value == null || value.isBlank();
     }
@@ -183,6 +204,10 @@ public class RoomController {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record UpdateVisibilityRequest(String actorToken, boolean isPrivate) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ClaimIdentityRequest(String token, String playerId, String username) {
     }
 
     public record RoomActionResponse(boolean ok) {
