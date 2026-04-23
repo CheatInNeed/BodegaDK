@@ -95,7 +95,16 @@ export type UiIntent =
     | { type: 'CALL_SNYD' }
     | { type: 'CASINO_PLAY_MOVE'; handCard: string; captureStackIds: string[]; playedValue?: number }
     | { type: 'CASINO_BUILD_STACK'; handCard: string; targetStackId: string; playedValue?: number }
-    | { type: 'CASINO_MERGE_STACKS'; stackIds: string[] };
+    | { type: 'CASINO_MERGE_STACKS'; stackIds: string[] }
+    | { type: 'FEM_DRAW_FROM_STOCK' }
+    | { type: 'FEM_DRAW_FROM_DISCARD' }
+    | { type: 'FEM_TAKE_DISCARD_PILE' }
+    | { type: 'FEM_LAY_MELD' }
+    | { type: 'FEM_EXTEND_MELD'; meldId: string }
+    | { type: 'FEM_SWAP_JOKER'; meldId: string; jokerCode: string; realCardCode: string }
+    | { type: 'FEM_DISCARD' }
+    | { type: 'FEM_CLAIM_DISCARD'; meldId: string }
+    | { type: 'FEM_PASS_GRAB' };
 
 /**
  * Game-specific bridge that maps generic room state to concrete UI behavior.

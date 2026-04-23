@@ -14,8 +14,8 @@ import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
 import { casinoAdapter } from './games/casino/adapter.js';
 import { renderCasinoRoom } from './games/casino/view.js';
-import { applyAction, makeInitialState, type FemHundredeState } from './games/fem-hundrede/engine.js';
-import { renderFemHundredeGame } from './games/fem-hundrede/view.js';
+import { femAdapter } from './games/fem-hundrede/adapter.js';
+import { renderFemRoom, type FemViewModel } from './games/fem-hundrede/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
@@ -40,6 +40,7 @@ const adapters: GenericAdapter[] = [
     casinoAdapter as GenericAdapter,
     highcardAdapter as GenericAdapter,
     krigAdapter as GenericAdapter,
+    femAdapter as GenericAdapter,
 ];
 
 type ThemeId = 'bodega' | 'harbor' | 'parlor';
@@ -131,18 +132,14 @@ function applyTheme(theme: ThemeId) {
 }
 let casinoSelectedStackIds: string[] = [];
 
-let femHundredeGameState: FemHundredeState = makeInitialState();
-let femHundredeBotTimer: number | null = null;
-let femHundredeToastTimer: number | null = null;
-
 function supportsLobbyLifecycle(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
-    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd';
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd' || normalized === 'fem';
 }
 
 function supportsRealtimeQuickPlay(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
-    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd';
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd' || normalized === 'fem';
 }
 
 function clearQuickPlayPolling() {
@@ -385,20 +382,7 @@ function renderView() {
         cleanupRoomSession();
         main.innerHTML = renderProfileView();
     } else if (state.view === 'room') {
-        if (state.route.game === 'fem-hundrede') {
-            if (roomSession) {
-                unsubscribeRoomSession?.();
-                unsubscribeRoomSession = null;
-                roomSession.stop();
-                roomSession = null;
-                roomSessionKey = null;
-            }
-            main.innerHTML = renderFemHundredeGame(femHundredeGameState);
-            scheduleFemHundredeBotTurn();
-            scheduleFemHundredeToastClear();
-        } else {
-            main.innerHTML = renderRoomContent();
-        }
+        main.innerHTML = renderRoomContent();
     }
 
     applyI18n(main, state.lang);
@@ -545,6 +529,10 @@ function renderRoomContent(): string {
     });
     let bodyHtml = '';
 
+    if (adapter.id === femAdapter.id) {
+        return renderFemRoom(viewModel as FemViewModel);
+    }
+
     if (adapter.id === casinoAdapter.id) {
         const casinoViewModel = viewModel as Parameters<typeof renderCasinoRoom>[0];
         const validStackIds = new Set(casinoViewModel.tableStacks.map((stack) => stack.stackId));
@@ -638,9 +626,6 @@ function cleanupRoomSession() {
     highCardAutoStartKey = null;
     roomHandTrayOpen = false;
     casinoSelectedStackIds = [];
-    if (femHundredeBotTimer !== null) { window.clearTimeout(femHundredeBotTimer); femHundredeBotTimer = null; }
-    if (femHundredeToastTimer !== null) { window.clearTimeout(femHundredeToastTimer); femHundredeToastTimer = null; }
-    femHundredeGameState = makeInitialState();
 }
 
 function startRoomHeartbeat(roomCode: string, useMock: boolean) {
@@ -1025,72 +1010,8 @@ function wireEvents() {
     }
 }
 
-function scheduleFemHundredeBotTurn() {
-    if (femHundredeGameState.currentPlayer !== 1 || femHundredeBotTimer !== null) return;
-    femHundredeBotTimer = window.setTimeout(() => {
-        femHundredeBotTimer = null;
-        femHundredeGameState = applyAction(femHundredeGameState, { type: 'BOT_TURN' });
-        renderView();
-    }, 1600);
-}
-
-function scheduleFemHundredeToastClear() {
-    if (!femHundredeGameState.toast || femHundredeToastTimer !== null) return;
-    femHundredeToastTimer = window.setTimeout(() => {
-        femHundredeToastTimer = null;
-        femHundredeGameState = applyAction(femHundredeGameState, { type: 'CLEAR_TOAST' });
-        renderView();
-    }, 1800);
-}
-
-function wireFemHundredeEvents() {
-    if (state.view !== 'room' || state.route.game !== 'fem-hundrede') return;
-
-    document.querySelectorAll<HTMLElement>('[data-g500-action="toggle-select"]').forEach((el) => {
-        el.addEventListener('click', () => {
-            const cardId = el.dataset.cardId;
-            if (!cardId) return;
-            femHundredeGameState = applyAction(femHundredeGameState, { type: 'TOGGLE_SELECT', id: cardId });
-            renderView();
-        });
-    });
-
-    document.querySelector<HTMLElement>('[data-g500-action="draw"]')?.addEventListener('click', () => {
-        femHundredeGameState = applyAction(femHundredeGameState, { type: 'DRAW' });
-        renderView();
-    });
-
-    document.querySelector<HTMLElement>('[data-g500-action="take-top"]')?.addEventListener('click', () => {
-        femHundredeGameState = applyAction(femHundredeGameState, { type: 'TAKE_TOP' });
-        renderView();
-    });
-
-    document.querySelector<HTMLElement>('[data-g500-action="take-pile"]')?.addEventListener('click', () => {
-        femHundredeGameState = applyAction(femHundredeGameState, { type: 'TAKE_PILE' });
-        renderView();
-    });
-
-    document.querySelector<HTMLElement>('[data-g500-action="lay-meld"]')?.addEventListener('click', () => {
-        femHundredeGameState = applyAction(femHundredeGameState, { type: 'LAY_MELD' });
-        renderView();
-    });
-
-    document.querySelector<HTMLElement>('[data-g500-action="discard"]')?.addEventListener('click', () => {
-        femHundredeGameState = applyAction(femHundredeGameState, { type: 'DISCARD' });
-        renderView();
-    });
-
-    document.querySelector<HTMLElement>('[data-g500-action="reset"]')?.addEventListener('click', () => {
-        if (femHundredeBotTimer !== null) { window.clearTimeout(femHundredeBotTimer); femHundredeBotTimer = null; }
-        if (femHundredeToastTimer !== null) { window.clearTimeout(femHundredeToastTimer); femHundredeToastTimer = null; }
-        femHundredeGameState = applyAction(femHundredeGameState, { type: 'RESET' });
-        renderView();
-    });
-}
-
 function wireRoomEvents() {
     if (state.view !== 'room') return;
-    wireFemHundredeEvents();
     if (!roomSession) return;
 
     document.querySelector<HTMLButtonElement>('button[data-action="toggle-room-hand"]')?.addEventListener('click', () => {
@@ -1172,6 +1093,39 @@ function wireRoomEvents() {
     });
 
     triggerCasinoQuickMerge();
+
+    document.querySelectorAll<HTMLElement>('[data-action="fem-draw-stock"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DRAW_FROM_STOCK' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-draw-discard"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DRAW_FROM_DISCARD' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-take-pile"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_TAKE_DISCARD_PILE' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-lay-meld"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_LAY_MELD' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-discard"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DISCARD' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-pass-grab"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_PASS_GRAB' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-extend-meld"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const meldId = el.dataset.meldId;
+            if (!meldId) return;
+            roomSession?.sendIntent({ type: 'FEM_EXTEND_MELD', meldId });
+        });
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-claim-discard"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const meldId = el.dataset.meldId;
+            if (!meldId) return;
+            roomSession?.sendIntent({ type: 'FEM_CLAIM_DISCARD', meldId });
+        });
+    });
 }
 
 function wireLobbyEvents() {
@@ -1635,7 +1589,7 @@ function normalizeGameKey(game: string): string {
     if (game === 'game.krig') return KRIG_GAME_ID;
     if (game === 'casino') return 'casino';
     if (game === 'single.card.highest.wins') return HIGHCARD_GAME_ID;
-    if (game === 'game.500') return 'fem-hundrede';
+    if (game === 'game.500') return 'fem';
     if (game === 'single-card-highest-wins') return HIGHCARD_GAME_ID;
     return game;
 }

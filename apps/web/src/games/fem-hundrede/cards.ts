@@ -1,5 +1,3 @@
-import type { Card } from './engine.js';
-
 const PIPS: Record<string, Array<[number, number, boolean]>> = {
     'A':  [[50, 50, false]],
     '2':  [[50, 22, false], [50, 78, true]],
@@ -14,19 +12,32 @@ const PIPS: Record<string, Array<[number, number, boolean]>> = {
 };
 
 const FACE_ICON: Record<string, string> = { J: '⚔', Q: '♛', K: '♚' };
-export const FACE_RANKS = ['J', 'Q', 'K'];
+const FACE_RANKS = new Set(['J', 'Q', 'K']);
 
-const CARD_BG    = '#FAF5EA';
-const CARD_BC    = '#C8B070';
-const RED_C      = '#B91C1C';
-const BLACK_C    = '#1A1205';
-const BACK_BG    = '#0C3A18';
-const BACK_LINE  = 'rgba(212,175,106,0.28)';
-const BACK_ACC   = 'rgba(212,175,106,0.18)';
-const BACK_CTR   = 'rgba(212,175,106,0.12)';
-const INNER_BC   = 'rgba(180,150,80,0.35)';
-const CR         = 6;
-const SHADOW     = '0 4px 18px rgba(0,0,0,0.6),0 1px 4px rgba(0,0,0,0.3)';
+const SUIT_SYM: Record<string, string> = { H: '♥', D: '♦', S: '♠', C: '♣' };
+const SUIT_RED: Record<string, boolean> = { H: true, D: true, S: false, C: false };
+
+const CARD_BG   = '#FAF5EA';
+const CARD_BC   = '#C8B070';
+const RED_C     = '#B91C1C';
+const BLACK_C   = '#1A1205';
+const BACK_BG   = '#0C3A18';
+const BACK_LINE = 'rgba(212,175,106,0.28)';
+const BACK_ACC  = 'rgba(212,175,106,0.18)';
+const BACK_CTR  = 'rgba(212,175,106,0.12)';
+const INNER_BC  = 'rgba(180,150,80,0.35)';
+const CR        = 6;
+const SHADOW    = '0 4px 18px rgba(0,0,0,0.6),0 1px 4px rgba(0,0,0,0.3)';
+
+/** Parse server card code (e.g. "HA", "S10", "JK1") into display parts. */
+function parseCode(code: string): { rank: string; sym: string; red: boolean; isJoker: boolean } {
+    if (code.startsWith('JK')) {
+        return { rank: 'JK', sym: '★', red: false, isJoker: true };
+    }
+    const suit = code[0] ?? '';
+    const rank = code.slice(1);
+    return { rank, sym: SUIT_SYM[suit] ?? '?', red: SUIT_RED[suit] ?? false, isJoker: false };
+}
 
 export function renderCardBack(uid: string, cw: number, ch: number): string {
     const pid = `g5cb-${uid}`;
@@ -51,9 +62,7 @@ export function renderCardBack(uid: string, cw: number, ch: number): string {
 }
 
 function corner(rank: string, sym: string, color: string, flip: boolean): string {
-    const pos = flip
-        ? 'bottom:5px;right:5px;transform:rotate(180deg);'
-        : 'top:5px;left:5px;';
+    const pos = flip ? 'bottom:5px;right:5px;transform:rotate(180deg);' : 'top:5px;left:5px;';
     const fs = rank === '10' ? '12px' : '14px';
     const ls = rank === '10' ? '-1px' : '0';
     return `<div style="position:absolute;${pos}text-align:center;line-height:1;user-select:none;">
@@ -62,60 +71,72 @@ function corner(rank: string, sym: string, color: string, flip: boolean): string
 </div>`;
 }
 
-function numberCard(card: Card, cw: number, ch: number): string {
-    const color = card.suit?.red ? RED_C : BLACK_C;
-    const sym   = card.suit?.s ?? '';
-    const pips  = PIPS[card.rank] ?? [];
-    const isAce = card.rank === 'A';
-    const fs    = isAce ? 36 : card.rank === '10' ? 13 : ['8','9'].includes(card.rank) ? 14 : 15;
+function jokerCard(cw: number, ch: number): string {
+    return `<div style="width:${cw}px;height:${ch}px;border-radius:${CR}px;border:1px solid ${CARD_BC};box-shadow:${SHADOW};background:${CARD_BG};position:relative;overflow:hidden;flex-shrink:0;">
+  <div style="position:absolute;inset:5px;border:1px solid ${INNER_BC};border-radius:${Math.max(CR-2,2)}px;pointer-events:none;"></div>
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
+    <div style="font-size:28px;line-height:1;">🃏</div>
+    <div style="font-size:9px;font-weight:700;color:#6b4;letter-spacing:2px;margin-top:4px;">JOKER</div>
+  </div>
+</div>`;
+}
+
+function numberCard(code: string, cw: number, ch: number): string {
+    const { rank, sym, red } = parseCode(code);
+    const color = red ? RED_C : BLACK_C;
+    const pips  = PIPS[rank] ?? [];
+    const isAce = rank === 'A';
+    const fs    = isAce ? 36 : rank === '10' ? 13 : ['8','9'].includes(rank) ? 14 : 15;
 
     const pipHtml = pips.map(([px, py, flip]) => {
-        const t = flip
-            ? `translate(-50%,-50%) rotate(180deg)`
-            : `translate(-50%,-50%)`;
+        const t = flip ? `translate(-50%,-50%) rotate(180deg)` : `translate(-50%,-50%)`;
         return `<div style="position:absolute;left:${px}%;top:${py}%;transform:${t};transform-origin:0 0;"><span style="font-size:${fs}px;color:${color};line-height:1;display:block;">${sym}</span></div>`;
     }).join('');
 
     return `<div style="width:${cw}px;height:${ch}px;border-radius:${CR}px;border:1px solid ${CARD_BC};box-shadow:${SHADOW};background:${CARD_BG};position:relative;overflow:hidden;flex-shrink:0;">
   <div style="position:absolute;inset:5px;border:1px solid ${INNER_BC};border-radius:${Math.max(CR-2,2)}px;pointer-events:none;"></div>
-  ${corner(card.rank, sym, color, false)}
-  ${corner(card.rank, sym, color, true)}
+  ${corner(rank, sym, color, false)}
+  ${corner(rank, sym, color, true)}
   <div style="position:absolute;top:36px;bottom:36px;left:12px;right:12px;">${pipHtml}</div>
 </div>`;
 }
 
-function faceCard(card: Card, cw: number, ch: number): string {
-    const color = card.suit?.red ? RED_C : BLACK_C;
-    const sym   = card.suit?.s ?? '';
-    const icon  = FACE_ICON[card.rank] ?? '';
+function faceCard(code: string, cw: number, ch: number): string {
+    const { rank, sym, red } = parseCode(code);
+    const color  = red ? RED_C : BLACK_C;
+    const icon   = FACE_ICON[rank] ?? '';
     const rankFs = cw < 60 ? '26px' : '42px';
     const iconFs = cw < 60 ? '10px' : '16px';
     const symFs  = cw < 60 ? '12px' : '18px';
-    const divider = `<div style="display:flex;align-items:center;gap:4px;margin:0 20px;opacity:0.3;"><div style="flex:1;height:1px;background:${color};"></div><span style="font-size:8px;color:${color};">✦</span><div style="flex:1;height:1px;background:${color};"></div></div>`;
+    const div    = `<div style="display:flex;align-items:center;gap:4px;margin:0 20px;opacity:0.3;"><div style="flex:1;height:1px;background:${color};"></div><span style="font-size:8px;color:${color};">✦</span><div style="flex:1;height:1px;background:${color};"></div></div>`;
 
     return `<div style="width:${cw}px;height:${ch}px;border-radius:${CR}px;border:1px solid ${CARD_BC};box-shadow:${SHADOW};background:${CARD_BG};position:relative;overflow:hidden;flex-shrink:0;">
   <div style="position:absolute;inset:5px;border:1px solid ${INNER_BC};border-radius:${Math.max(CR-2,2)}px;pointer-events:none;"></div>
   <div style="position:absolute;left:14px;right:14px;top:30px;bottom:30px;background:rgba(180,150,80,0.06);border-radius:4px;"></div>
-  ${corner(card.rank, sym, color, false)}
-  ${corner(card.rank, sym, color, true)}
+  ${corner(rank, sym, color, false)}
+  ${corner(rank, sym, color, true)}
   <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;width:100%;">
-    ${divider}
-    <div style="font-size:${rankFs};font-family:Georgia,serif;font-weight:900;color:${color};line-height:1;margin-top:4px;">${card.rank}</div>
+    ${div}
+    <div style="font-size:${rankFs};font-family:Georgia,serif;font-weight:900;color:${color};line-height:1;margin-top:4px;">${rank}</div>
     <div style="font-size:${iconFs};color:${color};line-height:1;margin-top:4px;opacity:0.55;">${icon}</div>
     <div style="font-size:${symFs};color:${color};line-height:1;margin-top:3px;">${sym}</div>
-    <div style="margin-top:4px;">${divider}</div>
+    <div style="margin-top:4px;">${div}</div>
   </div>
 </div>`;
 }
 
-export function renderCardFront(card: Card, cw: number, ch: number): string {
-    if (FACE_RANKS.includes(card.rank)) return faceCard(card, cw, ch);
-    return numberCard(card, cw, ch);
+/** Render a card face from a server card code like "HA", "S10", "JK1". */
+export function renderCardFront(code: string, cw: number, ch: number): string {
+    const parsed = parseCode(code);
+    if (parsed.isJoker) return jokerCard(cw, ch);
+    if (FACE_RANKS.has(parsed.rank)) return faceCard(code, cw, ch);
+    return numberCard(code, cw, ch);
 }
 
+/** Render an arc-fanned hand of cards with optional selection highlighting. */
 export function renderHandFan(
-    cards: Card[],
-    selectedIds: Set<string>,
+    cards: string[],
+    selectedCodes: Set<string>,
     interactive: boolean,
     faceUp: boolean,
     cw: number,
@@ -130,22 +151,20 @@ export function renderHandFan(
     const over = Math.max(26, Math.min(38, 200 / n));
     const totalW = cw + (n - 1) * over;
 
-    const html = cards.map((card, i) => {
-        const off      = i - mid;
-        const rotate   = (off / Math.max(mid, 1)) * maxA;
-        const arcY     = (Math.abs(off) / Math.max(mid, 1)) * 12;
-        const isSel    = selectedIds.has(card.id);
-        const liftY    = isSel ? -22 : 0;
-        const shadow   = isSel
+    const html = cards.map((code, i) => {
+        const off    = i - mid;
+        const rotate = (off / Math.max(mid, 1)) * maxA;
+        const arcY   = (Math.abs(off) / Math.max(mid, 1)) * 12;
+        const isSel  = selectedCodes.has(code);
+        const liftY  = isSel ? -22 : 0;
+        const shadow = isSel
             ? `0 0 0 2.5px #ffb300,0 0 22px rgba(255,179,0,0.45),${SHADOW}`
             : SHADOW;
         const selBadge = isSel
             ? `<div style="position:absolute;top:-7px;right:-5px;width:18px;height:18px;border-radius:50%;background:#ffb300;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#1a0800;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,0.5);">✓</div>`
             : '';
-        const content  = faceUp ? renderCardFront(card, cw, ch) : renderCardBack(`opp${i}`, cw, ch);
-        const action   = interactive
-            ? `data-g500-action="toggle-select" data-card-id="${card.id}"`
-            : '';
+        const content  = faceUp ? renderCardFront(code, cw, ch) : renderCardBack(`opp${i}`, cw, ch);
+        const action   = interactive ? `data-action="toggle-card" data-card="${code}"` : '';
         const cursor   = interactive ? 'pointer' : 'default';
 
         return `<div ${action} style="position:absolute;left:${i * over}px;bottom:8px;z-index:${i};transform-origin:bottom center;transform:rotate(${rotate}deg) translateY(${arcY + liftY}px);transition:transform 0.16s ease;cursor:${cursor};">
