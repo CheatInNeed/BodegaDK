@@ -112,6 +112,23 @@ public class RoomController {
         return new RoomActionResponse(true);
     }
 
+    @PostMapping("/{roomCode}/visibility")
+    @ResponseStatus(HttpStatus.OK)
+    public RoomActionResponse updateVisibility(@PathVariable String roomCode, @RequestBody UpdateVisibilityRequest request) {
+        if (request == null || blank(request.actorToken())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "actorToken is required");
+        }
+
+        try {
+            InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.updateVisibility(roomCode, request.actorToken(), request.isPrivate())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room or session not found"));
+            gameWsHandler.publishRoomMutation(mutation);
+            return new RoomActionResponse(true);
+        } catch (IllegalStateException exception) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, exception.getMessage());
+        }
+    }
+
     private boolean blank(String value) {
         return value == null || value.isBlank();
     }
@@ -162,6 +179,10 @@ public class RoomController {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record LeaveRoomRequest(String token) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record UpdateVisibilityRequest(String actorToken, boolean isPrivate) {
     }
 
     public record RoomActionResponse(boolean ok) {

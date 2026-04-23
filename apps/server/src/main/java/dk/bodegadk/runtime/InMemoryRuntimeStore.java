@@ -227,6 +227,33 @@ public class InMemoryRuntimeStore {
         return removePlayer(roomCode, targetPlayerId);
     }
 
+    public Optional<RoomMutation> updateVisibility(String roomCode, String actorToken, boolean isPrivate) {
+        SessionRecord actorSession = sessionsByToken.get(actorToken);
+        if (actorSession == null || !actorSession.roomCode.equals(roomCode)) {
+            return Optional.empty();
+        }
+
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return Optional.empty();
+        }
+
+        RoomMutation mutation;
+        synchronized (room) {
+            if (room.status != RoomStatus.LOBBY) {
+                throw new IllegalStateException("Cannot change visibility after match start");
+            }
+            if (!Objects.equals(room.hostPlayerId, actorSession.playerId)) {
+                throw new IllegalStateException("Only the host can change visibility");
+            }
+            room.isPrivate = isPrivate;
+            mutation = RoomMutation.updated(toSnapshot(room), null);
+        }
+
+        refreshPlayers(roomCode);
+        return Optional.of(mutation);
+    }
+
     public List<ExpiredSession> sweepExpiredSessions(Duration maxAge) {
         Instant cutoff = Instant.now().minus(maxAge);
         List<ExpiredSession> expired = new ArrayList<>();
@@ -622,7 +649,7 @@ public class InMemoryRuntimeStore {
         private final String roomCode;
         private final List<PlayerSummary> participants = new ArrayList<>();
         private String hostPlayerId;
-        private final boolean isPrivate;
+        private boolean isPrivate;
         private String selectedGame;
         private RoomStatus status;
         private final Map<String, Object> gameConfig = new ConcurrentHashMap<>();

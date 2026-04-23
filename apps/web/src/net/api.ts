@@ -119,6 +119,21 @@ export async function kickPlayer(input: { roomCode: string; actorToken: string; 
     return parseJsonResponse<RoomActionResponse>(response, 'Failed to kick player');
 }
 
+export async function updateRoomVisibility(input: { roomCode: string; actorToken: string; isPrivate: boolean }): Promise<RoomActionResponse> {
+    const response = await fetch(`${resolveApiBaseUrl()}/rooms/${encodeURIComponent(input.roomCode)}/visibility`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            actorToken: input.actorToken,
+            isPrivate: input.isPrivate,
+        }),
+    });
+
+    return parseJsonResponse<RoomActionResponse>(response, 'Failed to update room visibility');
+}
+
 export async function enqueueMatchmaking(input: {
     gameType: string;
     playerId: string;

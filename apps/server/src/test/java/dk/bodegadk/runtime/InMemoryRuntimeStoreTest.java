@@ -7,6 +7,7 @@ import java.time.Duration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class InMemoryRuntimeStoreTest {
 
@@ -87,5 +88,27 @@ class InMemoryRuntimeStoreTest {
         InMemoryRuntimeStore.RoomSnapshot room = store.roomSnapshot(roomCode).orElseThrow();
         assertEquals("LOBBY", room.status().name());
         assertEquals(1, room.participants().size());
+    }
+
+    @Test
+    void hostCanToggleLobbyVisibility() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        String roomCode = store.createRoom("snyd", false, "p1");
+        store.joinRoom(roomCode, "p1", "alice", "token-p1");
+
+        store.updateVisibility(roomCode, "token-p1", true);
+
+        InMemoryRuntimeStore.RoomSnapshot room = store.roomSnapshot(roomCode).orElseThrow();
+        assertTrue(room.isPrivate());
+    }
+
+    @Test
+    void nonHostCannotToggleLobbyVisibility() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        String roomCode = store.createRoom("snyd", false, "p1");
+        store.joinRoom(roomCode, "p1", "alice", "token-p1");
+        store.joinRoom(roomCode, "p2", "bob", "token-p2");
+
+        assertThrows(IllegalStateException.class, () -> store.updateVisibility(roomCode, "token-p2", true));
     }
 }
