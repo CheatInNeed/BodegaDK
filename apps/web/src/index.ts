@@ -1389,6 +1389,31 @@ async function handleUpdateRoomVisibility(roomCode: string, actorToken: string, 
     }
 }
 
+async function syncActiveLobbyParticipantProfile() {
+    if (!roomSession) return;
+
+    const activeLobby = resolveActiveLobbyRoute();
+    if (!activeLobby?.room || !activeLobby.token) return;
+
+    const sessionState = roomSession.getState();
+    const publicState = toRecord(sessionState.publicState);
+    if (typeof publicState.status !== 'string' || publicState.status !== 'LOBBY') return;
+    if (!sessionState.playerId) return;
+
+    const username = authUiState.user?.username?.trim() || null;
+
+    try {
+        await joinRoom({
+            roomCode: activeLobby.room,
+            playerId: sessionState.playerId,
+            username: username ?? undefined,
+            token: activeLobby.token,
+        });
+    } catch (error) {
+        console.warn('[lobby] failed to sync participant profile after auth change', error);
+    }
+}
+
 function applyAuthUI() {
     const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null;
     const signupBtn = document.getElementById('signupBtn') as HTMLButtonElement | null;
@@ -2133,7 +2158,9 @@ if (isSupabaseConfigured && supabase) {
         authUiState.user = currentSession?.user ? { id: currentSession.user.id, username: null } : null;
         if (!currentSession?.user) {
             authUiState.avatar = null;
-            renderApp();
+            void syncActiveLobbyParticipantProfile().finally(() => {
+                renderApp();
+            });
             return;
         }
 
@@ -2148,6 +2175,7 @@ if (isSupabaseConfigured && supabase) {
                 );
                 authUiState.user = { id: currentSession.user!.id, username };
                 authUiState.avatar = avatar;
+                await syncActiveLobbyParticipantProfile();
                 renderApp();
             })
             .catch(() => {
