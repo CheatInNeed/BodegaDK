@@ -50,4 +50,39 @@ class MatchmakingServiceTest {
         assertEquals(2, storedRoom.participants().size());
         assertEquals("casino", storedRoom.selectedGame());
     }
+
+    @Test
+    void femQuickPlayAcceptsFrontendAliasAndCreatesRoom() {
+        RoomMetadataStore roomMetadataStore = new InMemoryRoomMetadataStore();
+        GameCatalogService gameCatalogService = new GameCatalogService();
+        InMemoryRuntimeStore runtimeStore = new InMemoryRuntimeStore();
+        ObjectMapper objectMapper = new ObjectMapper();
+        GameLoopService gameLoopService = new GameLoopService(
+                runtimeStore,
+                java.util.List.of(
+                        new CasinoEnginePortAdapter(runtimeStore, objectMapper),
+                        new HighCardEnginePortAdapter(runtimeStore, objectMapper),
+                        new SnydEnginePortAdapter(runtimeStore, objectMapper),
+                        new FemEnginePortAdapter(runtimeStore, objectMapper)
+                )
+        );
+        MatchmakingService matchmakingService = new MatchmakingService(
+                roomMetadataStore,
+                runtimeStore,
+                gameLoopService,
+                gameCatalogService,
+                objectMapper
+        );
+
+        MatchmakingService.MatchmakingSnapshot first = matchmakingService.enqueue("game.500", "p1", "Alice", "token-1");
+        MatchmakingService.MatchmakingSnapshot second = matchmakingService.enqueue("fem", "p2", "Bob", "token-2");
+
+        assertEquals("fem", first.gameType());
+        assertEquals(RoomMetadataStore.MatchmakingTicketStatus.MATCHED, second.status());
+
+        InMemoryRuntimeStore.RoomSnapshot room = runtimeStore.roomSnapshot(second.roomCode()).orElseThrow();
+        assertEquals(InMemoryRuntimeStore.RoomStatus.IN_GAME, room.status());
+        assertEquals("fem", room.selectedGame());
+        assertEquals(2, room.participants().size());
+    }
 }

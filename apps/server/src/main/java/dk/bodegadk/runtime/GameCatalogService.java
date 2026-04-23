@@ -48,7 +48,14 @@ public class GameCatalogService {
         if (gameType == null || gameType.isBlank()) {
             return "snyd";
         }
-        return gameType.trim().toLowerCase(Locale.ROOT);
+        String normalized = gameType.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "game.cheat" -> "snyd";
+            case "single.card.highest.wins", "single-card-highest-wins" -> "highcard";
+            case "game.krig" -> "krig";
+            case "game.500", "500", "fem-hundrede", "femhundrede" -> "fem";
+            default -> normalized;
+        };
     }
 
     public int resolveMatchSize(String gameType, int waitingCount) {

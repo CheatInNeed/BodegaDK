@@ -2071,6 +2071,7 @@ function playerBoundsForLobbyGame(gameType: string): { min: number; max: number 
     if (normalized === HIGHCARD_GAME_ID) return { min: 1, max: 1 };
     if (normalized === KRIG_GAME_ID) return { min: 2, max: 2 };
     if (normalized === 'casino') return { min: 2, max: 2 };
+    if (normalized === 'fem') return { min: 2, max: 6 };
     if (normalized === 'snyd') return { min: 2, max: 8 };
     return { min: 2, max: 8 };
 }

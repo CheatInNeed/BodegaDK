@@ -71,6 +71,15 @@ const LOBBY_GAMES: LobbyGameMeta[] = [
         minPlayers: 2,
         maxPlayers: 2,
     },
+    {
+        id: 'fem',
+        titleKey: 'game.500',
+        durationKey: 'lobby.game.fem.eta',
+        summaryKey: 'lobby.game.fem.summary',
+        imageSrc: '/images/game-cards/500_cover.png',
+        minPlayers: 2,
+        maxPlayers: 6,
+    },
 ];
 
 export function renderLobbyBrowser(params: {
