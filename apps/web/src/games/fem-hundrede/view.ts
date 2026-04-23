@@ -1,4 +1,4 @@
-import { renderCardBack, renderCardFront, renderHandFan } from './cards.js';
+import { renderCardBack, renderCardFront, renderHandFan } from '../shared/cards.js';
 
 export type FemMeld = {
     id: string;

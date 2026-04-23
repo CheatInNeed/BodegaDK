@@ -3226,3 +3226,241 @@ select.input {
         align-items: flex-start;
     }
 }
+
+/* ─── Krig shell ─────────────────────────────────────────────────────────── */
+
+.krig-shell {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: #0d1f0f;
+    overflow: hidden;
+    font-family: Georgia, serif;
+    color: #f0e8d0;
+}
+
+.krig-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: rgba(0,0,0,0.35);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    flex-shrink: 0;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.45);
+    z-index: 10;
+}
+
+.krig-brand {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.7);
+    text-transform: uppercase;
+}
+
+/* Opponent zone (top) and self zone (bottom) share the same styling */
+.krig-player-zone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px;
+    position: relative;
+    min-height: 0;
+}
+
+.krig-player-zone.is-self {
+    flex-direction: column-reverse;
+}
+
+.krig-player-zone.is-active {
+    background: rgba(255,255,255,0.02);
+}
+
+.krig-player-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: rgba(255,255,255,0.55);
+}
+
+.krig-player-badge .krig-pile-count {
+    font-size: 11px;
+    background: rgba(255,255,255,0.08);
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: rgba(255,255,255,0.5);
+}
+
+/* Flip zone: where the card appears (back or face-up) */
+.krig-flip-zone {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.krig-flip-zone.is-winner {
+    filter: drop-shadow(0 0 18px rgba(255,210,80,0.7));
+    transform: scale(1.06);
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.krig-flip-zone.is-loser {
+    opacity: 0.45;
+    transition: opacity 0.2s ease;
+}
+
+/* Face-down draw pile — a stack of offset backs */
+.krig-pile {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.krig-pile-card {
+    position: absolute;
+    border-radius: 6px;
+    background: #0C3A18;
+    border: 1px solid rgba(212,175,106,0.28);
+}
+
+/* Battle strip (center) */
+.krig-battle-strip {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 20px;
+    background: rgba(0,0,0,0.45);
+    border-top: 1px solid rgba(255,255,255,0.07);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    z-index: 5;
+}
+
+.krig-status-text {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+
+.krig-war-label {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: #e53e3e;
+    text-shadow: 0 0 20px rgba(229,62,62,0.6);
+    text-transform: uppercase;
+    animation: krig-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes krig-pulse {
+    from { opacity: 0.75; }
+    to   { opacity: 1; }
+}
+
+/* War stake fan */
+.krig-stake-fan {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    position: relative;
+    height: 36px;
+}
+
+.krig-stake-card-fan {
+    position: absolute;
+    width: 26px;
+    height: 36px;
+    border-radius: 4px;
+    background: #0C3A18;
+    border: 1px solid rgba(212,175,106,0.3);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* Post-game overlay */
+.krig-postgame-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.78);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    backdrop-filter: blur(4px);
+}
+
+.krig-postgame-card {
+    background: #1a2e1c;
+    border: 1px solid rgba(212,175,106,0.25);
+    border-radius: 12px;
+    padding: 32px 40px;
+    text-align: center;
+    max-width: 340px;
+    width: 90%;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+}
+
+.krig-postgame-kicker {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 8px;
+}
+
+.krig-postgame-title {
+    font-size: 26px;
+    font-weight: 900;
+    color: #f0e8d0;
+    margin-bottom: 20px;
+}
+
+.krig-postgame-scores {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 20px;
+}
+
+.krig-postgame-score-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    padding: 6px 12px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.7);
+}
+
+.krig-postgame-note {
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.krig-postgame-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+@media (max-width: 480px) {
+    .krig-topbar { padding: 8px 14px; }
+    .krig-battle-strip { padding: 10px 14px; }
+    .krig-postgame-card { padding: 24px 20px; }
+}

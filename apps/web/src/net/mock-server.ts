@@ -52,7 +52,13 @@ type MockFemRoomData = {
     tokens: Record<string, string>;
 };
 
-type AnyMockRoomData = MockCasinoRoomData | MockSnydRoomData | MockFemRoomData;
+type MockKrigRoomData = {
+    game: 'krig';
+    roomCode: string;
+    tokens: Record<string, string>;
+};
+
+type AnyMockRoomData = MockCasinoRoomData | MockSnydRoomData | MockFemRoomData | MockKrigRoomData;
 
 type BroadcastPayload = {
     roomCode: string;
@@ -92,8 +98,11 @@ export function createMockServerTransport(): RoomTransport {
             if (message.type === 'CONNECT') {
                 currentRoomCode = message.payload.roomCode;
                 const gameLower = message.payload.game?.toLowerCase();
-                const desiredGame: 'snyd' | 'casino' | 'fem' =
-                    gameLower === 'casino' ? 'casino' : gameLower === 'fem' ? 'fem' : 'snyd';
+                const desiredGame: 'snyd' | 'casino' | 'fem' | 'krig' =
+                    gameLower === 'casino' ? 'casino'
+                    : gameLower === 'fem' ? 'fem'
+                    : gameLower === 'krig' ? 'krig'
+                    : 'snyd';
                 let room: AnyMockRoomData;
                 try {
                     room = readOrCreateRoom(
@@ -148,7 +157,7 @@ export function createMockServerTransport(): RoomTransport {
 
             const room = readOrCreateRoom(currentRoomCode, 'snyd');
 
-            if (room.game === 'fem') {
+            if (room.game === 'fem' || room.game === 'krig') {
                 return;
             }
 
@@ -381,7 +390,7 @@ function broadcastCasinoState(room: MockCasinoRoomData) {
 
 function readOrCreateRoom(
     roomCode: string,
-    desiredGame: 'snyd' | 'casino' | 'fem',
+    desiredGame: 'snyd' | 'casino' | 'fem' | 'krig',
     requestedRules?: CasinoValueMap,
 ): AnyMockRoomData {
     const key = getStorageKey(roomCode);
@@ -427,6 +436,12 @@ function readOrCreateRoom(
         return room;
     }
 
+    if (desiredGame === 'krig') {
+        const room: MockKrigRoomData = { game: 'krig', roomCode, tokens: {} };
+        saveRoom(room);
+        return room;
+    }
+
     const room: MockSnydRoomData = {
         game: 'snyd',
         roomCode,
@@ -453,9 +468,9 @@ function registerToken(room: AnyMockRoomData, token: string): string | null {
     if (room.tokens[token]) return room.tokens[token];
 
     const usedPlayerIds = new Set(Object.values(room.tokens));
-    const players = room.game === 'casino' || room.game === 'fem' ? ['p1', 'p2'] : room.players;
+    const players = room.game === 'casino' || room.game === 'fem' || room.game === 'krig' ? ['p1', 'p2'] : room.players;
     const available = players.find((playerId) => !usedPlayerIds.has(playerId));
-    if (!available && (room.game === 'casino' || room.game === 'fem')) {
+    if (!available && (room.game === 'casino' || room.game === 'fem' || room.game === 'krig')) {
         return null;
     }
     const playerId = available ?? players[0];
@@ -479,6 +494,15 @@ function makeSnapshot(room: AnyMockRoomData, playerId: string): ServerToClientMe
             payload: {
                 publicState: makeFemPublicState(),
                 privateState: makeFemPrivateState(playerId),
+            },
+        };
+    }
+    if (room.game === 'krig') {
+        return {
+            type: 'STATE_SNAPSHOT',
+            payload: {
+                publicState: makeKrigPublicState(),
+                privateState: makeKrigPrivateState(playerId),
             },
         };
     }
@@ -526,6 +550,44 @@ function makeFemPrivateState(playerId: string): Record<string, unknown> {
         ? ['H5', 'H6', 'H7', 'D7', 'D8', 'SA', 'CA', 'DA', 'S10', 'CK']
         : ['C5', 'C6', 'C7', 'S5', 'S6', 'HK', 'DK', 'CQ', 'SQ', 'H9', 'D9'];
     return { playerId, hand, projectedRoundScore: playerId === 'p1' ? 40 : 30 };
+}
+
+function makeKrigPublicState(): Record<string, unknown> {
+    return {
+        players: ['p1', 'p2'],
+        gamePhase: 'PLAYING',
+        trickNumber: 14,
+        statusText: 'Flip your top card.',
+        matchWinnerPlayerId: null,
+        rematchPlayerIds: [],
+        readyPlayerIds: [],
+        warActive: false,
+        warDepth: 0,
+        warPileSize: 0,
+        centerPileSize: 0,
+        drawPileCounts: { p1: 23, p2: 29 },
+        drawPileCountsBeforeTrick: {},
+        stakeCardCounts: { p1: 0, p2: 0 },
+        currentFaceUpCards: { p1: null, p2: null },
+        lastTrick: {
+            trickNumber: 13,
+            firstPlayerId: 'p1',
+            firstCard: 'HK',
+            secondPlayerId: 'p2',
+            secondCard: 'D7',
+            winnerPlayerId: 'p1',
+            outcome: 'FIRST',
+            cardsWon: 2,
+            warDepth: 0,
+        },
+    };
+}
+
+function makeKrigPrivateState(playerId: string): Record<string, unknown> {
+    return {
+        playerId,
+        drawPileCount: playerId === 'p1' ? 23 : 29,
+    };
 }
 
 function makeCasinoPublicState(room: MockCasinoRoomData): CasinoPublicState {

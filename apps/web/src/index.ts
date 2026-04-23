@@ -549,11 +549,7 @@ function renderRoomContent(): string {
             roomHandTrayOpen,
         );
     } else if (adapter.id === krigAdapter.id) {
-        bodyHtml = renderKrigRoom(
-            viewModel as Parameters<typeof renderKrigRoom>[0],
-            layoutSpec,
-            roomHandTrayOpen,
-        );
+        return renderKrigRoom(viewModel as Parameters<typeof renderKrigRoom>[0]);
     } else {
         bodyHtml = renderSnydRoom(
             viewModel as Parameters<typeof renderSnydRoom>[0],
