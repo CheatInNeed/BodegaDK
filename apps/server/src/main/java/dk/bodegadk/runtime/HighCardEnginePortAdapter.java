@@ -25,11 +25,9 @@ import java.util.Optional;
 public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String HIGHCARD_GAME_TYPE = "highcard";
     private static final String KRIG_GAME_TYPE = "krig";
-    private static final String CASINO_GAME_TYPE = "casino";
     private static final String PLAY_CARDS = "PLAY_CARDS";
     private static final String FLIP_CARD = "FLIP_CARD";
     private static final String REQUEST_REMATCH = "REQUEST_REMATCH";
-    private static final String SELECT_GAME = "SELECT_GAME";
     private static final String START_GAME = "START_GAME";
 
     private final InMemoryRuntimeStore runtimeStore;
@@ -66,7 +64,6 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
 
         InMemoryRuntimeStore.RoomSnapshot room = roomOptional.get();
         return switch (command.type()) {
-            case SELECT_GAME -> handleSelectGame(state, command, room);
             case START_GAME -> handleStartGame(state, command, room);
             case PLAY_CARDS -> handlePlayCards(state, command, room);
             case FLIP_CARD -> handleFlipCard(state, command, room);
@@ -117,27 +114,6 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
                 state.publicState().deepCopy(),
                 privateStateByPlayer
         );
-    }
-
-    private GameLoopService.LoopResult handleSelectGame(
-            GameLoopService.RoomState state,
-            GameLoopService.ActionCommand command,
-            InMemoryRuntimeStore.RoomSnapshot room
-    ) {
-        String requestedGame = normalizedGame(command.payloadRaw().path("game").asText(""));
-        if (!supportsLobbySelection(requestedGame)) {
-            return GameLoopService.LoopResult.error("ENGINE_NOT_READY: no engine available for room/game type");
-        }
-
-        try {
-            runtimeStore.selectGame(command.roomCode(), command.playerId(), requestedGame)
-                    .orElseThrow(() -> new IllegalStateException("Room not found"));
-        } catch (IllegalStateException exception) {
-            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + exception.getMessage());
-        }
-
-        GameLoopService.RoomState nextState = runtimeStore.refreshPlayers(command.roomCode());
-        return GameLoopService.LoopResult.success(nextState, nextState.publicState(), Map.of(), false, null);
     }
 
     private GameLoopService.LoopResult handleStartGame(
@@ -434,11 +410,6 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
 
     private boolean isSupportedGame(String gameType) {
         return HIGHCARD_GAME_TYPE.equals(gameType) || KRIG_GAME_TYPE.equals(gameType);
-    }
-
-    private boolean supportsLobbySelection(String gameType) {
-        return isSupportedGame(gameType) || CASINO_GAME_TYPE.equals(gameType)
-                || "fem".equals(gameType);
     }
 
     private String normalizedGame(String gameType) {

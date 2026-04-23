@@ -266,9 +266,10 @@ skal wiring være på plads i både backend, web og docs:
    WebSocket-loopet og matchmaking kan starte spillet rigtigt.
 
 3. Lobby game switching
-   Spillets adapter skal acceptere `SELECT_GAME`, og andre lobby-enabled
-   adapters skal kende spillets id i deres `supportsLobbySelection(...)`,
-   så hosten kan skifte til og fra spillet i lobbyen.
+   `SELECT_GAME` wires centralt gennem lobby-koordinatoren. Et nyt spil
+   skal derfor markeres korrekt i `GameCatalogService` med
+   `lobbyEnabled=true`, men engine-adapteren skal ikke selv håndtere
+   `SELECT_GAME` eller vedligeholde engine-specifikke allowlists.
 
 4. Web game registration
    Registrer adapter/view i `apps/web/src/index.ts`, så spillet kan åbnes

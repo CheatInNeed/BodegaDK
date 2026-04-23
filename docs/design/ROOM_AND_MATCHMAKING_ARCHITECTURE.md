@@ -176,11 +176,14 @@ All realtime engines should follow the same pattern:
 
 1. If the room status is `LOBBY`, snapshot methods return lobby-shaped
    room metadata rather than a live board.
-2. `START_GAME` is the only place where engine state is initialized.
-3. In-game actions are rejected while the room is still in `LOBBY`.
+2. `SELECT_GAME` is handled by the centralized lobby coordinator, not by
+   engine adapters.
+3. `START_GAME` is the only place where engine state is initialized.
+4. In-game actions are rejected while the room is still in `LOBBY`.
 
-This pattern already existed for High Card / Krig and is now applied to
-Casino as well.
+This now applies consistently across High Card, Krig, Casino, Snyd, and
+Fem. Krig is no longer a special-case lobby transition target; it is just
+another `lobbyEnabled` game in the shared coordinator flow.
 
 ## Frontend Flow
 

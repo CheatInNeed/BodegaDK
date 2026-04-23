@@ -22,7 +22,6 @@ import java.util.Optional;
 @Component
 public class FemEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String FEM_GAME_TYPE = "fem";
-    private static final String SELECT_GAME = "SELECT_GAME";
     private static final String START_GAME = "START_GAME";
     private static final String DRAW_FROM_STOCK = "DRAW_FROM_STOCK";
     private static final String DRAW_FROM_DISCARD = "DRAW_FROM_DISCARD";
@@ -69,7 +68,6 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
         InMemoryRuntimeStore.RoomSnapshot room = roomOptional.get();
 
         return switch (command.type()) {
-            case SELECT_GAME -> handleSelectGame(state, command, room);
             case START_GAME -> handleStartGame(state, command, room);
             case DRAW_FROM_STOCK -> handleDrawFromStock(state, command, room);
             case DRAW_FROM_DISCARD -> handleDrawFromDiscard(state, command, room);
@@ -103,29 +101,6 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
         return loadFemState(state.roomCode())
                 .map(current -> toFemRoomState(state, room, playerId, current))
                 .orElse(state);
-    }
-
-    /* ── SELECT_GAME ── */
-
-    private GameLoopService.LoopResult handleSelectGame(
-            GameLoopService.RoomState state,
-            GameLoopService.ActionCommand command,
-            InMemoryRuntimeStore.RoomSnapshot room
-    ) {
-        String requestedGame = normalizeGame(command.payloadRaw().path("game").asText(""));
-        if (!supportsLobbySelection(requestedGame)) {
-            return GameLoopService.LoopResult.error("ENGINE_NOT_READY: no engine available for room/game type");
-        }
-
-        try {
-            runtimeStore.selectGame(command.roomCode(), command.playerId(), requestedGame)
-                    .orElseThrow(() -> new IllegalStateException("Room not found"));
-        } catch (IllegalStateException exception) {
-            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + exception.getMessage());
-        }
-
-        GameLoopService.RoomState nextState = runtimeStore.refreshPlayers(command.roomCode());
-        return GameLoopService.LoopResult.success(nextState, nextState.publicState(), Map.of(), false, null);
     }
 
     /* ── START_GAME ── */
@@ -439,14 +414,6 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
             }
         }
         return updates;
-    }
-
-    private boolean supportsLobbySelection(String gameType) {
-        return FEM_GAME_TYPE.equals(gameType)
-                || "snyd".equals(gameType)
-                || "highcard".equals(gameType)
-                || "krig".equals(gameType)
-                || "casino".equals(gameType);
     }
 
     private String normalizeGame(String gameType) {

@@ -15,14 +15,29 @@ import java.util.Optional;
 @Service
 public class GameLoopService {
     private final InMemoryRuntimeStore runtimeStore;
+    private final LobbyCoordinator lobbyCoordinator;
     private final List<EnginePort> enginePorts;
 
-    public GameLoopService(InMemoryRuntimeStore runtimeStore, @Autowired(required = false) List<EnginePort> enginePorts) {
+    @Autowired
+    public GameLoopService(
+            InMemoryRuntimeStore runtimeStore,
+            LobbyCoordinator lobbyCoordinator,
+            @Autowired(required = false) List<EnginePort> enginePorts
+    ) {
         this.runtimeStore = runtimeStore;
+        this.lobbyCoordinator = lobbyCoordinator;
         this.enginePorts = enginePorts == null ? List.of() : List.copyOf(enginePorts);
     }
 
+    public GameLoopService(InMemoryRuntimeStore runtimeStore, @Autowired(required = false) List<EnginePort> enginePorts) {
+        this(runtimeStore, new LobbyCoordinator(runtimeStore, new GameCatalogService()), enginePorts);
+    }
+
     public LoopResult handleAction(ActionCommand command) {
+        if (lobbyCoordinator.supports(command)) {
+            return persistLoopResult(command, runtimeStore.loadState(command.roomCode()), lobbyCoordinator.handle(command));
+        }
+
         EnginePort enginePort = resolveEngine(command.roomCode());
         if (enginePort == null) {
             return LoopResult.error("ENGINE_NOT_READY: no engine available for room/game type");
@@ -30,6 +45,10 @@ public class GameLoopService {
 
         RoomState currentState = runtimeStore.loadState(command.roomCode());
         LoopResult result = enginePort.apply(currentState, command);
+        return persistLoopResult(command, currentState, result);
+    }
+
+    private LoopResult persistLoopResult(ActionCommand command, RoomState currentState, LoopResult result) {
 
         if (result == null) {
             return LoopResult.error("RULES_NOT_AVAILABLE: engine returned no result");
