@@ -20,8 +20,9 @@ public final class Card {
     public String suit() { return suit; }
     public String rank() { return rank; }
 
-    /** Numeric value for comparison: 2=2, 3=3, ..., 10=10, J=11, Q=12, K=13, A=14. */
+    /** Numeric value for comparison: 2=2, 3=3, ..., 10=10, J=11, Q=12, K=13, A=14. Joker=0. */
     public int value() {
+        if ("JK".equals(suit)) return 0;
         return switch (rank) {
             case "J" -> 11;
             case "Q" -> 12;
@@ -32,14 +33,18 @@ public final class Card {
     }
 
     /**
-     * Parse a protocol card code ("H7", "DA", "S10") into a Card.
+     * Parse a protocol card code ("H7", "DA", "S10", "JK1", "JK2") into a Card.
      */
     public static Card parse(String code) {
         if (code == null || code.length() < 2) {
             throw new IllegalArgumentException("Invalid card code: " + code);
         }
-        String s = code.substring(0, 1).toUpperCase();
-        String r = code.substring(1).toUpperCase();
+        String upper = code.toUpperCase();
+        if (upper.startsWith("JK")) {
+            return new Card("JK", upper.substring(2));
+        }
+        String s = upper.substring(0, 1);
+        String r = upper.substring(1);
         return new Card(s, r);
     }
 

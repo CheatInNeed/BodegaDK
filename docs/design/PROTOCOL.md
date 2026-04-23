@@ -30,6 +30,12 @@ Base path (prod via nginx): /api/
 
 Base path (dev): http://localhost:8080/
 
+Room status values:
+
+- `LOBBY`: players can join and configure the room
+- `IN_GAME`: active gameplay; the browser sends room heartbeats while this is live
+- `FINISHED`: terminal persisted room state used by stale-room cleanup and history
+
 ------------------------------------------------------------------------
 
 ## POST /rooms
@@ -91,6 +97,61 @@ Joiner et eksisterende room.
   "status": "LOBBY"
 }
 ```
+
+------------------------------------------------------------------------
+
+## POST /rooms/{roomCode}/visibility
+
+Host-only endpoint used while the room is still in `LOBBY`.
+
+### Request
+
+``` json
+{
+  "actorToken": "session-token",
+  "isPrivate": true
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+The backend updates lobby visibility immediately and broadcasts the new
+`isPrivate` value to all connected room clients through `PUBLIC_UPDATE`.
+
+------------------------------------------------------------------------
+
+## POST /rooms/{roomCode}/claim-identity
+
+Lobby-only endpoint used to migrate an already joined session from one
+player identity to another without giving up the seat.
+
+### Request
+
+``` json
+{
+  "token": "session-token",
+  "playerId": "supabase-user-id-or-guest-id",
+  "username": "Alice"
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+The backend updates the participant identity in place, preserves host
+ownership when relevant, and broadcasts the refreshed player list through
+`PUBLIC_UPDATE`.
 
 ------------------------------------------------------------------------
 
@@ -320,6 +381,30 @@ requested a rematch, the server deals a fresh match and returns to
   }
 }
 ```
+
+------------------------------------------------------------------------
+
+## SELECT_GAME
+
+``` json
+{
+  "type": "SELECT_GAME",
+  "payload": {
+    "game": "krig"
+  }
+}
+```
+
+`SELECT_GAME` håndteres nu centralt i room/lobby-laget, ikke i de enkelte
+game adapters.
+
+- kun værten må skifte spil
+- skift er kun gyldigt mens rummet har status `LOBBY`
+- target game valideres via `GameCatalogService`
+- alle `lobbyEnabled` spil kan skifte til alle andre `lobbyEnabled` spil
+  inklusive `krig`
+- kommandoen opdaterer kun room metadata (`selectedGame`); engine state
+  oprettes først ved `START_GAME`
 
 ------------------------------------------------------------------------
 

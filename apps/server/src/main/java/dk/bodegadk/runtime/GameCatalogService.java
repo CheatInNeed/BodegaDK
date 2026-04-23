@@ -16,6 +16,7 @@ public class GameCatalogService {
         register(new GameDefinition("krig", 2, 2, true, true, true, true));
         register(new GameDefinition("casino", 2, 2, true, true, true, true));
         register(new GameDefinition("snyd", 2, 6, false, true, true, true));
+        register(new GameDefinition("fem", 2, 6, false, true, true, true));
         register(new GameDefinition("poker", 2, 8, false, false, false, false));
     }
 
@@ -47,7 +48,14 @@ public class GameCatalogService {
         if (gameType == null || gameType.isBlank()) {
             return "snyd";
         }
-        return gameType.trim().toLowerCase(Locale.ROOT);
+        String normalized = gameType.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "game.cheat" -> "snyd";
+            case "single.card.highest.wins", "single-card-highest-wins" -> "highcard";
+            case "game.krig" -> "krig";
+            case "game.500", "500", "fem-hundrede", "femhundrede" -> "fem";
+            default -> normalized;
+        };
     }
 
     public int resolveMatchSize(String gameType, int waitingCount) {

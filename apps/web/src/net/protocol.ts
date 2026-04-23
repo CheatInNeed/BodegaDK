@@ -99,6 +99,16 @@ export type CasinoMergeStacksMessage = WsEnvelope<'CASINO_MERGE_STACKS', {
     stackIds: string[];
 }>;
 
+export type FemDrawFromStockMessage = WsEnvelope<'DRAW_FROM_STOCK', Record<string, never>>;
+export type FemDrawFromDiscardMessage = WsEnvelope<'DRAW_FROM_DISCARD', Record<string, never>>;
+export type FemTakeDiscardPileMessage = WsEnvelope<'TAKE_DISCARD_PILE', Record<string, never>>;
+export type FemLayMeldMessage = WsEnvelope<'LAY_MELD', { cards: string[] }>;
+export type FemExtendMeldMessage = WsEnvelope<'EXTEND_MELD', { meldId: string; card: string }>;
+export type FemSwapJokerMessage = WsEnvelope<'SWAP_JOKER', { meldId: string; jokerCode: string; realCardCode: string }>;
+export type FemDiscardMessage = WsEnvelope<'DISCARD', { card: string }>;
+export type FemClaimDiscardMessage = WsEnvelope<'CLAIM_DISCARD', { meldId: string }>;
+export type FemPassGrabMessage = WsEnvelope<'PASS_GRAB', Record<string, never>>;
+
 export type ClientToServerMessage =
     | ConnectMessage
     | HeartbeatMessage
@@ -110,7 +120,16 @@ export type ClientToServerMessage =
     | CallSnydMessage
     | CasinoPlayMoveMessage
     | CasinoBuildStackMessage
-    | CasinoMergeStacksMessage;
+    | CasinoMergeStacksMessage
+    | FemDrawFromStockMessage
+    | FemDrawFromDiscardMessage
+    | FemTakeDiscardPileMessage
+    | FemLayMeldMessage
+    | FemExtendMeldMessage
+    | FemSwapJokerMessage
+    | FemDiscardMessage
+    | FemClaimDiscardMessage
+    | FemPassGrabMessage;
 
 export type StateSnapshotMessage = WsEnvelope<'STATE_SNAPSHOT', {
     publicState: Record<string, unknown>;

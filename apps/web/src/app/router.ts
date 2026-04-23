@@ -1,4 +1,4 @@
-export type View = 'home' | 'play' | 'settings' | 'help' | 'room' | 'lobby-browser' | 'lobby';
+export type View = 'home' | 'play' | 'settings' | 'help' | 'room' | 'lobby-browser' | 'lobby' | 'profile';
 
 export type AppRoute = {
     view: View;
@@ -36,7 +36,7 @@ export function writeRoute(patch: Partial<AppRoute>) {
         ...patch,
     };
 
-    if (requestedView === 'home' || requestedView === 'play' || requestedView === 'settings' || requestedView === 'help' || requestedView === 'lobby-browser') {
+    if (requestedView === 'home' || requestedView === 'play' || requestedView === 'settings' || requestedView === 'help' || requestedView === 'lobby-browser' || requestedView === 'profile') {
         next = {
             ...next,
             game: patch.game ?? null,
@@ -83,6 +83,7 @@ function parseView(value: string | null): View {
         || value === 'room'
         || value === 'lobby-browser'
         || value === 'lobby'
+        || value === 'profile'
     ) {
         return value;
     }

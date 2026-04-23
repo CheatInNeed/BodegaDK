@@ -250,6 +250,50 @@ Når du klikker "Open" på Snyd-kortet:
 -   genererer token hvis mangler
 -   kører i `mock=1` som default
 
+### Tilføj et nyt spil til lobby og quick play
+
+Når et nyt realtime-spil skal kunne bruges fra både lobby og quick play,
+skal wiring være på plads i både backend, web og docs:
+
+1. Backend game catalog
+   Opdater `apps/server/src/main/java/dk/bodegadk/runtime/GameCatalogService.java`
+   med korrekt `id`, `minPlayers`, `maxPlayers`, `strictCount`,
+   `lobbyEnabled`, `quickPlayEnabled` og `realtimeSupported`.
+
+2. Backend engine port
+   Sørg for at spillet har en `GameLoopService.EnginePort`-adapter under
+   `apps/server/src/main/java/dk/bodegadk/runtime/` med `@Component`, så
+   WebSocket-loopet og matchmaking kan starte spillet rigtigt.
+
+3. Lobby game switching
+   `SELECT_GAME` wires centralt gennem lobby-koordinatoren. Et nyt spil
+   skal derfor markeres korrekt i `GameCatalogService` med
+   `lobbyEnabled=true`, men engine-adapteren skal ikke selv håndtere
+   `SELECT_GAME` eller vedligeholde engine-specifikke allowlists.
+
+4. Web game registration
+   Registrer adapter/view i `apps/web/src/index.ts`, så spillet kan åbnes
+   i room-view og indgå i quick play routing.
+
+5. Quick play card aliases
+   Hvis frontend bruger en UI-nøgle som `game.500`, så hold backendens
+   game-normalisering i sync, så matchmaking accepterer både UI-alias og
+   canonical game id.
+
+6. Lobby presentation
+   Tilføj spillet i `apps/web/src/app/lobby-view.ts` med thumbnail, seat
+   bounds og preview metadata, og hold `playerBoundsForLobbyGame(...)` i
+   `apps/web/src/index.ts` synkroniseret.
+
+7. Strings og assets
+   Læg brugerrettede tekster i `apps/web/src/i18n.ts` og brug eksisterende
+   thumbnails i `apps/web/public/images/game-cards/`.
+
+8. Tests og docs
+   Tilføj mindst én backend test for matchmaking/start flow og opdater
+   relevante docs, typisk `docs/design/PROTOCOL.md`,
+   `docs/instructions/DEVELOPMENT.md` eller changelog/design docs.
+
 ------------------------------------------------------------------------
 
 ## Ports

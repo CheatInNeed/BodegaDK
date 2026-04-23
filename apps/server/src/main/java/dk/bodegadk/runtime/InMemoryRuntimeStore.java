@@ -227,6 +227,78 @@ public class InMemoryRuntimeStore {
         return removePlayer(roomCode, targetPlayerId);
     }
 
+    public Optional<RoomMutation> updateVisibility(String roomCode, String actorToken, boolean isPrivate) {
+        SessionRecord actorSession = sessionsByToken.get(actorToken);
+        if (actorSession == null || !actorSession.roomCode.equals(roomCode)) {
+            return Optional.empty();
+        }
+
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return Optional.empty();
+        }
+
+        RoomMutation mutation;
+        synchronized (room) {
+            if (room.status != RoomStatus.LOBBY) {
+                throw new IllegalStateException("Cannot change visibility after match start");
+            }
+            if (!Objects.equals(room.hostPlayerId, actorSession.playerId)) {
+                throw new IllegalStateException("Only the host can change visibility");
+            }
+            room.isPrivate = isPrivate;
+            mutation = RoomMutation.updated(toSnapshot(room), null);
+        }
+
+        refreshPlayers(roomCode);
+        return Optional.of(mutation);
+    }
+
+    public Optional<RoomMutation> claimSessionIdentity(String roomCode, String token, String newPlayerId, String username) {
+        SessionRecord session = sessionsByToken.get(token);
+        if (session == null || !session.roomCode.equals(roomCode)) {
+            return Optional.empty();
+        }
+
+        RoomRecord room = rooms.get(roomCode);
+        if (room == null) {
+            return Optional.empty();
+        }
+
+        String normalizedPlayerId = blank(newPlayerId) ? null : newPlayerId.trim();
+        if (normalizedPlayerId == null) {
+            throw new IllegalStateException("playerId is required");
+        }
+
+        RoomMutation mutation;
+        synchronized (room) {
+            if (room.status != RoomStatus.LOBBY) {
+                throw new IllegalStateException("Cannot change identity after match start");
+            }
+
+            int currentIndex = findParticipantIndex(room.participants, session.playerId);
+            if (currentIndex < 0) {
+                return Optional.empty();
+            }
+
+            int targetIndex = findParticipantIndex(room.participants, normalizedPlayerId);
+            if (targetIndex >= 0 && targetIndex != currentIndex) {
+                throw new IllegalStateException("Target identity already exists in room");
+            }
+
+            room.participants.set(currentIndex, new PlayerSummary(normalizedPlayerId, normalizeUsername(username)));
+            if (Objects.equals(room.hostPlayerId, session.playerId)) {
+                room.hostPlayerId = normalizedPlayerId;
+            }
+
+            mutation = RoomMutation.updated(toSnapshot(room), null);
+        }
+
+        sessionsByToken.computeIfPresent(token, (key, current) -> new SessionRecord(current.roomCode, normalizedPlayerId, current.lastHeartbeat, current.connected));
+        refreshPlayers(roomCode);
+        return Optional.of(mutation);
+    }
+
     public List<ExpiredSession> sweepExpiredSessions(Duration maxAge) {
         Instant cutoff = Instant.now().minus(maxAge);
         List<ExpiredSession> expired = new ArrayList<>();
@@ -569,7 +641,8 @@ public class InMemoryRuntimeStore {
 
     public enum RoomStatus {
         LOBBY,
-        IN_GAME
+        IN_GAME,
+        FINISHED
     }
 
     public record PlayerSession(String roomCode, String playerId, String token) {
@@ -621,7 +694,7 @@ public class InMemoryRuntimeStore {
         private final String roomCode;
         private final List<PlayerSummary> participants = new ArrayList<>();
         private String hostPlayerId;
-        private final boolean isPrivate;
+        private boolean isPrivate;
         private String selectedGame;
         private RoomStatus status;
         private final Map<String, Object> gameConfig = new ConcurrentHashMap<>();

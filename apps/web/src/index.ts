@@ -14,12 +14,16 @@ import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
 import { casinoAdapter } from './games/casino/adapter.js';
 import { renderCasinoRoom } from './games/casino/view.js';
+import { femAdapter } from './games/fem-hundrede/adapter.js';
+import { renderFemRoom, type FemViewModel } from './games/fem-hundrede/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
+import { loadProfileData, renderProfilePage } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
     cancelMatchmakingTicket,
+    claimRoomIdentity,
     createRoom,
     enqueueMatchmaking,
     getMatchmakingTicket,
@@ -27,6 +31,7 @@ import {
     kickPlayer,
     leaveRoom,
     listRooms,
+    updateRoomVisibility,
     type LobbyRoomSummary,
     type MatchmakingResponse,
 } from './net/api.js';
@@ -37,11 +42,13 @@ const adapters: GenericAdapter[] = [
     casinoAdapter as GenericAdapter,
     highcardAdapter as GenericAdapter,
     krigAdapter as GenericAdapter,
+    femAdapter as GenericAdapter,
 ];
 
 type ThemeId = 'bodega' | 'harbor' | 'parlor';
 
 const THEME_STORAGE_KEY = 'ui-theme';
+const ROOM_HEARTBEAT_INTERVAL_MS = 20_000;
 
 const THEMES: Array<{ id: ThemeId; labelKey: string; toneKey: string }> = [
     { id: 'bodega', labelKey: 'theme.bodega.label', toneKey: 'theme.bodega.tone' },
@@ -64,7 +71,6 @@ const lobbyBrowserState = {
     busy: false,
     errorMessage: null as string | null,
     joinCode: '',
-    createGame: 'highcard',
     createPrivate: false,
 };
 
@@ -90,6 +96,14 @@ const authUiState = {
     avatar: null as { color: string; shape: string } | null,
 };
 
+const lobbyRoomUiState = {
+    copiedShareValue: false,
+};
+
+const activeLobbyState = {
+    route: null as AppRoute | null,
+};
+
 type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, unknown>>;
 const HIGHCARD_GAME_ID = 'highcard';
 const KRIG_GAME_ID = 'krig';
@@ -106,6 +120,11 @@ let quickPlayRealtimeRefreshTimer: number | null = null;
 let activeQueueClockTimer: number | null = null;
 let matchedCountdownTimer: number | null = null;
 let quickPlayGeneration = 0;
+let roomHeartbeatTimer: number | null = null;
+let roomHeartbeatKey: string | null = null;
+let roomHeartbeatInFlight = false;
+let lobbyCopyFeedbackTimer: number | null = null;
+let profileDataCache: Awaited<ReturnType<typeof loadProfileData>> | null = null;
 
 function getInitialTheme(): ThemeId {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -125,12 +144,12 @@ let casinoSelectedStackIds: string[] = [];
 
 function supportsLobbyLifecycle(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
-    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd';
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd' || normalized === 'fem';
 }
 
 function supportsRealtimeQuickPlay(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
-    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd';
+    return normalized === HIGHCARD_GAME_ID || normalized === KRIG_GAME_ID || normalized === 'casino' || normalized === 'snyd' || normalized === 'fem';
 }
 
 function clearQuickPlayPolling() {
@@ -283,27 +302,25 @@ function renderView() {
     if (!main) return;
 
     if (state.view === 'home') {
-        cleanupRoomSession();
+        cleanupRoomSessionIfUnneeded();
         main.innerHTML = renderHomepage();
     } else if (state.view === 'play') {
-        cleanupRoomSession();
+        cleanupRoomSessionIfUnneeded();
         main.innerHTML = `
       <h1 class="h1" data-i18n="play.title"></h1>
       <p class="sub" data-i18n="play.subtitle"></p>
       ${playCards()}
     `;
     } else if (state.view === 'lobby-browser') {
-        cleanupRoomSession();
+        cleanupRoomSessionIfUnneeded();
         ensureLobbyBrowserLoaded();
         main.innerHTML = renderLobbyBrowser({
             rooms: lobbyBrowserState.rooms,
             loading: lobbyBrowserState.loading,
             errorMessage: lobbyBrowserState.errorMessage,
             joinCode: lobbyBrowserState.joinCode,
-            createGame: lobbyBrowserState.createGame,
             createPrivate: lobbyBrowserState.createPrivate,
             busy: lobbyBrowserState.busy,
-            gameLabel: t(state.lang, 'lobby.create.game'),
             visibilityLabel: t(state.lang, 'lobby.create.visibility'),
             joinLobbyLabel: t(state.lang, 'lobby.join.lobby'),
             joinRunningLabel: t(state.lang, 'lobby.join.running'),
@@ -311,7 +328,7 @@ function renderView() {
     } else if (state.view === 'lobby') {
         main.innerHTML = renderLobbyContent();
     } else if (state.view === 'settings') {
-        cleanupRoomSession();
+        cleanupRoomSessionIfUnneeded();
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.settings"></h1>
       <section class="settings-layout">
@@ -360,7 +377,7 @@ function renderView() {
       </section>
     `;
     } else if (state.view === 'help') {
-        cleanupRoomSession();
+        cleanupRoomSessionIfUnneeded();
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.help"></h1>
       <div class="card">
@@ -369,6 +386,9 @@ function renderView() {
         </p>
       </div>
     `;
+    } else if (state.view === 'profile') {
+        cleanupRoomSession();
+        main.innerHTML = renderProfileView();
     } else if (state.view === 'room') {
         main.innerHTML = renderRoomContent();
     }
@@ -381,6 +401,7 @@ function renderView() {
 }
 
 function renderLobbyContent(): string {
+    stopRoomHeartbeat();
     const route = state.route;
     if (!route.room || !route.token) {
         cleanupRoomSession();
@@ -423,18 +444,27 @@ function renderLobbyContent(): string {
     }
 
     const viewModel: LobbyRoomViewModel = {
+        lang: state.lang,
         roomCode: route.room,
-        connectionLabel: roomState?.connection ?? 'connecting',
         hostPlayerId,
         hostDisplayName: players.find((player) => player.playerId === hostPlayerId)?.username ?? formatPlayerDisplayName(hostPlayerId),
-        selfPlayerId: roomState?.playerId ?? null,
         selectedGame,
-        status,
         isPrivate,
         canManage: !!roomState?.playerId && roomState.playerId === hostPlayerId,
+        canStart: canStartLobbyGame(selectedGame, players.length),
         players,
         errorMessage: roomState?.lastError ?? null,
+        copiedShareValue: lobbyRoomUiState.copiedShareValue,
+        shareValue: route.room,
     };
+
+    rememberActiveLobby({
+        view: 'lobby',
+        game: selectedGame,
+        room: route.room,
+        token: route.token,
+        mock: route.mock,
+    });
 
     return renderLobbyRoom(viewModel);
 }
@@ -458,6 +488,7 @@ function renderRoomContent(): string {
     const viewModel = session?.toViewModel({ selfUsername });
 
     if (!roomState || !viewModel) {
+        stopRoomHeartbeat();
         return renderRoomError('Unable to initialize room session');
     }
 
@@ -470,6 +501,13 @@ function renderRoomContent(): string {
     const hostPlayerId = typeof roomPublicState.hostPlayerId === 'string' ? roomPublicState.hostPlayerId : null;
     const autoStartKey = `${route.room}|${route.token}|${route.game}`;
     const suppressWinnerBanner = adapter.id === krigAdapter.id && roomPublicState.gamePhase === 'GAME_OVER';
+    const hasFinished = !!roomState.winnerPlayerId || status === 'FINISHED' || roomPublicState.gamePhase === 'GAME_OVER';
+
+    if (status === 'IN_GAME' && !hasFinished) {
+        startRoomHeartbeat(route.room, route.mock);
+    } else {
+        stopRoomHeartbeat();
+    }
 
     if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room && route.token) {
         queueMicrotask(() => {
@@ -508,6 +546,10 @@ function renderRoomContent(): string {
     });
     let bodyHtml = '';
 
+    if (adapter.id === femAdapter.id) {
+        return renderFemRoom(viewModel as FemViewModel);
+    }
+
     if (adapter.id === casinoAdapter.id) {
         const casinoViewModel = viewModel as Parameters<typeof renderCasinoRoom>[0];
         const validStackIds = new Set(casinoViewModel.tableStacks.map((stack) => stack.stackId));
@@ -524,11 +566,7 @@ function renderRoomContent(): string {
             roomHandTrayOpen,
         );
     } else if (adapter.id === krigAdapter.id) {
-        bodyHtml = renderKrigRoom(
-            viewModel as Parameters<typeof renderKrigRoom>[0],
-            layoutSpec,
-            roomHandTrayOpen,
-        );
+        return renderKrigRoom(viewModel as Parameters<typeof renderKrigRoom>[0]);
     } else {
         bodyHtml = renderSnydRoom(
             viewModel as Parameters<typeof renderSnydRoom>[0],
@@ -580,6 +618,7 @@ function ensureRoomSession(
         });
 
         unsubscribeRoomSession = roomSession.subscribe(() => {
+            syncActiveLobbySessionState();
             if (state.view === 'room' || state.view === 'lobby') {
                 renderView();
             }
@@ -592,6 +631,8 @@ function ensureRoomSession(
 }
 
 function cleanupRoomSession() {
+    stopRoomHeartbeat();
+    clearLobbyCopyFeedback();
     unsubscribeRoomSession?.();
     unsubscribeRoomSession = null;
     roomSession?.stop();
@@ -600,6 +641,59 @@ function cleanupRoomSession() {
     highCardAutoStartKey = null;
     roomHandTrayOpen = false;
     casinoSelectedStackIds = [];
+}
+
+function cleanupRoomSessionIfUnneeded() {
+    if (shouldPreserveLobbySession()) {
+        return;
+    }
+    cleanupRoomSession();
+}
+
+function startRoomHeartbeat(roomCode: string, useMock: boolean) {
+    if (useMock || !supabase) {
+        stopRoomHeartbeat();
+        return;
+    }
+
+    const key = roomCode;
+    if (roomHeartbeatTimer !== null && roomHeartbeatKey === key) {
+        return;
+    }
+
+    stopRoomHeartbeat();
+    roomHeartbeatKey = key;
+    void sendRoomHeartbeat(roomCode);
+    roomHeartbeatTimer = window.setInterval(() => {
+        void sendRoomHeartbeat(roomCode);
+    }, ROOM_HEARTBEAT_INTERVAL_MS);
+}
+
+function stopRoomHeartbeat() {
+    if (roomHeartbeatTimer !== null) {
+        window.clearInterval(roomHeartbeatTimer);
+        roomHeartbeatTimer = null;
+    }
+    roomHeartbeatKey = null;
+    roomHeartbeatInFlight = false;
+}
+
+async function sendRoomHeartbeat(roomCode: string) {
+    if (!supabase || roomHeartbeatInFlight) return;
+    roomHeartbeatInFlight = true;
+
+    try {
+        const { error } = await supabase.rpc('touch_room_heartbeat', {
+            room_code_input: roomCode,
+        });
+        if (error) {
+            console.warn('[room-heartbeat] failed to update room heartbeat', error);
+        }
+    } catch (error) {
+        console.warn('[room-heartbeat] failed to update room heartbeat', error);
+    } finally {
+        roomHeartbeatInFlight = false;
+    }
 }
 
 function resolveAdapter(game: string): GenericAdapter | undefined {
@@ -624,7 +718,23 @@ function playCards() {
 
 function renderActiveQueueBar() {
     const ticket = quickPlayState.ticket;
-    if (!ticket || (ticket.status !== 'WAITING' && ticket.status !== 'MATCHED')) return '';
+    if (!ticket || (ticket.status !== 'WAITING' && ticket.status !== 'MATCHED')) {
+        if (quickPlayState.errorMessage) {
+            return `<section class="active-queue-bar active-queue-bar-error" aria-live="polite">
+      <div class="active-queue-copy">
+        <span class="active-queue-error">${quickPlayState.errorMessage}</span>
+      </div>
+    </section>`;
+        }
+        if (quickPlayState.loading) {
+            return `<section class="active-queue-bar" aria-live="polite">
+      <div class="active-queue-copy">
+        <span data-i18n="queue.bar.joining"></span>
+      </div>
+    </section>`;
+        }
+        return '';
+    }
 
     const targetPlayers = Math.max(ticket.minPlayers, ticket.queuedPlayers);
     const elapsedSeconds = quickPlayState.startedAtMs
@@ -755,6 +865,23 @@ function renderHomepage() {
   `;
 }
 
+function renderProfileView(): string {
+    if (profileDataCache) {
+        return renderProfilePage(state.lang, profileDataCache);
+    }
+
+    // Load async, then re-render
+    void loadProfileData().then((data) => {
+        profileDataCache = data;
+        renderView();
+    });
+
+    return `
+    <h1 class="h1" data-i18n="profile.title"></h1>
+    <p class="sub">${state.lang === 'en' ? 'Loading...' : 'Indlæser...'}</p>
+  `;
+}
+
 function renderHomepagePlaceholderCard(input: {
     titleKey: string;
     className?: string;
@@ -807,9 +934,9 @@ function wireViewEvents() {
     });
 
     document.querySelectorAll<HTMLElement>('[data-action="open-game"]').forEach((btn) => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
             const game = normalizeGameKey(btn.dataset.game ?? '');
-            if (supportsRealtimeQuickPlay(game)) {
+            if (supportsRealtimeQuickPlay(game) && !(e as MouseEvent).shiftKey) {
                 void handleQuickPlay(game);
                 return;
             }
@@ -817,7 +944,7 @@ function wireViewEvents() {
             navigate({
                 view: 'room',
                 game,
-                room: state.route.room ?? 'ABC123',
+                room: `DEV-${game}`,
                 token: state.route.token ?? randomToken(),
                 mock: true,
             });
@@ -854,6 +981,17 @@ function wireViewEvents() {
     document.querySelector<HTMLButtonElement>('button[data-action="home-create-lobby"]')?.addEventListener('click', () => {
         void handleHomepageCreateLobby();
     });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="profile-customize"]')?.addEventListener('click', () => {
+        navigate('/custom');
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="profile-logout"]')?.addEventListener('click', async () => {
+        if (!supabase) return;
+        await supabase.auth.signOut();
+        profileDataCache = null;
+        navigate({ view: 'home' });
+    });
 }
 
 function wireEvents() {
@@ -868,6 +1006,13 @@ function wireEvents() {
         if (!view) return;
 
         const go = () => {
+            if (view === 'lobby-browser') {
+                const activeLobby = resolveActiveLobbyRoute();
+                if (activeLobby) {
+                    navigate(activeLobby);
+                    return;
+                }
+            }
             navigate({ view });
         };
 
@@ -906,7 +1051,7 @@ function wireEvents() {
 
     const profileBtn = document.getElementById('profileBtn') as HTMLButtonElement | null;
     if (profileBtn) {
-        profileBtn.onclick = () => alert('You are not logged in.');
+        profileBtn.onclick = () => navigate({ view: 'profile' });
     }
 }
 
@@ -993,6 +1138,39 @@ function wireRoomEvents() {
     });
 
     triggerCasinoQuickMerge();
+
+    document.querySelectorAll<HTMLElement>('[data-action="fem-draw-stock"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DRAW_FROM_STOCK' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-draw-discard"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DRAW_FROM_DISCARD' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-take-pile"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_TAKE_DISCARD_PILE' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-lay-meld"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_LAY_MELD' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-discard"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DISCARD' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-pass-grab"]').forEach((el) => {
+        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_PASS_GRAB' }));
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-extend-meld"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const meldId = el.dataset.meldId;
+            if (!meldId) return;
+            roomSession?.sendIntent({ type: 'FEM_EXTEND_MELD', meldId });
+        });
+    });
+    document.querySelectorAll<HTMLElement>('[data-action="fem-claim-discard"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const meldId = el.dataset.meldId;
+            if (!meldId) return;
+            roomSession?.sendIntent({ type: 'FEM_CLAIM_DISCARD', meldId });
+        });
+    });
 }
 
 function wireLobbyEvents() {
@@ -1006,11 +1184,6 @@ function wireLobbyEvents() {
         const createPrivateToggle = document.getElementById('createPrivateToggle') as HTMLInputElement | null;
         createPrivateToggle?.addEventListener('change', () => {
             lobbyBrowserState.createPrivate = createPrivateToggle.checked;
-        });
-
-        const createGameInput = document.getElementById('createGameInput') as HTMLSelectElement | null;
-        createGameInput?.addEventListener('change', () => {
-            lobbyBrowserState.createGame = normalizeGameKey(createGameInput.value);
         });
 
         document.querySelector<HTMLButtonElement>('button[data-action="refresh-lobbies"]')?.addEventListener('click', () => {
@@ -1035,11 +1208,14 @@ function wireLobbyEvents() {
     }
 
     if (state.view === 'lobby' && roomSession && state.route.room && state.route.token) {
-        const selectedGameInput = document.getElementById('selectedGameInput') as HTMLSelectElement | null;
-        selectedGameInput?.addEventListener('change', () => {
-            roomSession?.sendMessage({
-                type: 'SELECT_GAME',
-                payload: { game: selectedGameInput.value },
+        document.querySelectorAll<HTMLButtonElement>('button[data-action="select-lobby-game"]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const game = button.dataset.game;
+                if (!game) return;
+                roomSession?.sendMessage({
+                    type: 'SELECT_GAME',
+                    payload: { game },
+                });
             });
         });
 
@@ -1047,6 +1223,18 @@ function wireLobbyEvents() {
             roomSession?.sendMessage({
                 type: 'START_GAME',
                 payload: {},
+            });
+        });
+
+        document.querySelector<HTMLButtonElement>('button[data-action="copy-lobby-share"]')?.addEventListener('click', () => {
+            const shareValue = document.querySelector<HTMLButtonElement>('button[data-action="copy-lobby-share"]')?.dataset.shareValue ?? state.route.room!;
+            void copyLobbyShareValue(shareValue);
+        });
+
+        document.querySelectorAll<HTMLButtonElement>('button[data-action="set-room-visibility"]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const isPrivate = button.dataset.private === 'true';
+                void handleUpdateRoomVisibility(state.route.room!, state.route.token!, isPrivate);
             });
         });
 
@@ -1095,9 +1283,9 @@ async function handleCreateLobby() {
     renderView();
 
     try {
+        await leavePreservedLobbyBeforeTransition();
         const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
-            gameType: lobbyBrowserState.createGame,
             isPrivate: lobbyBrowserState.createPrivate,
             playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
@@ -1136,6 +1324,7 @@ async function handleJoinByCode(rawRoomCode: string) {
     renderView();
 
     try {
+        await leavePreservedLobbyBeforeTransition(roomCode);
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
@@ -1168,6 +1357,7 @@ async function handleHomepageCreateLobby() {
     renderView();
 
     try {
+        await leavePreservedLobbyBeforeTransition();
         const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
             gameType: FALLBACK_LOBBY_GAME_ID,
@@ -1209,6 +1399,7 @@ async function handleHomepageJoin() {
     renderView();
 
     try {
+        await leavePreservedLobbyBeforeTransition(roomCode);
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
@@ -1241,6 +1432,7 @@ async function handleLeaveLobby(roomCode: string, token: string) {
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to leave lobby'));
     } finally {
+        clearActiveLobby();
         cleanupRoomSession();
         lobbyBrowserState.loaded = false;
         navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
@@ -1250,6 +1442,7 @@ async function handleLeaveLobby(roomCode: string, token: string) {
 
 async function handleLeaveActiveRoom() {
     const route = state.route;
+    clearActiveLobby();
     cleanupRoomSession();
 
     if (!route.room || !route.token || route.mock) {
@@ -1274,6 +1467,42 @@ async function handleKickPlayer(roomCode: string, actorToken: string, targetPlay
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to kick player'));
         renderView();
+    }
+}
+
+async function handleUpdateRoomVisibility(roomCode: string, actorToken: string, isPrivate: boolean) {
+    try {
+        await updateRoomVisibility({ roomCode, actorToken, isPrivate });
+    } catch (error) {
+        alert(toErrorMessage(error, 'Failed to update room visibility'));
+        renderView();
+    }
+}
+
+async function syncActiveLobbyParticipantProfile() {
+    if (!roomSession) return;
+
+    const activeLobby = resolveActiveLobbyRoute();
+    if (!activeLobby?.room || !activeLobby.token) return;
+
+    const sessionState = roomSession.getState();
+    const publicState = toRecord(sessionState.publicState);
+    if (typeof publicState.status !== 'string' || publicState.status !== 'LOBBY') return;
+    if (!sessionState.playerId) return;
+
+    const username = authUiState.user?.username?.trim() || null;
+    const nextPlayerId = authUiState.user?.id?.trim() || randomToken();
+
+    try {
+        await claimRoomIdentity({
+            roomCode: activeLobby.room,
+            playerId: nextPlayerId,
+            username: username ?? undefined,
+            token: activeLobby.token,
+        });
+        restartActiveLobbySession(activeLobby);
+    } catch (error) {
+        console.warn('[lobby] failed to sync participant profile after auth change', error);
     }
 }
 
@@ -1306,7 +1535,7 @@ function applyAuthUI() {
         signupBtn.textContent = state.lang === 'en' ? 'Create account' : 'Opret konto';
         signupBtn.onclick = () => navigate('/signup');
         profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
-        profileBtn.onclick = () => alert('You are not logged in.');
+        profileBtn.onclick = () => navigate({ view: 'profile' });
 
         if (avatarDisplay) {
             avatarDisplay.classList.add('hidden');
@@ -1321,14 +1550,8 @@ function applyAuthUI() {
     profileBtn.removeAttribute('data-i18n');
     signupBtn.textContent = 'Customize player';
     signupBtn.onclick = () => navigate('/custom');
-    profileBtn.textContent = 'Logout';
-    profileBtn.onclick = async () => {
-        if (!supabase) {
-            return;
-        }
-        await supabase.auth.signOut();
-        navigate('/');
-    };
+    profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
+    profileBtn.onclick = () => navigate({ view: 'profile' });
 
     if (!avatarDisplay) return;
     if (!authUiState.avatar) {
@@ -1462,6 +1685,7 @@ function normalizeGameKey(game: string): string {
     if (game === 'game.krig') return KRIG_GAME_ID;
     if (game === 'casino') return 'casino';
     if (game === 'single.card.highest.wins') return HIGHCARD_GAME_ID;
+    if (game === 'game.500') return 'fem';
     if (game === 'single-card-highest-wins') return HIGHCARD_GAME_ID;
     return game;
 }
@@ -1833,6 +2057,159 @@ function formatGameName(gameType: string): string {
     return gameType;
 }
 
+function canStartLobbyGame(gameType: string, playerCount: number): boolean {
+    const bounds = playerBoundsForLobbyGame(gameType);
+    return playerCount >= bounds.min && playerCount <= bounds.max;
+}
+
+function minPlayersForLobbyGame(gameType: string): number {
+    return playerBoundsForLobbyGame(gameType).min;
+}
+
+function playerBoundsForLobbyGame(gameType: string): { min: number; max: number } {
+    const normalized = normalizeGameKey(gameType);
+    if (normalized === HIGHCARD_GAME_ID) return { min: 1, max: 1 };
+    if (normalized === KRIG_GAME_ID) return { min: 2, max: 2 };
+    if (normalized === 'casino') return { min: 2, max: 2 };
+    if (normalized === 'fem') return { min: 2, max: 6 };
+    if (normalized === 'snyd') return { min: 2, max: 8 };
+    return { min: 2, max: 8 };
+}
+
+async function copyLobbyShareValue(value: string) {
+    try {
+        await copyTextToClipboard(value);
+        flashLobbyCopyFeedback();
+    } catch (error) {
+        console.warn('[lobby] failed to copy share value', error);
+    }
+}
+
+async function copyTextToClipboard(value: string) {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    if (!copied) {
+        throw new Error('Clipboard copy failed');
+    }
+}
+
+function flashLobbyCopyFeedback() {
+    lobbyRoomUiState.copiedShareValue = true;
+    if (lobbyCopyFeedbackTimer !== null) {
+        window.clearTimeout(lobbyCopyFeedbackTimer);
+    }
+    renderView();
+    lobbyCopyFeedbackTimer = window.setTimeout(() => {
+        lobbyRoomUiState.copiedShareValue = false;
+        lobbyCopyFeedbackTimer = null;
+        if (state.view === 'lobby') {
+            renderView();
+        }
+    }, 1600);
+}
+
+function clearLobbyCopyFeedback() {
+    lobbyRoomUiState.copiedShareValue = false;
+    if (lobbyCopyFeedbackTimer !== null) {
+        window.clearTimeout(lobbyCopyFeedbackTimer);
+        lobbyCopyFeedbackTimer = null;
+    }
+}
+
+function rememberActiveLobby(route: AppRoute) {
+    activeLobbyState.route = {
+        ...route,
+        view: 'lobby',
+    };
+}
+
+function resolveActiveLobbyRoute(): AppRoute | null {
+    const route = activeLobbyState.route;
+    if (!route?.room || !route.token) {
+        return null;
+    }
+    return { ...route, view: 'lobby' };
+}
+
+function clearActiveLobby() {
+    activeLobbyState.route = null;
+}
+
+function restartActiveLobbySession(route: AppRoute) {
+    if (!route.room || !route.token) {
+        return;
+    }
+
+    cleanupRoomSession();
+    ensureRoomSession(
+        route.game ?? FALLBACK_LOBBY_GAME_ID,
+        route.room,
+        route.token,
+        route.mock,
+    );
+}
+
+async function leavePreservedLobbyBeforeTransition(targetRoomCode?: string | null) {
+    const activeLobby = resolveActiveLobbyRoute();
+    if (!activeLobby?.room || !activeLobby.token) {
+        return;
+    }
+    if (targetRoomCode && activeLobby.room === targetRoomCode) {
+        return;
+    }
+
+    try {
+        await leaveRoom({ roomCode: activeLobby.room, token: activeLobby.token });
+    } catch (error) {
+        console.warn('[lobby] failed to leave preserved lobby before transition', error);
+    } finally {
+        clearActiveLobby();
+        cleanupRoomSession();
+    }
+}
+
+function shouldPreserveLobbySession(): boolean {
+    if (!activeLobbyState.route || !roomSession) {
+        return false;
+    }
+    const sessionState = roomSession.getState();
+    const publicState = toRecord(sessionState.publicState);
+    return typeof publicState.status === 'string' && publicState.status === 'LOBBY';
+}
+
+function syncActiveLobbySessionState() {
+    if (!roomSession) {
+        clearActiveLobby();
+        return;
+    }
+    const sessionState = roomSession.getState();
+    const publicState = toRecord(sessionState.publicState);
+    const status = typeof publicState.status === 'string' ? publicState.status : null;
+    if (status !== 'LOBBY') {
+        clearActiveLobby();
+    }
+    if (
+        sessionState.connection === 'error'
+        || sessionState.connection === 'reconnecting'
+        || sessionState.lastError === 'Room closed'
+        || sessionState.lastError === 'SESSION_CLOSED'
+    ) {
+        clearActiveLobby();
+    }
+}
+
 function getLobbyIdentity() {
     const authenticatedUserId = authUiState.user?.id?.trim();
     return {
@@ -1907,7 +2284,9 @@ if (isSupabaseConfigured && supabase) {
         authUiState.user = currentSession?.user ? { id: currentSession.user.id, username: null } : null;
         if (!currentSession?.user) {
             authUiState.avatar = null;
-            renderApp();
+            void syncActiveLobbyParticipantProfile().finally(() => {
+                renderApp();
+            });
             return;
         }
 
@@ -1922,6 +2301,7 @@ if (isSupabaseConfigured && supabase) {
                 );
                 authUiState.user = { id: currentSession.user!.id, username };
                 authUiState.avatar = avatar;
+                await syncActiveLobbyParticipantProfile();
                 renderApp();
             })
             .catch(() => {
