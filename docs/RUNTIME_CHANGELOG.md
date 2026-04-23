@@ -1,5 +1,30 @@
 # Runtime Changelog
 
+## 2026-04-22 — Danish 500 Port Adapter (WebSocket Wiring)
+
+### What changed
+- **FemEnginePortAdapter**: New `@Component` implementing `GameLoopService.EnginePort` for Danish 500. Handles all game commands: `DRAW_FROM_STOCK`, `DRAW_FROM_DISCARD`, `TAKE_DISCARD_PILE`, `LAY_MELD`, `EXTEND_MELD`, `SWAP_JOKER`, `DISCARD`, `CLAIM_DISCARD`, `PASS_GRAB`, plus shared `SELECT_GAME`/`START_GAME`. Registers max 6 players.
+- **SnydEnginePortAdapter**: Added `"fem"` to `supportsLobbySelection`.
+- **HighCardEnginePortAdapter**: Added `"fem"` to `supportsLobbySelection`.
+- **FemEnginePortAdapterTest**: 9 integration tests covering start, reject, draw, meld, discard, grab phase, and snapshot flows.
+
+### Why
+Connects the FemEngine domain layer to the WebSocket game loop so Danish 500 is playable from the client. Follows the same port adapter pattern as Snyd.
+
+## 2026-04-21 — Danish 500 Game Engine
+
+### What changed
+- **Card primitive**: Added Joker support (`JK1`, `JK2` format). `parse()` handles "JK" prefix, `value()` returns 0 for jokers.
+- **Deck primitive**: Added `standard52WithJokers()` factory for 54-card deck.
+- **New engine**: `FemEngine`, `FemState`, `FemAction`, `FemViewProjector` in `dk.bodegadk.server.domain.games.fem` package.
+  - Rummy-style melding game (Danish 500).
+  - 2-6 players, 7 cards each, multi-round with cumulative scoring.
+  - Actions: draw, lay melds, extend melds, swap jokers, discard, claim discards.
+  - First to 500 cumulative points wins.
+
+### Why
+Danish 500 is the next game to be added to the platform. This implements the pure domain engine (no transport/adapter wiring yet).
+
 ## 2026-04-21 — Normalize Runtime Integration Pattern
 
 ### What changed

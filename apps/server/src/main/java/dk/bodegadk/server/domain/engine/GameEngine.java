@@ -3,7 +3,7 @@ package dk.bodegadk.server.domain.engine;
 import java.util.List;
 
 /**
- * <p>Every game (Snyd, Meyer, 500, etc.) implements this with its own state and action types.
+ * <p>Every game (Snyd, Meyer, Fem, etc.) implements this with its own state and action types.
  *
  * <p>Usage:
  * <pre>
@@ -17,7 +17,7 @@ import java.util.List;
  */
 public interface GameEngine<S extends GameState, A extends GameAction> {
 
-    /** Unique game identifier, e.g. "snyd", "meyer", "500". */
+    /** Unique game identifier, e.g. "snyd", "meyer", "fem". */
     String gameId();
 
     /** Minimum number of players required to start. */

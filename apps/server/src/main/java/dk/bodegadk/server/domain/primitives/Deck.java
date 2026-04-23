@@ -30,6 +30,19 @@ public final class Deck {
         return new Deck(cards);
     }
 
+    /** Create a 54-card deck: standard 52 cards + 2 jokers (JK1, JK2). */
+    public static Deck standard52WithJokers() {
+        List<Card> cards = new ArrayList<>(54);
+        for (String suit : SUITS) {
+            for (String rank : RANKS) {
+                cards.add(new Card(suit, rank));
+            }
+        }
+        cards.add(new Card("JK", "1"));
+        cards.add(new Card("JK", "2"));
+        return new Deck(cards);
+    }
+
     /** Shuffle in-place. Returns self for chaining: {@code Deck.standard52().shuffle()} */
     public Deck shuffle() {
         Collections.shuffle(cards);
