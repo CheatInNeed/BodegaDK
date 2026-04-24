@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Krig — BodegaDK</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Playfair+Display+SC:wght@700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: #0d2414;
+  color: #f1e8d8;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+#root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(ellipse 80% 60% at 50% 50%, #1a472a 0%, #0f2a18 60%, #091a0e 100%);
+  position: relative;
+  overflow: hidden;
+}
+.table::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(255,255,255,0.012) 3px, rgba(255,255,255,0.012) 4px),
+    repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(255,255,255,0.012) 3px, rgba(255,255,255,0.012) 4px);
+  pointer-events: none;
+}
+
+/* ── PLAYER ZONES ── */
+.player-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 18px 32px;
+  flex-shrink: 0;
+}
+.player-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #d4af6a;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.player-count {
+  font-size: 11px;
+  color: rgba(212,175,106,0.5);
+  margin-top: 3px;
+  letter-spacing: 0.06em;
+}
+
+/* ── BATTLE ZONE ── */
+.battle-zone {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* ── CARD FLIP ANIMATION ── */
+@keyframes flip-in {
+  0%   { transform: rotateY(90deg) scale(0.9); opacity: 0.2; }
+  60%  { transform: rotateY(-8deg) scale(1.04); opacity: 1; }
+  100% { transform: rotateY(0deg) scale(1); }
+}
+.card-flip { animation: flip-in 0.42s cubic-bezier(0.22,1,0.36,1) forwards; }
+
+/* ── KRIG CARD SLIDE ── */
+@keyframes slide-down { from { transform: translateY(-18px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes slide-up   { from { transform: translateY(18px);  opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ── WIN / LOSE ── */
+@keyframes win-pulse {
+  0%,100% { box-shadow: 0 0 0 2px #d4af6a, 0 0 18px rgba(212,175,106,0.4); }
+  50%      { box-shadow: 0 0 0 3px #ffd060, 0 0 38px rgba(255,200,70,0.7); }
+}
+.card-win  { animation: win-pulse 1s ease-in-out infinite; border-radius: 6px; }
+.card-lose { opacity: 0.4; filter: grayscale(0.35); transition: opacity 0.3s, filter 0.3s; }
+
+/* ── CARD TRAVEL ── */
+@keyframes travel-up   { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(-130px) scale(0.65);opacity:0} }
+@keyframes travel-down { 0%{transform:translateY(0) scale(1);opacity:1} 100%{transform:translateY(130px)  scale(0.65);opacity:0} }
+.travel-up   { animation: travel-up   0.55s ease-in forwards; }
+.travel-down { animation: travel-down 0.55s ease-in forwards; }
+
+/* ── KRIG TEXT ── */
+@keyframes krig-slam {
+  0%   { transform: scale(0.25) rotate(-10deg); opacity: 0; }
+  55%  { transform: scale(1.15) rotate(2deg); opacity: 1; }
+  75%  { transform: scale(0.95) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes krig-flicker {
+  0%,100% { text-shadow: 0 0 18px #e03030, 0 0 55px #e03030; }
+  50%      { text-shadow: 0 0 35px #ff5050, 0 0 90px #ff3030, 0 0 130px #ff1010; }
+}
+.krig-word {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(54px, 9vw, 92px);
+  font-weight: 900;
+  color: #ff4444;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  animation: krig-slam 0.5s cubic-bezier(0.22,1,0.36,1) forwards, krig-flicker 1.3s ease-in-out 0.5s infinite;
+}
+.krig-sub {
+  font-family: 'Playfair Display SC', serif;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  color: rgba(255,100,100,0.6);
+  text-align: center;
+  margin-top: 5px;
+}
+
+/* ── FLIP BUTTON ── */
+.flip-btn {
+  background: linear-gradient(135deg, #c4902a, #9a6e1e);
+  border: none;
+  border-radius: 50px;
+  color: #1a0e00;
+  font-family: 'Playfair Display', serif;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  padding: 12px 40px;
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 4px 20px rgba(196,144,42,0.35), inset 0 1px 0 rgba(255,255,255,0.18);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.flip-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(196,144,42,0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+.flip-btn:active:not(:disabled) { transform: translateY(1px); }
+.flip-btn:disabled { opacity: 0.38; cursor: default; }
+
+/* ── SCORE BAR ── */
+.score-bar {
+  width: 220px;
+  height: 5px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.score-fill {
+  height: 100%;
+  position: absolute;
+  top: 0;
+  border-radius: 3px;
+  transition: width 0.7s cubic-bezier(0.34,1.56,0.64,1);
+}
+.score-fill.p1 { left: 0; background: linear-gradient(to right, #d4af6a, #c4902a); }
+.score-fill.p2 { right: 0; background: linear-gradient(to left, #e07060, #c04040); }
+.score-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 220px;
+  margin-top: 5px;
+  font-size: 11px;
+  color: rgba(212,175,106,0.45);
+}
+.status-msg {
+  font-family: 'Playfair Display SC', serif;
+  font-size: 12px;
+  color: rgba(212,175,106,0.65);
+  letter-spacing: 0.1em;
+  text-align: center;
+  min-height: 18px;
+}
+.pot-label {
+  font-size: 10px;
+  color: rgba(255,120,120,0.5);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── GAME OVER ── */
+@keyframes fade-in { from{opacity:0} to{opacity:1} }
+.overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.8);
+  z-index: 50; gap: 14px;
+  animation: fade-in 0.5s ease;
+}
+.overlay-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(42px,7vw,78px);
+  font-weight: 900;
+  color: #d4af6a;
+  text-shadow: 0 0 28px rgba(212,175,106,0.45);
+}
+.overlay-sub {
+  font-family: 'Playfair Display SC', serif;
+  font-size: 13px;
+  color: rgba(212,175,106,0.55);
+  letter-spacing: 0.14em;
+}
+.bodega-quip {
+  font-family: 'Playfair Display SC', serif;
+  font-size: 12px;
+  color: rgba(212,175,106,0.35);
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+}
+.new-game-btn {
+  background: linear-gradient(135deg, #c4902a, #9a6e1e);
+  border: none; border-radius: 50px;
+  color: #1a0e00; font-family: 'Playfair Display', serif;
+  font-size: 14px; font-weight: 900; letter-spacing: 0.07em;
+  padding: 10px 30px; cursor: pointer; text-transform: uppercase;
+  margin-top: 10px; box-shadow: 0 4px 20px rgba(196,144,42,0.35);
+  transition: transform 0.12s;
+}
+.new-game-btn:hover { transform: translateY(-2px); }
+
+/* ── TWEAKS ── */
+.tweaks-panel {
+  position: fixed; bottom: 16px; right: 16px;
+  background: #1c140a; border: 1px solid rgba(212,175,106,0.22);
+  border-radius: 10px; padding: 14px 16px;
+  z-index: 100; min-width: 200px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+.tweaks-title {
+  font-family: 'Playfair Display SC', serif;
+  font-size: 11px; letter-spacing: 0.15em;
+  color: rgba(212,175,106,0.55);
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.tweak-item { margin-bottom: 8px; }
+.tweak-item label {
+  display: block; font-size: 10px;
+  color: rgba(212,175,106,0.45);
+  letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 3px;
+}
+.tweak-item input, .tweak-item select {
+  width: 100%; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(212,175,106,0.18);
+  border-radius: 4px; color: #f1e8d8;
+  font-size: 12px; padding: 5px 8px; outline: none; font-family: inherit;
+}
+.tweak-item select option { background: #1c140a; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="game-cards.jsx"></script>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+const { GCardBack, GPlayingCard, CARD_THEMES } = window;
+
+// ── TWEAKS ───────────────────────────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "themeKey": "nordisk",
+  "p1Name": "Magnus",
+  "p2Name": "Lars",
+  "animSpeed": 4
+}/*EDITMODE-END*/;
+
+// ── DECK ─────────────────────────────────────────────────────────────────────
+const SUITS = [
+  { s:'♠', red:false }, { s:'♥', red:true },
+  { s:'♦', red:true  }, { s:'♣', red:false },
+];
+const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const RANK_VAL = { '2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,J:11,Q:12,K:13,A:14 };
+let _uid = 1;
+const mkCard = (rank, suit) => ({ id:`c${_uid++}`, rank, suit });
+
+function buildDeck() {
+  const d = [];
+  for (const suit of SUITS) for (const rank of RANKS) d.push(mkCard(rank, suit));
+  for (let i = d.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [d[i], d[j]] = [d[j], d[i]];
+  }
+  return d;
+}
+
+// ── CONSTANTS ────────────────────────────────────────────────────────────────
+const CW = 80, CH = 112;  // battle card
+const SW = 58, SH = 81;   // stack card
+
+// ── CARD STACK ───────────────────────────────────────────────────────────────
+function CardStack({ count, themeKey }) {
+  const t = CARD_THEMES[themeKey] || CARD_THEMES.klassisk;
+  const layers = Math.min(count, 4);
+  return (
+    <div style={{ width: SW + 8, height: SH + 8, position:'relative', flexShrink:0 }}>
+      {layers === 0
+        ? <div style={{ width:SW, height:SH, borderRadius:t.cardRadius,
+            border:'2px dashed rgba(212,175,106,0.12)',
+            display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <span style={{ color:'rgba(212,175,106,0.18)', fontSize:18 }}>∅</span>
+          </div>
+        : Array.from({ length:layers }, (_,i) => (
+          <div key={i} style={{ position:'absolute', top:(layers-1-i)*2, left:(layers-1-i)*2, opacity: i===layers-1 ? 1 : 0.65 }}>
+            <GCardBack cw={SW} ch={SH} t={t} uid={`s${i}`} />
+          </div>
+        ))
+      }
+    </div>
+  );
+}
+
+// ── BATTLE CARD ───────────────────────────────────────────────────────────────
+function BattleCard({ card, themeKey, win, lose, travelDir }) {
+  const t = CARD_THEMES[themeKey] || CARD_THEMES.klassisk;
+  const wrapCls = [
+    'card-flip',
+    win  ? 'card-win'  : '',
+    lose ? 'card-lose' : '',
+    travelDir === 'up'   ? 'travel-up'   : '',
+    travelDir === 'down' ? 'travel-down' : '',
+  ].filter(Boolean).join(' ');
+  return (
+    <div className={wrapCls} key={card.id}>
+      <GPlayingCard card={card} t={t} cw={CW} ch={CH} />
+    </div>
+  );
+}
+
+// ── KRIG HAND (3 face-down + 1 face-up) ──────────────────────────────────────
+function KrigHand({ downCards, upCard, themeKey, win, lose, fromTop }) {
+  const t = CARD_THEMES[themeKey] || CARD_THEMES.klassisk;
+  const animName = fromTop ? 'slide-down' : 'slide-up';
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+      {/* Fan of 3 face-down */}
+      <div style={{ display:'flex' }}>
+        {downCards.map((c, i) => (
+          <div key={c.id} style={{
+            marginLeft: i > 0 ? -16 : 0,
+            animation: `${animName} ${0.18 + i*0.09}s ease both`,
+          }}>
+            <GCardBack cw={50} ch={70} t={t} uid={`kd${c.id}`} />
+          </div>
+        ))}
+      </div>
+      {/* Divider */}
+      {downCards.length > 0 && upCard && (
+        <div style={{ width:1, height:55, background:'rgba(212,175,106,0.18)', flexShrink:0 }} />
+      )}
+      {/* Face-up battle card */}
+      {upCard && (
+        <div className={['card-flip', win?'card-win':'', lose?'card-lose':''].filter(Boolean).join(' ')} key={upCard.id}>
+          <GPlayingCard card={upCard} t={t} cw={CW} ch={CH} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── PHASES ───────────────────────────────────────────────────────────────────
+// idle            → player presses Vend! → normal flip
+// battle          → both cards face-up, auto-resolves (win/lose) or triggers krig
+// krig_announce   → KRIG! text shown; button label: "Vend!" → player confirms
+// krig_down       → 3 face-down cards shown; button: "Vend!" → flip the deciding card
+// krig_resolve    → deciding cards revealed, winner shown, auto-clears
+// gameover
+
+// ── MAIN COMPONENT ───────────────────────────────────────────────────────────
+function KrigGame() {
+  const [tweaks, setTweaks] = useState(() => {
+    try { return { ...TWEAK_DEFAULTS, ...JSON.parse(localStorage.getItem('krig_tweaks')||'{}') }; }
+    catch { return { ...TWEAK_DEFAULTS }; }
+  });
+  const [showTweaks, setShowTweaks] = useState(false);
+
+  // ── game state ──
+  const [p1Deck, setP1Deck] = useState([]);
+  const [p2Deck, setP2Deck] = useState([]);
+  const [phase, setPhase] = useState('idle');
+  // normal battle cards
+  const [p1Card, setP1Card] = useState(null);
+  const [p2Card, setP2Card] = useState(null);
+  // krig state
+  const [krig, setKrig] = useState({ p1Down:[], p2Down:[], p1Up:null, p2Up:null });
+  // accumulated pot for current war chain
+  const [pot, setPot] = useState([]);
+  // resolution
+  const [winner, setWinner] = useState(null); // 'p1'|'p2'|null
+  const [travelDir, setTravelDir] = useState(null); // 'up'(→p2)|'down'(→p1)
+  const [statusMsg, setStatusMsg] = useState('Vend kortet for at starte!');
+  const [busy, setBusy] = useState(false);
+
+  const tweaksRef = useRef(tweaks);
+  tweaksRef.current = tweaks;
+
+  const delay = useCallback((ms) => {
+    return new Promise(r => setTimeout(r, ms / (tweaksRef.current.animSpeed || 1)));
+  }, []);
+
+  // ── init ──
+  const initGame = useCallback(() => {
+    const deck = buildDeck();
+    setP1Deck(deck.slice(0, 26));
+    setP2Deck(deck.slice(26));
+    setP1Card(null); setP2Card(null);
+    setKrig({ p1Down:[], p2Down:[], p1Up:null, p2Up:null });
+    setPot([]);
+    setWinner(null);
+    setTravelDir(null);
+    setPhase('idle');
+    setBusy(false);
+    setStatusMsg('Vend kortet for at starte!');
+  }, []);
+
+  useEffect(() => { initGame(); }, []);
+
+  // ── tweaks sync ──
+  useEffect(() => {
+    localStorage.setItem('krig_tweaks', JSON.stringify(tweaks));
+    window.parent?.postMessage({ type:'__edit_mode_set_keys', edits:tweaks }, '*');
+  }, [tweaks]);
+
+  useEffect(() => {
+    const h = (e) => {
+      if (e.data?.type === '__activate_edit_mode')   setShowTweaks(true);
+      if (e.data?.type === '__deactivate_edit_mode') setShowTweaks(false);
+    };
+    window.addEventListener('message', h);
+    window.parent?.postMessage({ type:'__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', h);
+  }, []);
+
+  // ── resolve a winner after battle / krig ──
+  const resolveWin = useCallback(async (who, wonCards, currentP1Deck, currentP2Deck) => {
+    setWinner(who);
+    setStatusMsg(who === 'p1'
+      ? `${tweaksRef.current.p1Name} vinder!`
+      : `${tweaksRef.current.p2Name} vinder!`);
+    await delay(1300);
+    setTravelDir(who === 'p1' ? 'down' : 'up');
+    await delay(550);
+    if (who === 'p1') {
+      setP1Deck(prev => [...prev, ...wonCards]);
+    } else {
+      setP2Deck(prev => [...prev, ...wonCards]);
+    }
+    setPot([]);
+    setTravelDir(null);
+    setP1Card(null); setP2Card(null);
+    setKrig({ p1Down:[], p2Down:[], p1Up:null, p2Up:null });
+    setWinner(null);
+    await delay(200);
+    setPhase('idle');
+    setStatusMsg('Vend kortet for at fortsætte!');
+    setBusy(false);
+  }, [delay]);
+
+  // ── main button handler ──
+  const handlePress = useCallback(async () => {
+    if (busy) return;
+
+    // ── IDLE: normal flip ──
+    if (phase === 'idle') {
+      if (p1Deck.length === 0 || p2Deck.length === 0) { setPhase('gameover'); return; }
+      setBusy(true);
+      const c1 = p1Deck[0], c2 = p2Deck[0];
+      const rest1 = p1Deck.slice(1), rest2 = p2Deck.slice(1);
+      setP1Deck(rest1); setP2Deck(rest2);
+      setP1Card(c1); setP2Card(c2);
+      setStatusMsg('');
+      setPhase('battle');
+      await delay(480);
+
+      const v1 = RANK_VAL[c1.rank], v2 = RANK_VAL[c2.rank];
+
+      if (v1 !== v2) {
+        // Normal win
+        const who = v1 > v2 ? 'p1' : 'p2';
+        await resolveWin(who, [...pot, c1, c2], rest1, rest2);
+      } else {
+        // TIE → KRIG!
+        setPot(prev => [...prev, c1, c2]);
+        setPhase('krig_announce');
+        setStatusMsg('');
+        setBusy(false);
+      }
+      return;
+    }
+
+    // ── KRIG_ANNOUNCE: player presses Vend! to lay down 3 face-down cards ──
+    if (phase === 'krig_announce') {
+      if (p1Deck.length < 4 || p2Deck.length < 4) {
+        // Not enough cards — whoever has more wins
+        setPhase('gameover');
+        return;
+      }
+      setBusy(true);
+      const p1Down = p1Deck.slice(0, 3);
+      const p2Down = p2Deck.slice(0, 3);
+      const p1Up   = p1Deck[3];
+      const p2Up   = p2Deck[3];
+      const rest1  = p1Deck.slice(4);
+      const rest2  = p2Deck.slice(4);
+
+      setP1Deck(rest1); setP2Deck(rest2);
+      // Add the 3 down cards + the deciding card to pot
+      setPot(prev => [...prev, ...p1Down, ...p2Down, p1Up, p2Up]);
+
+      // Show face-down cards first
+      setKrig({ p1Down, p2Down, p1Up:null, p2Up:null });
+      setP1Card(null); setP2Card(null);
+      setPhase('krig_down');
+      setStatusMsg('3 kort vendes ned...');
+      setBusy(false);
+      return;
+    }
+
+    // ── KRIG_DOWN: player presses Vend! to flip the deciding card ──
+    if (phase === 'krig_down') {
+      setBusy(true);
+      // We need to recover the p1Up and p2Up — they were stored in pot
+      // Actually let's store them separately; let me use krig state properly
+      // krig.p1Up / p2Up are null here — we need to get them from somewhere
+      // They were put in pot above — let's pull last 2 from pot
+      // Better: store them in krig state directly
+      // => I'll fix this: store p1Up/p2Up in krig state even before revealing
+      const { p1Down, p2Down, _p1Up, _p2Up } = krig;
+      setKrig(prev => ({ ...prev, p1Up: prev._p1Up, p2Up: prev._p2Up }));
+      setPhase('krig_resolve');
+      setStatusMsg('');
+      await delay(450);
+
+      const kv1 = RANK_VAL[krig._p1Up?.rank];
+      const kv2 = RANK_VAL[krig._p2Up?.rank];
+
+      if (kv1 !== kv2) {
+        const who = kv1 > kv2 ? 'p1' : 'p2';
+        const wonCards = [...pot]; // pot already includes all krig cards
+        await resolveWin(who, wonCards, p1Deck, p2Deck);
+      } else {
+        // Another tie — back to krig_announce loop
+        setKrig({ p1Down:[], p2Down:[], p1Up:null, p2Up:null });
+        setP1Card(krig._p1Up); setP2Card(krig._p2Up);
+        await delay(500);
+        setPhase('krig_announce');
+        setStatusMsg('');
+        setBusy(false);
+      }
+      return;
+    }
+  }, [busy, phase, p1Deck, p2Deck, pot, krig, delay, resolveWin]);
+
+  // ── Fix: store deciding cards in krig state with underscore keys ──
+  // Override krig_announce handler to store _p1Up/_p2Up
+  const handlePressFixed = useCallback(async () => {
+    if (busy) return;
+
+    if (phase === 'idle') {
+      if (p1Deck.length === 0 || p2Deck.length === 0) { setPhase('gameover'); return; }
+      setBusy(true);
+      const c1 = p1Deck[0], c2 = p2Deck[0];
+      const rest1 = p1Deck.slice(1), rest2 = p2Deck.slice(1);
+      setP1Deck(rest1); setP2Deck(rest2);
+      setP1Card(c1); setP2Card(c2);
+      setStatusMsg('');
+      setPhase('battle');
+      await delay(480);
+
+      const v1 = RANK_VAL[c1.rank], v2 = RANK_VAL[c2.rank];
+      if (v1 !== v2) {
+        await resolveWin(v1 > v2 ? 'p1' : 'p2', [...pot, c1, c2], rest1, rest2);
+      } else {
+        setPot(prev => [...prev, c1, c2]);
+        setPhase('krig_announce');
+        setStatusMsg('');
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (phase === 'krig_announce') {
+      if (p1Deck.length < 4 || p2Deck.length < 4) { setPhase('gameover'); return; }
+      setBusy(true);
+      const p1Down = p1Deck.slice(0, 3);
+      const p2Down = p2Deck.slice(0, 3);
+      const p1Up   = p1Deck[3];
+      const p2Up   = p2Deck[3];
+      setP1Deck(p1Deck.slice(4));
+      setP2Deck(p2Deck.slice(4));
+      setPot(prev => [...prev, ...p1Down, ...p2Down]);
+      // Store deciding cards in krig state (hidden until next press)
+      setKrig({ p1Down, p2Down, p1Up:null, p2Up:null, _p1Up:p1Up, _p2Up:p2Up });
+      setP1Card(null); setP2Card(null);
+      setPhase('krig_down');
+      setStatusMsg('');
+      setBusy(false);
+      return;
+    }
+
+    if (phase === 'krig_down') {
+      setBusy(true);
+      const p1Up = krig._p1Up;
+      const p2Up = krig._p2Up;
+      // Reveal deciding cards
+      setKrig(prev => ({ ...prev, p1Up, p2Up }));
+      setPot(prev => [...prev, p1Up, p2Up]);
+      setPhase('krig_resolve');
+      setStatusMsg('');
+      await delay(480);
+
+      const kv1 = RANK_VAL[p1Up.rank];
+      const kv2 = RANK_VAL[p2Up.rank];
+
+      if (kv1 !== kv2) {
+        const who = kv1 > kv2 ? 'p1' : 'p2';
+        // pot already has everything including p1Up, p2Up just added
+        await resolveWin(who, [...pot, p1Up, p2Up], p1Deck, p2Deck);
+      } else {
+        // Tie again — re-enter krig_announce with current deciding cards shown
+        await delay(800);
+        setKrig({ p1Down:[], p2Down:[], p1Up:null, p2Up:null });
+        setP1Card(p1Up); setP2Card(p2Up);
+        setPhase('krig_announce');
+        setStatusMsg('');
+        setBusy(false);
+      }
+      return;
+    }
+  }, [busy, phase, p1Deck, p2Deck, pot, krig, delay, resolveWin]);
+
+  // keyboard
+  useEffect(() => {
+    const h = (e) => { if (e.code === 'Space' || e.code === 'Enter') handlePressFixed(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [handlePressFixed]);
+
+  // game over check
+  useEffect(() => {
+    if (phase === 'idle' && (p1Deck.length + p2Deck.length) > 0) {
+      if (p1Deck.length === 0 || p2Deck.length === 0) setPhase('gameover');
+    }
+  }, [phase, p1Deck.length, p2Deck.length]);
+
+  const th = tweaks.themeKey;
+  const total = 52;
+  const p1Pct = (p1Deck.length / total) * 100;
+  const p2Pct = (p2Deck.length / total) * 100;
+
+  const isKrigPhase = phase === 'krig_announce' || phase === 'krig_down' || phase === 'krig_resolve';
+  const showingKrigCards = phase === 'krig_down' || phase === 'krig_resolve';
+
+  // Button label + enabled
+  const btnLabel = (() => {
+    if (phase === 'idle')          return 'Vend!';
+    if (phase === 'krig_announce') return 'Læg 3 ned';
+    if (phase === 'krig_down')     return 'Afgørelse!';
+    return 'Vend!';
+  })();
+  const btnEnabled = !busy && (phase === 'idle' || phase === 'krig_announce' || phase === 'krig_down');
+
+  const gameoverWinner = p1Deck.length >= p2Deck.length ? tweaks.p1Name : tweaks.p2Name;
+
+  return (
+    <div className="table">
+
+      {/* ── P2 ZONE (top) ── */}
+      <div className="player-zone">
+        <div style={{ textAlign:'center' }}>
+          <div className="player-name">{tweaks.p2Name}</div>
+          <div className="player-count">{p2Deck.length} kort</div>
+        </div>
+        <CardStack count={p2Deck.length} themeKey={th} />
+      </div>
+
+      {/* ── BATTLE ZONE ── */}
+      <div className="battle-zone">
+
+        {/* P2 cards in center — top half */}
+        <div style={{ position:'absolute', top:'10%', display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+          {showingKrigCards && krig.p2Down.length > 0 && (
+            <KrigHand
+              downCards={krig.p2Down}
+              upCard={krig.p2Up}
+              themeKey={th}
+              win={winner === 'p2'}
+              lose={winner === 'p1'}
+              fromTop={true}
+            />
+          )}
+          {!showingKrigCards && p2Card && (
+            <BattleCard
+              card={p2Card} themeKey={th}
+              win={winner === 'p2'} lose={winner === 'p1'}
+              travelDir={travelDir === 'up' ? 'up' : null}
+            />
+          )}
+          {!p2Card && !showingKrigCards && (
+            <div style={{ width:CW, height:CH, borderRadius:6,
+              border:'1.5px dashed rgba(212,175,106,0.1)' }} />
+          )}
+        </div>
+
+        {/* Center HUD */}
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:14, zIndex:10 }}>
+
+          {/* KRIG! announcement */}
+          {phase === 'krig_announce' && (
+            <div style={{ textAlign:'center', marginBottom:4 }}>
+              <div className="krig-word">KRIG!</div>
+              <div className="krig-sub">Krig er erklæret</div>
+            </div>
+          )}
+
+          {/* Score bar (hide during krig announce to give KRIG! room) */}
+          {phase !== 'krig_announce' && (
+            <div style={{ textAlign:'center' }}>
+              <div className="score-bar">
+                <div className="score-fill p2" style={{ width:`${p2Pct}%` }} />
+                <div className="score-fill p1" style={{ width:`${p1Pct}%` }} />
+              </div>
+              <div className="score-labels">
+                <span>{tweaks.p1Name}: {p1Deck.length}</span>
+                <span>{tweaks.p2Name}: {p2Deck.length}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Main action button */}
+          <button className="flip-btn" onClick={handlePressFixed} disabled={!btnEnabled}>
+            {btnLabel}
+          </button>
+
+          {/* Pot indicator */}
+          {pot.length > 0 && (
+            <div className="pot-label">{pot.length} kort i potten</div>
+          )}
+
+          {/* Status */}
+          <div className="status-msg">{statusMsg}</div>
+        </div>
+
+        {/* P1 cards in center — bottom half */}
+        <div style={{ position:'absolute', bottom:'10%', display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+          {showingKrigCards && krig.p1Down.length > 0 && (
+            <KrigHand
+              downCards={krig.p1Down}
+              upCard={krig.p1Up}
+              themeKey={th}
+              win={winner === 'p1'}
+              lose={winner === 'p2'}
+              fromTop={false}
+            />
+          )}
+          {!showingKrigCards && p1Card && (
+            <BattleCard
+              card={p1Card} themeKey={th}
+              win={winner === 'p1'} lose={winner === 'p2'}
+              travelDir={travelDir === 'down' ? 'down' : null}
+            />
+          )}
+          {!p1Card && !showingKrigCards && (
+            <div style={{ width:CW, height:CH, borderRadius:6,
+              border:'1.5px dashed rgba(212,175,106,0.1)' }} />
+          )}
+        </div>
+      </div>
+
+      {/* ── P1 ZONE (bottom) ── */}
+      <div className="player-zone">
+        <CardStack count={p1Deck.length} themeKey={th} />
+        <div style={{ textAlign:'center' }}>
+          <div className="player-name">{tweaks.p1Name}</div>
+          <div className="player-count">{p1Deck.length} kort</div>
+        </div>
+      </div>
+
+      {/* ── GAME OVER ── */}
+      {phase === 'gameover' && (
+        <div className="overlay">
+          <div className="overlay-title">{gameoverWinner}</div>
+          <div className="overlay-sub">Vinder af krig!</div>
+          <div className="bodega-quip">Taber betaler næste omgang</div>
+          <button className="new-game-btn" onClick={initGame}>Ny kamp</button>
+        </div>
+      )}
+
+      {/* ── TWEAKS PANEL ── */}
+      {showTweaks && (
+        <div className="tweaks-panel">
+          <div className="tweaks-title">Tweaks</div>
+          <div className="tweak-item">
+            <label>Spiller 1</label>
+            <input value={tweaks.p1Name} onChange={e => setTweaks(p => ({...p, p1Name: e.target.value}))} />
+          </div>
+          <div className="tweak-item">
+            <label>Spiller 2</label>
+            <input value={tweaks.p2Name} onChange={e => setTweaks(p => ({...p, p2Name: e.target.value}))} />
+          </div>
+          <div className="tweak-item">
+            <label>Korttema</label>
+            <select value={tweaks.themeKey} onChange={e => setTweaks(p => ({...p, themeKey: e.target.value}))}>
+              <option value="klassisk">Klassisk</option>
+              <option value="nordisk">Nordisk</option>
+              <option value="mork">Mørk</option>
+            </select>
+          </div>
+          <div className="tweak-item">
+            <label>Hastighed</label>
+            <select value={tweaks.animSpeed} onChange={e => setTweaks(p => ({...p, animSpeed: parseFloat(e.target.value)}))}>
+              <option value="0.5">Langsom</option>
+              <option value="1">Normal</option>
+              <option value="2">Hurtig</option>
+              <option value="4">Turbo</option>
+            </select>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<KrigGame />);
+</script>
+</body>
+</html>
