@@ -244,7 +244,7 @@ export function renderFemRoom(vm: FemViewModel): string {
     ${gameOverBanner(vm)}
 
     <div class="g500-topbar">
-      <span class="g500-brand">500 · BodegaDK</span>
+      <button class="game-room-leave-btn" type="button" data-action="leave-table">← Forlad</button>
       ${scoreBar(vm.players)}
       <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px;">Runde ${vm.roundNumber}</span>
     </div>
