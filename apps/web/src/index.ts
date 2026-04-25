@@ -9,7 +9,6 @@ import { renderRoomError, renderRoomFrame } from './game-room/view.js';
 import { highcardAdapter } from './games/highcard/adapter.js';
 import { krigAdapter } from './games/krig/adapter.js';
 import { renderKrigRoom } from './games/krig/view.js';
-import { initKrigGame } from './games/krig/game.js';
 import { renderSingleCardHighestWinsRoom } from './games/single-card-highest-wins/view.js';
 import { snydAdapter } from './games/snyd/adapter.js';
 import { renderSnydRoom } from './games/snyd/view.js';
@@ -391,9 +390,6 @@ function renderView() {
         cleanupRoomSession();
         main.innerHTML = renderProfileView();
     } else if (state.view === 'room') {
-        if (state.route.game === 'krig' && document.getElementById('krig-root')?.dataset.initialized) {
-            return;
-        }
         main.innerHTML = renderRoomContent();
     }
 
@@ -1176,7 +1172,6 @@ function wireRoomEvents() {
         });
     });
 
-    initKrigGame();
 }
 
 function wireLobbyEvents() {
