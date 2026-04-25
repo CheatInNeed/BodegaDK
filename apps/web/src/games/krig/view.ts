@@ -41,24 +41,24 @@ const STACK_HEIGHT = 81;
 const TOTAL_CARDS = 52;
 
 export function renderKrigRoom(vm: KrigViewModel): string {
-    const topPlayer = vm.players[1] ?? null;
-    const bottomPlayer = vm.players[0] ?? null;
+    const { topPlayer, bottomPlayer } = resolveSeatPlayers(vm);
     const topPilePercent = topPlayer ? (topPlayer.pileCount / TOTAL_CARDS) * 100 : 0;
     const bottomPilePercent = bottomPlayer ? (bottomPlayer.pileCount / TOTAL_CARDS) * 100 : 0;
     const winnerName = vm.postGame?.winnerLabel ?? 'Ingen';
 
     return `<div id="krig-root">
   <div class="kg-table">
-    <div class="player-zone">
-      <div style="text-align:center">
+    <div class="player-zone ${topPlayer?.isReady ? 'player-zone-ready' : ''}">
+      <div class="krig-player-meta">
+        ${readyPips(topPlayer?.isReady ?? false)}
         <div class="player-name">${escapeHtml(topPlayer?.displayName ?? 'Guest')}</div>
         <div class="player-count">${topPlayer?.pileCount ?? 0} kort</div>
       </div>
-      ${cardStack(topPlayer?.pileCount ?? 0, TABLE_THEME, 'top')}
+      ${cardStack(topPlayer?.pileCount ?? 0, TABLE_THEME, 'top', topPlayer?.isReady ?? false)}
     </div>
 
     <div class="battle-zone">
-      <div style="position:absolute;top:10%;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div class="krig-seat-anchor krig-seat-anchor-top ${topPlayer?.isReady ? 'krig-seat-anchor-ready' : ''}">
         ${tableCard(topPlayer, TABLE_THEME, true)}
       </div>
 
@@ -85,14 +85,15 @@ export function renderKrigRoom(vm: KrigViewModel): string {
         <div class="status-msg">${escapeHtml(vm.statusText)}</div>
       </div>
 
-      <div style="position:absolute;bottom:10%;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div class="krig-seat-anchor krig-seat-anchor-bottom ${bottomPlayer?.isReady ? 'krig-seat-anchor-ready' : ''}">
         ${tableCard(bottomPlayer, TABLE_THEME, false)}
       </div>
     </div>
 
-    <div class="player-zone">
-      ${cardStack(bottomPlayer?.pileCount ?? 0, TABLE_THEME, 'bottom')}
-      <div style="text-align:center">
+    <div class="player-zone ${bottomPlayer?.isReady ? 'player-zone-ready' : ''}">
+      ${cardStack(bottomPlayer?.pileCount ?? 0, TABLE_THEME, 'bottom', bottomPlayer?.isReady ?? false)}
+      <div class="krig-player-meta">
+        ${readyPips(bottomPlayer?.isReady ?? false)}
         <div class="player-name">${escapeHtml(bottomPlayer?.displayName ?? 'Guest')}</div>
         <div class="player-count">${bottomPlayer?.pileCount ?? 0} kort</div>
       </div>
@@ -139,10 +140,10 @@ function emptyCardSlot(): string {
     return `<div style="width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;border-radius:6px;border:1.5px dashed rgba(212,175,106,0.1)"></div>`;
 }
 
-function cardStack(count: number, theme: CardTheme, uid: string): string {
+function cardStack(count: number, theme: CardTheme, uid: string, ready: boolean): string {
     const layers = Math.min(count, 4);
     if (layers === 0) {
-        return `<div style="width:${STACK_WIDTH}px;height:${STACK_HEIGHT}px;border-radius:${theme.cardRadius}px;border:2px dashed rgba(212,175,106,0.12);display:flex;align-items:center;justify-content:center"><span style="color:rgba(212,175,106,0.18);font-size:18px">∅</span></div>`;
+        return `<div class="krig-stack-shell ${ready ? 'krig-stack-shell-ready' : ''}" style="width:${STACK_WIDTH}px;height:${STACK_HEIGHT}px;border-radius:${theme.cardRadius}px;border:2px dashed rgba(212,175,106,0.12);display:flex;align-items:center;justify-content:center"><span style="color:rgba(212,175,106,0.18);font-size:18px">∅</span></div>`;
     }
 
     const cards = Array.from({ length: layers }, (_, index) => {
@@ -150,7 +151,7 @@ function cardStack(count: number, theme: CardTheme, uid: string): string {
         return `<div style="position:absolute;top:${offset}px;left:${offset}px;opacity:${index === layers - 1 ? 1 : 0.65}">${renderGCardBack(STACK_WIDTH, STACK_HEIGHT, theme, `${uid}-${index}`)}</div>`;
     }).join('');
 
-    return `<div style="width:${STACK_WIDTH + 8}px;height:${STACK_HEIGHT + 8}px;position:relative;flex-shrink:0">${cards}</div>`;
+    return `<div class="krig-stack-shell ${ready ? 'krig-stack-shell-ready' : ''}" style="width:${STACK_WIDTH + 8}px;height:${STACK_HEIGHT + 8}px;position:relative;flex-shrink:0">${cards}</div>`;
 }
 
 function battleCard(cardCode: string, theme: CardTheme, win: boolean, lose: boolean, role: string): string {
@@ -214,4 +215,32 @@ function escapeHtml(value: string): string {
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;');
+}
+
+function resolveSeatPlayers(vm: KrigViewModel): {
+    topPlayer: KrigViewModel['players'][number] | null;
+    bottomPlayer: KrigViewModel['players'][number] | null;
+} {
+    const selfPlayer = vm.players.find((player) => player.isSelf) ?? null;
+    const opponentPlayer = vm.players.find((player) => !player.isSelf) ?? null;
+
+    if (selfPlayer) {
+        return {
+            topPlayer: opponentPlayer,
+            bottomPlayer: selfPlayer,
+        };
+    }
+
+    return {
+        topPlayer: vm.players[1] ?? null,
+        bottomPlayer: vm.players[0] ?? null,
+    };
+}
+
+function readyPips(isReady: boolean): string {
+    return `<div class="krig-ready-pips ${isReady ? 'krig-ready-pips-active' : ''}" aria-hidden="true">
+  <span></span>
+  <span></span>
+  <span></span>
+</div>`;
 }
