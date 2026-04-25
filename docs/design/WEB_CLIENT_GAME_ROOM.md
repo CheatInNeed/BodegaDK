@@ -77,6 +77,10 @@ Valgfri:
     -   intent → `CASINO_PLAY_MOVE` / `CASINO_BUILD_STACK` / `CASINO_MERGE_STACKS`
 -   `apps/web/src/games/casino/view.ts`
     -   Casino specifik rendering
+-   `apps/web/src/games/krig/adapter.ts`
+    -   mapning fra Krig protocol state til Krig view model
+-   `apps/web/src/games/krig/view.ts`
+    -   server-drevet Krig bordrendering med spillerperspektiv
 -   `apps/web/src/index.ts`
     -   app shell integration og room event binding
 
@@ -131,7 +135,8 @@ State rules:
 -   `toViewModel(...)` mappper protocol shape → UI shape
 -   `buildAction(...)` mapper UI intent → outbound protocol message
 
-Aktive adapters er `snydAdapter`, `casinoAdapter` og `highcardAdapter`.
+Aktive adapters er `snydAdapter`, `casinoAdapter`, `highcardAdapter`,
+`krigAdapter` og `femAdapter`.
 
 ------------------------------------------------------------------------
 
@@ -175,6 +180,36 @@ Actions:
 -   `Capture / Trail`
 -   `Build stack`
 -   Quick merge når ingen håndkort er valgt og 2+ stacks matcher en håndværdi
+
+------------------------------------------------------------------------
+
+## UI behavior (Krig v1)
+
+Krig bruger den fælles game-room session og WebSocket transport, men renderer
+et specialiseret fuldskærmsbord for at bevare spillets nuværende visuelle
+oplevelse.
+
+Room view viser:
+
+-   nuværende spiller nederst og modstander øverst
+-   profile username fra room state eller fælles guest fallback
+-   draw-pile counts og scorebar for begge spillere
+-   face-down ready state når en spiller har sendt `FLIP_CARD`
+-   resolved face-up cards efter begge spillere er ready
+-   War presentation via `warDepth`, `warPileSize`, `stakeCardCounts` og
+    `centerPileSize`
+-   rematch overlay når `gamePhase` er `GAME_OVER`
+
+Actions:
+
+-   `Flip` sender `FLIP_CARD`
+-   `Rematch` sender `REQUEST_REMATCH`
+-   `Forlad` bruger den fælles `leave-table` room handling
+
+Krig må gerne bruge klient-side presentation timers for suspense/reveal, men
+kort, vindere, piles og rematch state skal altid komme fra serverens
+`publicState`. Klienten må ikke genindføre lokal deck/RNG/game-rule state i
+Krig viewet.
 
 ------------------------------------------------------------------------
 

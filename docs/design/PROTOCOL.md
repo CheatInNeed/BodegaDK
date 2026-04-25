@@ -527,6 +527,13 @@ reveal animation. When the game finishes, `gamePhase` becomes `GAME_OVER`,
 neither player can continue a tied War, and `rematchPlayerIds` starts empty
 until players opt into a rematch.
 
+Krig clients should treat `readyPlayerIds` as both an action lock and a visual
+state. A player in `readyPlayerIds` has committed their flip for the current
+trick; cards are not revealed until both players are ready and the server emits
+the resolved trick state. The browser may add local presentation timing for the
+suspense/reveal animation, but the revealed cards, winner, pile counts, and
+rematch state still come from `publicState`.
+
 ------------------------------------------------------------------------
 
 ## PUBLIC_UPDATE

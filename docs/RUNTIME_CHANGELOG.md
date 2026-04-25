@@ -1,5 +1,29 @@
 # Runtime Changelog
 
+## 2026-04-25 -- Krig Multiplayer UI Wiring
+
+### What changed
+- **Krig room view**: Replaced the leftover standalone/local Krig prototype
+  mount with the server-driven game-room renderer. The visible Krig table now
+  renders from `RoomSessionState` public/private updates instead of local deck
+  state.
+- **Player names**: Krig now uses the shared room player-name mapping, so
+  authenticated users render their profile username and anonymous players fall
+  back to the guest display label.
+- **Perspective seating**: The current player is always anchored at the bottom
+  of the Krig table and the opponent is always shown at the top, so each
+  browser gets its own player perspective.
+- **Ready indication**: Added a non-text visual ready state for Krig seats,
+  including animated ready pips and a subtle glow around the ready player's
+  pile/table-card area.
+
+### Why
+The local Krig prototype was still mounting inside the room route with
+hardcoded player names and browser-local flip logic. That bypassed the
+authoritative WebSocket room session, so one browser could appear to flip both
+cards while the other browser did not update. The room now keeps the existing
+Krig look while using the multiplayer protocol state for rendering and actions.
+
 ## 2026-04-24 — Centralized Lobby Coordinator For Game Switching
 
 ### What changed
