@@ -228,12 +228,11 @@ Game room læses fra URL query params:
 -   `view=room`
 -   `game=snyd`
 -   `room=ABC123`
--   `token=player-token`
 
 Eksempel:
 
 ``` text
-http://localhost:5173/?view=room&game=snyd&room=ABC123&token=p1
+http://localhost:5173/?view=room&game=snyd&room=ABC123
 ```
 
 ### Mock mode (indtil rigtig server-logic findes)
@@ -241,13 +240,13 @@ http://localhost:5173/?view=room&game=snyd&room=ABC123&token=p1
 Tilføj `mock=1` for lokal simulation af server updates:
 
 ``` text
-http://localhost:5173/?view=room&game=snyd&room=ABC123&token=p1&mock=1
+http://localhost:5173/?view=room&game=snyd&room=ABC123&mock=1
 ```
 
 For at teste public/private split med 2 clients:
 
-1.  Åbn tab A med `token=p1`
-2.  Åbn tab B med `token=p2`
+1.  Åbn tab A
+2.  Åbn tab B
 3.  Brug samme `room` i begge tabs
 
 I mock mode:
@@ -261,7 +260,6 @@ Når du klikker "Open" på Snyd-kortet:
 
 -   client navigerer til `view=room`
 -   sætter default `room=ABC123` hvis mangler
--   genererer token hvis mangler
 -   kører i `mock=1` som default
 
 ### Tilføj et nyt spil til lobby og quick play

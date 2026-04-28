@@ -95,7 +95,7 @@ Columns:
 - `game_type`
 - `player_id`
 - `username`
-- `session_token`
+- `client_session_id`
 - `ticket_status`
 - `room_code`
 - `min_players`
@@ -126,17 +126,16 @@ Abstraction over room and matchmaking persistence.
 Implementations:
 
 - `JdbcRoomMetadataStore`
-- `InMemoryRoomMetadataStore`
 
-The JDBC version is used when Spring has a datasource. The in-memory
-implementation is reserved for the local no-database profile when JDBC is
-disabled.
+The Spring app uses the JDBC implementation. Without a configured datasource,
+startup should fail instead of silently falling back to a second persistence
+model.
 
 ### `InMemoryRuntimeStore`
 
 Still owns:
 
-- session token tracking
+- active socket/runtime binding helpers
 - heartbeats
 - room executor queues
 - live engine state maps

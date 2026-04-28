@@ -61,7 +61,6 @@ Requires `Authorization: Bearer <supabase access token>`. The backend derives
 {
   "roomCode": "ABC123",
   "playerId": "auth-user-uuid",
-  "token": "internal-compat-token",
   "hostPlayerId": "auth-user-uuid",
   "isPrivate": false,
   "selectedGame": "highcard",
@@ -90,7 +89,6 @@ Joiner et eksisterende room.
   "ok": true,
   "roomCode": "ABC123",
   "playerId": "auth-user-uuid",
-  "token": "internal-compat-token",
   "hostPlayerId": "auth-user-uuid",
   "selectedGame": "highcard",
   "status": "LOBBY"
@@ -178,7 +176,6 @@ gangen.
   "status": "WAITING",
   "roomCode": null,
   "playerId": "auth-user-uuid",
-  "token": "browser-generated-queue-id",
   "queuedPlayers": 1,
   "playersNeeded": 1,
   "minPlayers": 2,

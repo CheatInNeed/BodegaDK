@@ -72,7 +72,7 @@ public class RoomController {
         roomMetadataStore.upsertParticipant(roomCode, playerId, username);
 
         return runtimeStore.roomSnapshot(roomCode)
-                .map(room -> new CreateRoomResponse(room.roomCode(), playerId, token, room.hostPlayerId(), room.isPrivate(), room.selectedGame(), room.status().name()))
+                .map(room -> new CreateRoomResponse(room.roomCode(), playerId, room.hostPlayerId(), room.isPrivate(), room.selectedGame(), room.status().name()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Room creation failed"));
     }
 
@@ -103,7 +103,7 @@ public class RoomController {
         InMemoryRuntimeStore.RoomSnapshot room = runtimeStore.roomSnapshot(roomCode)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
 
-        return new JoinRoomResponse(true, roomCode, playerId, token, room.hostPlayerId(), room.selectedGame(), room.status().name());
+        return new JoinRoomResponse(true, roomCode, playerId, room.hostPlayerId(), room.selectedGame(), room.status().name());
     }
 
     @PostMapping("/{roomCode}/kick")
@@ -186,7 +186,6 @@ public class RoomController {
     public record CreateRoomResponse(
             String roomCode,
             String playerId,
-            String token,
             String hostPlayerId,
             boolean isPrivate,
             String selectedGame,
@@ -212,7 +211,6 @@ public class RoomController {
             boolean ok,
             String roomCode,
             String playerId,
-            String token,
             String hostPlayerId,
             String selectedGame,
             String status

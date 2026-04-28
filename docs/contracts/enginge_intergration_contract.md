@@ -118,7 +118,7 @@ All WS messages use:
 ```
 
 Baseline gameplay flow:
-1. Client sends `CONNECT` with `roomCode` + `token`.
+1. Client sends `CONNECT` with `roomCode` + Supabase `accessToken`.
 2. Server sends `STATE_SNAPSHOT`.
 3. Client sends game actions.
 4. Server emits `PUBLIC_UPDATE` and targeted `PRIVATE_UPDATE`.

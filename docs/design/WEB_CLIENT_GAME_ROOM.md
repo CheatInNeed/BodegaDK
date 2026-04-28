@@ -33,12 +33,11 @@ Nødvendige query params:
 -   `view=room`
 -   `game=<mode>`
 -   `room=<roomCode>`
--   `token=<player token>`
 
 Eksempel:
 
 ``` text
-/?view=room&game=snyd&room=ABC123&token=p1
+/?view=room&game=snyd&room=ABC123
 ```
 
 Valgfri:
@@ -89,11 +88,11 @@ Valgfri:
 ## Runtime flow
 
 1.  `index.ts` ser `view=room`
-2.  Route valideres (`game`, `room`, `token`)
+2.  Route valideres (`game`, `room`)
 3.  Adapter findes for valgt game mode
 4.  `createGameRoomSession(...)` oprettes
 5.  Session åbner transport
-6.  Ved open sendes `CONNECT`
+6.  Ved open sendes `CONNECT` med Supabase `accessToken`
 7.  Indkommende messages parses og dispatches til store
 8.  Store opdaterer room state
 9.  Adapter laver view model

@@ -50,8 +50,8 @@ cancel support:
 - `public.matchmaking_tickets` is added to the Supabase realtime publication
 - the web client listens for changes to active queue tickets and refreshes its
   server ticket snapshot when another player joins or a ticket is matched
-- `public.cancel_matchmaking_ticket(uuid, text)` cancels only the matching
-  waiting ticket for the caller's session token
+- matchmaking cancellation goes through the authenticated Spring API; the
+  compatibility RPC exists for direct maintenance/debug use only
 - the Spring backend remains authoritative for matching players and creating
   rooms
 

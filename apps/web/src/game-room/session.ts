@@ -60,7 +60,7 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
             async onOpen() {
                 store.dispatch({ type: 'SET_CONNECTION', connection: 'connected' });
                 const accessToken = options.bootstrap.useMock
-                    ? options.bootstrap.token
+                    ? (options.bootstrap.mockClientId ?? options.bootstrap.roomCode)
                     : await getAccessTokenOrRedirect();
                 transport?.send({
                     type: 'CONNECT',

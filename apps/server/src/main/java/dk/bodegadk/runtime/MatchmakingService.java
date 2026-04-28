@@ -89,12 +89,16 @@ public class MatchmakingService {
                 return;
             }
             RoomMetadataStore.MatchmakingTicket hostTicket = matchedTickets.getFirst();
-            String roomCode = runtimeStore.createRoom(definition.id(), false, hostTicket.userId());
+            String roomCode;
+            do {
+                roomCode = runtimeStore.generateRoomCode();
+            } while (roomMetadataStore.roomExists(roomCode));
             roomMetadataStore.createRoom(roomCode, hostTicket.userId(), RoomMetadataStore.RoomVisibility.PUBLIC, definition.id(), InMemoryRuntimeStore.RoomStatus.LOBBY);
+            runtimeStore.mirrorRoom(roomCode, definition.id(), false, hostTicket.userId(), InMemoryRuntimeStore.RoomStatus.LOBBY);
 
             for (RoomMetadataStore.MatchmakingTicket ticket : matchedTickets) {
-                runtimeStore.joinRoom(roomCode, ticket.userId(), ticket.username(), runtimeToken(roomCode, ticket.userId()));
                 roomMetadataStore.upsertParticipant(roomCode, ticket.userId(), ticket.username());
+                runtimeStore.joinRoom(roomCode, ticket.userId(), ticket.username(), runtimeToken(roomCode, ticket.userId()));
             }
 
             ObjectNode payload = objectMapper.createObjectNode();
@@ -133,7 +137,6 @@ public class MatchmakingService {
                 ticket.status(),
                 ticket.roomCode(),
                 ticket.userId(),
-                ticket.clientSessionId(),
                 queuedPlayers,
                 playersNeeded,
                 ticket.minPlayers(),
@@ -172,7 +175,6 @@ public class MatchmakingService {
             RoomMetadataStore.MatchmakingTicketStatus status,
             String roomCode,
             String playerId,
-            String token,
             int queuedPlayers,
             int playersNeeded,
             int minPlayers,

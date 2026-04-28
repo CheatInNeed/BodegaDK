@@ -96,8 +96,9 @@ Join a room:
 
 ```bash
 curl -sS -X POST http://localhost/api/rooms/<ROOM_CODE>/join \
+  -H 'Authorization: Bearer <supabase-access-token>' \
   -H 'Content-Type: application/json' \
-  -d '{"playerId":"p1","token":"p1-token"}'
+  -d '{"username":"Alice"}'
 ```
 
 Expected:

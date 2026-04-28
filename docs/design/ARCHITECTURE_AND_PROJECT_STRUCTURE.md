@@ -83,8 +83,8 @@ Single endpoint:
 
 Flow:
 
-1.  Client connects with (roomId + token)
-2.  Server authenticates connection
+1.  Client connects with room code + Supabase access token
+2.  Server authenticates connection and verifies persisted room membership
 3.  Server sends STATE_SNAPSHOT
 4.  Client sends game actions
 5.  Server validates + updates state
@@ -158,9 +158,9 @@ Responsibilities:
 
 Client game-room flow (implemented):
 
-1.  URL bootstrap: `?view=room&game=...&room=...&token=...`
+1.  URL bootstrap: `?view=room&game=...&room=...`
 2.  Session opens transport (`/ws` or mock transport)
-3.  Session sends `CONNECT`
+3.  Session sends `CONNECT` with Supabase `accessToken`
 4.  Store receives:
     -   `STATE_SNAPSHOT`
     -   `PUBLIC_UPDATE`

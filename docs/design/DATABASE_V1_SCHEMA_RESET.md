@@ -40,29 +40,29 @@ Migration files:
 - Restores realtime publication for `matchmaking_tickets`.
 - Enables an initial RLS baseline for authenticated users. Backend writes should still use privileged server credentials.
 
-## What Breaks Until Code Is Updated
+## Code Update Status
 
 ### Backend
 
-- `JdbcRoomMetadataStore` currently writes old columns: `rooms.room_code` as primary key, `game_type`, `host_player_id`, `room_status`, `is_private`, `room_players.player_id`, `matchmaking_tickets.ticket_id`, `session_token`, and `ticket_status`. It must be rewritten for UUID `rooms.id`, `games.id`, `auth.users` UUIDs, `status`, `visibility`, `client_session_id`, and `matched_room_id`.
-- `RoomMetadataStore` and matchmaking DTOs still model player identity as arbitrary strings. They need to treat the authenticated Supabase user UUID as the persisted `user_id`.
-- `MatchmakingService` currently accepts `gameType`, `playerId`, `username`, and generated session tokens. It must resolve `gameType` to `games.slug`/`games.id`, require an authenticated user, and return payloads compatible with the new ticket/room IDs.
-- `RoomController` normal create/join/list flows still use `InMemoryRuntimeStore` directly. Those flows will not create durable `rooms` or `room_players` rows until moved to the canonical DB path.
-- `GameWsHandler` and `InMemoryRuntimeStore.resolveConnect` still validate room access through room code plus runtime tokens. WebSocket connect should be tied to authenticated users and persisted room participation.
-- `LobbyCoordinator` and selected-game changes currently mutate runtime room state. Durable rooms should update `rooms.game_id` when the selected game changes.
+- `JdbcRoomMetadataStore` writes the V1 `rooms`, `room_players`, and `matchmaking_tickets` tables.
+- Room and matchmaking REST controllers require authenticated Supabase users and persist auth UUIDs as `user_id`.
+- Normal room create/join/list flows write/read DB room metadata and only mirror active room state into memory.
+- `GameWsHandler` validates Supabase access tokens, checks persisted room membership, and then binds sockets to auth UUIDs.
+- `LobbyCoordinator` updates durable selected game state through `rooms.game_id`.
+- Matchmaking creates the durable room first, then mirrors room/player state into runtime memory.
 - Engine adapters can keep user IDs as strings internally, but those strings must become auth UUID strings for persisted players.
-- Game completion currently broadcasts `GAME_FINISHED` only. It must write `matches`, `match_players`, and any derived `user_game_stats` or `leaderboard_scores`.
-- Backend tests that assert old room/matchmaking persistence columns must be rewritten around the V1 schema.
+- Game completion writes `matches` and `match_players`. Derived `user_game_stats` and `leaderboard_scores` are still future work.
+- Backend tests still need a full compile/run pass on a machine with Maven.
 
 ### Frontend
 
-- Guest fallbacks must be removed from create room, join room, quick play, room reconnect, and WebSocket connect flows.
-- API protocol types in `apps/web/src/net/api.ts` and related callers still expect fields such as `playerId`, `token`, `selectedGame`, `ticketId`, and `roomCode`. They need an auth-user-based contract.
-- Quick play realtime currently watches old `matchmaking_tickets` field names. It must watch `id`, `status`, `matched_room_id`, `client_session_id`, and any server-returned room code mapping.
-- `cancel_matchmaking_ticket(uuid, text)` can keep the same RPC signature for now, but the second argument now means `client_session_id`.
+- Guest fallbacks are removed from live room, join, quick play, and WebSocket flows.
+- API protocol types no longer expose room/session tokens. `playerId` fields remain as UI-compatible auth UUIDs.
+- Quick play realtime watches tickets by V1 `id`.
+- Matchmaking cancellation goes through the authenticated server API; direct browser RPC cancellation is no longer used by the app.
 - `touch_room_heartbeat(text)` can keep the same RPC signature, but it now requires the signed-in user to be a persisted room participant.
-- Profile code must move from `profiles.id` to `profiles.user_id`.
-- Avatar code must move from the old `avatars` table with `avatar_color`/`avatar_shape` to `user_avatars` plus `avatar_defs`.
+- Profile code uses `profiles.user_id`.
+- Avatar code uses `user_avatars` plus `avatar_defs`.
 - UI routes that expose profile, stats, friends, invite, or leaderboard data must remain placeholder/disabled until the matching backend/RLS-safe query path is complete.
 
 ### Supabase And Data
@@ -75,18 +75,15 @@ Migration files:
 
 ### Deployment
 
-- The migration is destructive and incompatible with the current room/matchmaking backend code.
+- The migration is destructive and must deploy with compatible backend/frontend code.
 - Because Supabase migrations may run automatically from GitHub on push, do not push this reset to `dev` until the compatible backend/frontend code is ready or the deployment order is deliberately controlled.
 - The correct production shape is one coordinated release: compatible code plus this schema reset plus real game catalog rows.
 
 ## Pre-Run Checklist
 
-- Rewrite `JdbcRoomMetadataStore` and related tests for V1 table/column names.
-- Require authenticated user identity in room, matchmaking, and WebSocket flows.
-- Remove guest identity/session-token behavior from frontend and backend contracts.
+- Run server tests on a machine with Maven.
+- Run at least one authenticated create/join/start/finish flow against Supabase.
 - Apply the real `games` catalog seed migration.
-- Add game result persistence into `matches` and `match_players`.
-- Update profile/avatar queries for `profiles.user_id`, `user_avatars`, and `avatar_defs`.
 - Confirm RLS policies for any direct browser reads/writes used by the frontend.
-- Run server tests and web build.
+- Run web build.
 - Apply the migration only in a coordinated deploy window.

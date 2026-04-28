@@ -26,7 +26,6 @@ import {
     claimRoomIdentity,
     createRoom,
     enqueueMatchmaking,
-    getAccessTokenOrRedirect,
     getMatchmakingTicket,
     joinRoom,
     kickPlayer,
@@ -404,9 +403,9 @@ function renderView() {
 function renderLobbyContent(): string {
     stopRoomHeartbeat();
     const route = state.route;
-    if (!route.room || !route.token) {
+    if (!route.room) {
         cleanupRoomSession();
-        return renderRoomError('Missing query params. Required: view=lobby&room=ABC123&token=yourToken');
+        return renderRoomError('Missing query params. Required: view=lobby&room=ABC123');
     }
 
     if (route.game && !supportsLobbyLifecycle(route.game)) {
@@ -416,14 +415,13 @@ function renderLobbyContent(): string {
                 view: 'room',
                 game: route.game,
                 room: route.room,
-                token: route.token,
                 mock: route.mock,
             });
         });
         return renderRoomError('Opening game room...');
     }
 
-    const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.token, route.mock);
+    const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.mock);
     const roomState = session?.getState();
     const publicState = toRecord(roomState?.publicState);
     const hostPlayerId = typeof publicState.hostPlayerId === 'string' ? publicState.hostPlayerId : null;
@@ -432,13 +430,12 @@ function renderLobbyContent(): string {
     const isPrivate = publicState.isPrivate === true;
     const players = readLobbyPlayers(publicState.players, hostPlayerId, roomState?.playerId ?? null);
 
-    if (status === 'IN_GAME' && route.room && route.token) {
+    if (status === 'IN_GAME' && route.room) {
         queueMicrotask(() => {
             navigate({
                 view: 'room',
                 game: selectedGame,
                 room: route.room,
-                token: route.token,
                 mock: route.mock,
             });
         });
@@ -463,7 +460,6 @@ function renderLobbyContent(): string {
         view: 'lobby',
         game: selectedGame,
         room: route.room,
-        token: route.token,
         mock: route.mock,
     });
 
@@ -472,9 +468,9 @@ function renderLobbyContent(): string {
 
 function renderRoomContent(): string {
     const route = state.route;
-    if (!route.room || !route.token || !route.game) {
+    if (!route.room || !route.game) {
         cleanupRoomSession();
-        return renderRoomError('Missing query params. Required: view=room&game=highcard&room=ABC123&token=yourToken');
+        return renderRoomError('Missing query params. Required: view=room&game=highcard&room=ABC123');
     }
 
     const adapter = resolveAdapter(route.game);
@@ -483,7 +479,7 @@ function renderRoomContent(): string {
         return renderRoomError(`Unsupported game mode: ${route.game}`);
     }
 
-    const session = ensureRoomSession(route.game, route.room, route.token, route.mock, adapter);
+    const session = ensureRoomSession(route.game, route.room, route.mock, adapter);
     const roomState = session?.getState();
     const selfUsername = authUiState.user?.username?.trim() || null;
     const viewModel = session?.toViewModel({ selfUsername });
@@ -500,7 +496,7 @@ function renderRoomContent(): string {
     });
     const status = typeof roomPublicState.status === 'string' ? roomPublicState.status : null;
     const hostPlayerId = typeof roomPublicState.hostPlayerId === 'string' ? roomPublicState.hostPlayerId : null;
-    const autoStartKey = `${route.room}|${route.token}|${route.game}`;
+    const autoStartKey = `${route.room}|${route.game}`;
     const suppressWinnerBanner = adapter.id === krigAdapter.id && roomPublicState.gamePhase === 'GAME_OVER';
     const hasFinished = !!roomState.winnerPlayerId || status === 'FINISHED' || roomPublicState.gamePhase === 'GAME_OVER';
 
@@ -510,13 +506,12 @@ function renderRoomContent(): string {
         stopRoomHeartbeat();
     }
 
-    if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room && route.token) {
+    if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room) {
         queueMicrotask(() => {
             navigate({
                 view: 'lobby',
                 game: route.game,
                 room: route.room,
-                token: route.token,
                 mock: route.mock,
             });
         });
@@ -598,12 +593,11 @@ function renderRoomContent(): string {
 function ensureRoomSession(
     game: string,
     roomCode: string,
-    token: string,
     useMock: boolean,
     explicitAdapter?: GenericAdapter,
 ): ActiveSession | null {
     const adapter = explicitAdapter ?? resolveAdapter(game) ?? adapters[0];
-    const key = `${game}|${roomCode}|${token}|${useMock ? 'mock' : 'ws'}`;
+    const key = `${game}|${roomCode}|${useMock ? 'mock' : 'ws'}`;
 
     if (!roomSession || roomSessionKey !== key) {
         cleanupRoomSession();
@@ -612,8 +606,8 @@ function ensureRoomSession(
             bootstrap: {
                 game,
                 roomCode,
-                token,
                 useMock,
+                mockClientId: getMockClientId(),
             },
             adapter,
         });
@@ -946,7 +940,6 @@ function wireViewEvents() {
                 view: 'room',
                 game,
                 room: `DEV-${game}`,
-                token: state.route.token ?? randomToken(),
                 mock: true,
             });
         });
@@ -958,7 +951,7 @@ function wireViewEvents() {
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-lobby-browser"]').forEach((button) => {
         button.addEventListener('click', () => {
-            navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+            navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         });
     });
 
@@ -1209,7 +1202,7 @@ function wireLobbyEvents() {
         });
     }
 
-    if (state.view === 'lobby' && roomSession && state.route.room && state.route.token) {
+    if (state.view === 'lobby' && roomSession && state.route.room) {
         document.querySelectorAll<HTMLButtonElement>('button[data-action="select-lobby-game"]').forEach((button) => {
             button.addEventListener('click', () => {
                 const game = button.dataset.game;
@@ -1241,7 +1234,7 @@ function wireLobbyEvents() {
         });
 
         document.querySelector<HTMLButtonElement>('button[data-action="leave-lobby"]')?.addEventListener('click', () => {
-            void handleLeaveLobby(state.route.room!, state.route.token!);
+            void handleLeaveLobby(state.route.room!);
         });
 
         document.querySelectorAll<HTMLButtonElement>('button[data-action="kick-player"]').forEach((button) => {
@@ -1296,7 +1289,6 @@ async function handleCreateLobby() {
             view: supportsLobbyLifecycle(created.selectedGame) ? 'lobby' : 'room',
             game: created.selectedGame,
             room: created.roomCode,
-            token: created.token,
             mock: false,
         });
     } catch (error) {
@@ -1335,7 +1327,6 @@ async function handleJoinByCode(rawRoomCode: string) {
             view: supportsLobbyLifecycle(joined.selectedGame) ? 'lobby' : 'room',
             game: joined.selectedGame,
             room: joined.roomCode,
-            token: joined.token,
             mock: false,
         });
     } catch (error) {
@@ -1367,7 +1358,6 @@ async function handleHomepageCreateLobby() {
             view: supportsLobbyLifecycle(created.selectedGame) ? 'lobby' : 'room',
             game: created.selectedGame,
             room: created.roomCode,
-            token: created.token,
             mock: false,
         });
     } catch (error) {
@@ -1406,7 +1396,6 @@ async function handleHomepageJoin() {
             view: supportsLobbyLifecycle(joined.selectedGame) ? 'lobby' : 'room',
             game: joined.selectedGame,
             room: joined.roomCode,
-            token: joined.token,
             mock: false,
         });
     } catch (error) {
@@ -1420,7 +1409,7 @@ async function handleHomepageJoin() {
     }
 }
 
-async function handleLeaveLobby(roomCode: string, token: string) {
+async function handleLeaveLobby(roomCode: string) {
     try {
         await leaveRoom({ roomCode });
     } catch (error) {
@@ -1429,7 +1418,7 @@ async function handleLeaveLobby(roomCode: string, token: string) {
         clearActiveLobby();
         cleanupRoomSession();
         lobbyBrowserState.loaded = false;
-        navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+        navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         void refreshLobbyBrowser();
     }
 }
@@ -1439,8 +1428,8 @@ async function handleLeaveActiveRoom() {
     clearActiveLobby();
     cleanupRoomSession();
 
-    if (!route.room || !route.token || route.mock) {
-        navigate({ view: 'home', room: null, token: null, game: null, mock: false });
+    if (!route.room || route.mock) {
+        navigate({ view: 'home', room: null, game: null, mock: false });
         return;
     }
 
@@ -1450,7 +1439,7 @@ async function handleLeaveActiveRoom() {
         alert(toErrorMessage(error, 'Failed to leave table'));
     } finally {
         lobbyBrowserState.loaded = false;
-        navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+        navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         void refreshLobbyBrowser();
     }
 }
@@ -1477,7 +1466,7 @@ async function syncActiveLobbyParticipantProfile() {
     if (!roomSession) return;
 
     const activeLobby = resolveActiveLobbyRoute();
-    if (!activeLobby?.room || !activeLobby.token) return;
+    if (!activeLobby?.room) return;
 
     const sessionState = roomSession.getState();
     const publicState = toRecord(sessionState.publicState);
@@ -1485,7 +1474,6 @@ async function syncActiveLobbyParticipantProfile() {
     if (!sessionState.playerId) return;
 
     const username = authUiState.user?.username?.trim() || null;
-    const nextPlayerId = authUiState.user?.id?.trim() || randomToken();
 
     try {
         await claimRoomIdentity({
@@ -1692,7 +1680,6 @@ async function startRealtimeRoom(gameType: string) {
             view: 'room',
             game: gameType,
             room: created.roomCode,
-            token: created.token,
             mock: false,
         });
     } catch (error) {
@@ -1732,7 +1719,7 @@ async function handleQuickPlay(gameType: string) {
         const ticket = await enqueueMatchmaking({
             gameType,
             username: identity.username ?? undefined,
-            clientSessionId: identity.token,
+            clientSessionId: identity.playerId,
         });
         if (!isCurrentQuickPlayGeneration(generation)) {
             return;
@@ -1852,7 +1839,6 @@ function startMatchedCountdown(ticket: MatchmakingResponse, generation = quickPl
             view: 'room',
             game: ticket.gameType,
             room: ticket.roomCode,
-            token: ticket.token,
             mock: false,
         });
     }, 1000);
@@ -1884,30 +1870,6 @@ async function cancelQuickPlay() {
     resetQuickPlayState();
     renderView();
     updateActiveQueueBar();
-    void cancelQuickPlayWithSupabase(ticket);
-}
-
-async function cancelQuickPlayWithSupabase(ticket: MatchmakingResponse): Promise<boolean> {
-    if (!supabase) {
-        return false;
-    }
-
-    try {
-        const { data, error } = await supabase.rpc('cancel_matchmaking_ticket', {
-            ticket_id_input: ticket.ticketId,
-            session_token_input: ticket.token,
-        });
-
-        if (error) {
-            console.warn('Supabase matchmaking cancel failed after API cancel', error);
-            return false;
-        }
-
-        return data === true;
-    } catch (error) {
-        console.warn('Supabase matchmaking cancel threw after API cancel', error);
-        return false;
-    }
 }
 
 function subscribeQuickPlayRealtime(_gameType: string, ticketId: string, generation = quickPlayGeneration) {
@@ -2025,8 +1987,14 @@ function readCasinoValueMap(publicState: Record<string, unknown> | null): Record
     return valueMap as Record<string, number[]>;
 }
 
-function randomToken(): string {
-    return `player-${Math.random().toString(36).slice(2, 8)}`;
+function getMockClientId(): string {
+    const key = 'bodegadk.mockClientId';
+    const existing = window.sessionStorage.getItem(key);
+    if (existing) return existing;
+
+    const generated = `mock-${Math.random().toString(36).slice(2, 8)}`;
+    window.sessionStorage.setItem(key, generated);
+    return generated;
 }
 
 function formatQueueDuration(seconds: number): string {
@@ -2124,7 +2092,7 @@ function rememberActiveLobby(route: AppRoute) {
 
 function resolveActiveLobbyRoute(): AppRoute | null {
     const route = activeLobbyState.route;
-    if (!route?.room || !route.token) {
+    if (!route?.room) {
         return null;
     }
     return { ...route, view: 'lobby' };
@@ -2135,7 +2103,7 @@ function clearActiveLobby() {
 }
 
 function restartActiveLobbySession(route: AppRoute) {
-    if (!route.room || !route.token) {
+    if (!route.room) {
         return;
     }
 
@@ -2143,14 +2111,13 @@ function restartActiveLobbySession(route: AppRoute) {
     ensureRoomSession(
         route.game ?? FALLBACK_LOBBY_GAME_ID,
         route.room,
-        route.token,
         route.mock,
     );
 }
 
 async function leavePreservedLobbyBeforeTransition(targetRoomCode?: string | null) {
     const activeLobby = resolveActiveLobbyRoute();
-    if (!activeLobby?.room || !activeLobby.token) {
+    if (!activeLobby?.room) {
         return;
     }
     if (targetRoomCode && activeLobby.room === targetRoomCode) {
@@ -2205,7 +2172,6 @@ function getLobbyIdentity() {
     return {
         playerId: authenticatedUserId || '',
         username: authUiState.user?.username?.trim() || null,
-        token: randomToken(),
     };
 }
 

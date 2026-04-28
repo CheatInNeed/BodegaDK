@@ -19,7 +19,6 @@ export type LobbyRoomSummary = {
 export type CreateRoomResponse = {
     roomCode: string;
     playerId: string;
-    token: string;
     hostPlayerId: string;
     isPrivate: boolean;
     selectedGame: string;
@@ -30,7 +29,6 @@ export type JoinRoomResponse = {
     ok: boolean;
     roomCode: string;
     playerId: string;
-    token: string;
     hostPlayerId: string;
     selectedGame: string;
     status: RoomStatus;
@@ -44,7 +42,6 @@ export type MatchmakingResponse = {
     status: 'WAITING' | 'MATCHED' | 'CANCELLED' | 'EXPIRED';
     roomCode: string | null;
     playerId: string;
-    token: string;
     queuedPlayers: number;
     playersNeeded: number;
     minPlayers: number;
