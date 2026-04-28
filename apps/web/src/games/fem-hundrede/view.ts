@@ -205,16 +205,22 @@ export function renderFemRoom(vm: FemViewModel): string {
         ? 'fem-extend-meld'
         : undefined;
 
+    const oppCount = opponents.length;
+    const oppFanCw = oppCount >= 3 ? 36 : oppCount === 2 ? 42 : 50;
+    const oppFanCh = oppCount >= 3 ? 50 : oppCount === 2 ? 59 : 70;
+
     const oppZones = opponents.map((opp) => `
 <div class="g500-zone g500-opponent${opp.isCurrentTurn ? ' g500-zone-active' : ''}">
   <div class="g500-zone-row">
     ${playerBadge(opp, true)}
-    <div style="margin-top:12px;">${meldSection(vm.melds.filter((_) => true), MW, MH)}</div>
+    ${oppCount === 1 ? `<div style="margin-top:12px;">${meldSection(vm.melds, MW, MH)}</div>` : ''}
   </div>
   <div style="display:flex;justify-content:center;margin-top:6px;">
-    ${renderHandFan(Array.from({ length: opp.cardCount }, (_, i) => `back${i}`), new Set(), false, false, 50, 70)}
+    ${renderHandFan(Array.from({ length: opp.cardCount }, (_, i) => `back${i}`), new Set(), false, false, oppFanCw, oppFanCh)}
   </div>
 </div>`).join('');
+
+    const oppWrapper = `<div class="g500-opponents g500-opponents-${oppCount}">${oppZones}</div>`;
 
     const actionButtons = (() => {
         if (vm.phase !== 'PLAYING' && vm.winnerPlayerId) return '';
@@ -249,7 +255,7 @@ export function renderFemRoom(vm: FemViewModel): string {
       <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px;">Runde ${vm.roundNumber}</span>
     </div>
 
-    ${oppZones}
+    ${oppWrapper}
 
     <div class="g500-center">
       <div class="g500-center-oval" aria-hidden="true"></div>

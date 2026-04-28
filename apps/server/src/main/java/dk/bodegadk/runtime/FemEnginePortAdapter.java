@@ -41,7 +41,7 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
     public FemEnginePortAdapter(InMemoryRuntimeStore runtimeStore, ObjectMapper objectMapper) {
         this.runtimeStore = runtimeStore;
         this.objectMapper = objectMapper;
-        runtimeStore.registerMaxPlayers(FEM_GAME_TYPE, 6);
+        runtimeStore.registerMaxPlayers(FEM_GAME_TYPE, 4);
     }
 
     @Override
@@ -389,6 +389,7 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
         publicState.put("hostPlayerId", room.hostPlayerId());
         publicState.put("selectedGame", room.selectedGame());
         publicState.put("status", room.status().name());
+        publicState.put("started", room.status() == InMemoryRuntimeStore.RoomStatus.IN_GAME);
         publicState.put("isPrivate", room.isPrivate());
 
         ArrayNode players = objectMapper.createArrayNode();

@@ -3290,6 +3290,31 @@ button.lobby-game-card {
     flex-shrink: 0;
 }
 
+.g500-opponents {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+/* 2 or more opponents sit side-by-side */
+.g500-opponents-2,
+.g500-opponents-3 {
+    flex-direction: row;
+}
+
+.g500-opponents-2 .g500-opponent,
+.g500-opponents-3 .g500-opponent {
+    flex: 1;
+    min-width: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.g500-opponents-2 .g500-opponent:last-child,
+.g500-opponents-3 .g500-opponent:last-child {
+    border-right: none;
+}
+
 .g500-opponent {
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
