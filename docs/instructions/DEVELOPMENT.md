@@ -57,6 +57,21 @@ cp .env.local.example .env.local
 `npm run web:serve` og `npm run local:dev` læser nu automatisk fra
 `.env.local` eller `.env`, hvis shell env vars ikke allerede er sat.
 
+De lokale npm scripts sætter også safe Supabase defaults for:
+
+- `PUBLIC_SUPABASE_URL`
+- `PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_JWT_ISSUER`
+
+Det betyder at frontend public config og backend JWT issuer virker uden
+manuel export. Private database credentials bliver ikke sat af npm scripts.
+Hvis serveren skal bruge Supabase Postgres lokalt, skal disse stadig komme
+fra shell env eller `.env.local`:
+
+- `SPRING_DATASOURCE_URL`
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+
 ### Start web
 
 ``` bash
@@ -108,7 +123,7 @@ Server kører på: - http://localhost:8080
 
 Test endpoint (når tilføjet): - http://localhost:8080/health
 
-### Server local profile (ingen DB, hurtig debug)
+### Server local profile
 
 Fra repo root:
 
@@ -118,10 +133,12 @@ npm run server:local
 
 Det kører Spring med profile `local`:
 
-- disable datasource auto-config
+- JWT issuer configures automatically through the local npm env wrapper
+- database credentials are loaded from shell env / `.env.local` when present
 - port 8080
 
-Brug denne når du vil teste HighCard hurtigt uden Postgres.
+Brug denne når du vil køre backend lokalt mod den canonical Supabase
+auth/database setup.
 
 ------------------------------------------------------------------------
 
@@ -171,12 +188,9 @@ I denne mode:
 - REST kaldes mod `http://localhost:8080/rooms`
 - WS kaldes mod `ws://localhost:8080/ws`
 
-Hvis Supabase public config mangler, virker gameplay stadig, men login,
-signup og avatar-flow bliver slået fra.
-
-Hvis auth/profile skal virke i denne mode, så sørg for at
-`PUBLIC_SUPABASE_URL` og `PUBLIC_SUPABASE_ANON_KEY` findes enten i shell
-env eller i `.env.local` før du starter `npm run local:dev`.
+Supabase public config og JWT issuer bliver sat automatisk af npm scripts.
+Database credentials skal stadig sættes eksplicit via shell env eller
+`.env.local`, fordi de er private secrets.
 
 ------------------------------------------------------------------------
 
