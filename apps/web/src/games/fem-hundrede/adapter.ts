@@ -1,4 +1,44 @@
- import { resolvePlayerName } from '../../game-room/player-display.js';
+/**
+ * 500-game adapter — bridges the Java server's WebSocket state to the UI.
+ *
+ * SERVER STATE SHAPE (what the backend must send):
+ *
+ * publicState  (visible to all players):
+ *   players            string[]               — player IDs in turn order
+ *   turnPlayerId       string | null          — whose turn it is
+ *   roundNumber        number
+ *   scores             Record<id, number>     — cumulative round scores (target: 500)
+ *   stockPileCount     number                 — cards remaining in draw pile
+ *   discardPileTop     string | null          — top card code e.g. "HQ", or null
+ *   melds              Meld[]                 — face-up sets on the table
+ *   playerCardCounts   Record<id, number>     — how many cards each player holds
+ *   phase              "PLAYING" | "FINISHED"
+ *   discardGrabPhase   boolean                — true when players race to grab discard pile
+ *   grabPriorityPlayerId string | null        — who has first claim in grab phase
+ *   winnerPlayerId     string | null          — set when game ends
+ *
+ * privateState (per-player, sent only to that player):
+ *   playerId           string
+ *   hand               string[]               — card codes e.g. ["H5","CK","DA"]
+ *   projectedRoundScore number
+ *
+ * CLIENT → SERVER intents (see buildAction below):
+ *   DRAW_FROM_STOCK, DRAW_FROM_DISCARD, TAKE_DISCARD_PILE,
+ *   LAY_MELD, EXTEND_MELD, SWAP_JOKER, DISCARD,
+ *   CLAIM_DISCARD, PASS_GRAB
+ *
+ * PLAYER COUNT: 2–4 players supported. UI layout adapts automatically:
+ *   2 players  → 1 opponent shown full-width above center
+ *   3 players  → 2 opponents shown side-by-side (smaller card fans)
+ *   4 players  → 3 opponents shown side-by-side (smallest card fans)
+ *
+ * TODO (to make the game playable end-to-end):
+ *   1. Implement the mock send() handler in mock-server.ts so dev sessions
+ *      can advance turns without a real backend (Shift+click testing).
+ *   2. Verify field names above exactly match what the Java backend sends.
+ *   3. Wire LEAVE_TABLE intent → server message when backend supports it.
+ */
+import { resolvePlayerName } from '../../game-room/player-display.js';
 import type { GameAdapter, RoomSessionState, UiIntent } from '../../game-room/types.js';
 import type { ClientToServerMessage } from '../../net/protocol.js';
 import type { FemMeld, FemPlayerInfo, FemViewModel } from './view.js';
