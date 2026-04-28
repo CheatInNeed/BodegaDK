@@ -48,20 +48,21 @@ Opretter et nyt room.
 {
   "gameType": "highcard",
   "isPrivate": false,
-  "playerId": "supabase-user-id-or-guest-id",
-  "username": "Alice",
-  "token": "session-token"
+  "username": "Alice"
 }
 ```
+
+Requires `Authorization: Bearer <supabase access token>`. The backend derives
+`playerId`/`hostPlayerId` from the token subject.
 
 ### Response
 
 ``` json
 {
   "roomCode": "ABC123",
-  "playerId": "supabase-user-id-or-guest-id",
-  "token": "session-token",
-  "hostPlayerId": "supabase-user-id-or-guest-id",
+  "playerId": "auth-user-uuid",
+  "token": "internal-compat-token",
+  "hostPlayerId": "auth-user-uuid",
   "isPrivate": false,
   "selectedGame": "highcard",
   "status": "LOBBY"
@@ -78,9 +79,7 @@ Joiner et eksisterende room.
 
 ``` json
 {
-  "playerId": "supabase-user-id-or-guest-id",
-  "username": "Alice",
-  "token": "session-token"
+  "username": "Alice"
 }
 ```
 
@@ -90,9 +89,9 @@ Joiner et eksisterende room.
 {
   "ok": true,
   "roomCode": "ABC123",
-  "playerId": "supabase-user-id-or-guest-id",
-  "token": "session-token",
-  "hostPlayerId": "supabase-user-id-or-guest-id",
+  "playerId": "auth-user-uuid",
+  "token": "internal-compat-token",
+  "hostPlayerId": "auth-user-uuid",
   "selectedGame": "highcard",
   "status": "LOBBY"
 }
@@ -108,7 +107,6 @@ Host-only endpoint used while the room is still in `LOBBY`.
 
 ``` json
 {
-  "actorToken": "session-token",
   "isPrivate": true
 }
 ```
@@ -135,8 +133,6 @@ player identity to another without giving up the seat.
 
 ``` json
 {
-  "token": "session-token",
-  "playerId": "supabase-user-id-or-guest-id",
   "username": "Alice"
 }
 ```
@@ -168,9 +164,8 @@ gangen.
 ``` json
 {
   "gameType": "casino",
-  "playerId": "supabase-user-id-or-guest-id",
   "username": "Alice",
-  "token": "session-token"
+  "clientSessionId": "browser-generated-queue-id"
 }
 ```
 
@@ -182,8 +177,8 @@ gangen.
   "gameType": "casino",
   "status": "WAITING",
   "roomCode": null,
-  "playerId": "supabase-user-id-or-guest-id",
-  "token": "session-token",
+  "playerId": "auth-user-uuid",
+  "token": "browser-generated-queue-id",
   "queuedPlayers": 1,
   "playersNeeded": 1,
   "minPlayers": 2,
@@ -236,7 +231,7 @@ Alle WebSocket messages har format:
   "type": "CONNECT",
   "payload": {
     "roomCode": "ABC123",
-    "token": "jwt-or-session-token",
+    "accessToken": "supabase-access-token",
     "game": "casino",
     "setup": {
       "casinoRules": {

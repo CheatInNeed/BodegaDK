@@ -123,6 +123,7 @@ room metadata and matchmaking tickets through the Spring datasource:
 - `SPRING_DATASOURCE_URL`
 - `SPRING_DATASOURCE_USERNAME`
 - `SPRING_DATASOURCE_PASSWORD`
+- `SUPABASE_JWT_ISSUER`
 
 In the Docker deploy stack, `infra/docker-compose.yml` requires those values
 from the host environment. If any of them are missing, deployment fails before
@@ -134,6 +135,15 @@ Typical Supabase JDBC value shape:
 
 The exact host, username, and password must come from the Supabase
 project database connection settings. Do not commit them to the repo.
+
+`SUPABASE_JWT_ISSUER` must match the Supabase auth issuer for the project,
+typically `https://<project-ref>.supabase.co/auth/v1`. Spring uses it to
+validate browser Supabase access tokens on REST requests and WebSocket
+`CONNECT`.
+
+The V1 reset migration intentionally leaves `public.games` empty. Apply
+`supabase/migrations/202604281510_seed_game_catalog.sql` with the reset so
+room and matchmaking writes can resolve game slugs.
 
 ## Live deploy note
 

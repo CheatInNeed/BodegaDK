@@ -1,9 +1,14 @@
 package dk.bodegadk.rest;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import dk.bodegadk.auth.AuthSupport;
+import dk.bodegadk.auth.AuthenticatedUser;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
+import dk.bodegadk.runtime.MatchmakingService;
+import dk.bodegadk.runtime.RoomMetadataStore;
 import dk.bodegadk.ws.GameWsHandler;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,42 +19,57 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/rooms")
 public class RoomController {
     private final InMemoryRuntimeStore runtimeStore;
+    private final RoomMetadataStore roomMetadataStore;
     private final GameWsHandler gameWsHandler;
 
-    public RoomController(InMemoryRuntimeStore runtimeStore, GameWsHandler gameWsHandler) {
+    public RoomController(InMemoryRuntimeStore runtimeStore, RoomMetadataStore roomMetadataStore, GameWsHandler gameWsHandler) {
         this.runtimeStore = runtimeStore;
+        this.roomMetadataStore = roomMetadataStore;
         this.gameWsHandler = gameWsHandler;
     }
 
     @GetMapping
     public List<RoomListItemResponse> publicRooms() {
-        return runtimeStore.publicLobbyRooms().stream()
+        return roomMetadataStore.publicRooms().stream()
                 .map(room -> new RoomListItemResponse(
                         room.roomCode(),
                         room.hostPlayerId(),
                         room.selectedGame(),
-                        room.status(),
-                        room.playerCount(),
+                        room.status().name(),
+                        room.participants().size(),
                         room.participants()
                 ))
                 .toList();
     }
 
     @PostMapping
-    public CreateRoomResponse createRoom(@RequestBody(required = false) CreateRoomRequest request) {
-        String playerId = blank(request == null ? null : request.playerId()) ? "p1" : request.playerId();
+    public CreateRoomResponse createRoom(Authentication authentication, @RequestBody(required = false) CreateRoomRequest request) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
+        String playerId = user.userId();
         String username = blank(request == null ? null : request.username()) ? null : request.username().trim();
-        String token = blank(request == null ? null : request.token()) ? "dev-" + UUID.randomUUID() : request.token();
         boolean isPrivate = request != null && Boolean.TRUE.equals(request.isPrivate());
+        String normalizedGame = request == null ? null : request.gameType();
 
-        String roomCode = runtimeStore.createRoom(request == null ? null : request.gameType(), isPrivate, playerId);
+        String roomCode;
+        do {
+            roomCode = runtimeStore.generateRoomCode();
+        } while (roomMetadataStore.roomExists(roomCode));
+        roomMetadataStore.createRoom(
+                roomCode,
+                playerId,
+                RoomMetadataStore.RoomVisibility.fromPrivateFlag(isPrivate),
+                normalizedGame,
+                InMemoryRuntimeStore.RoomStatus.LOBBY
+        );
+        runtimeStore.mirrorRoom(roomCode, normalizedGame, isPrivate, playerId, InMemoryRuntimeStore.RoomStatus.LOBBY);
+        String token = MatchmakingService.runtimeToken(roomCode, playerId);
         runtimeStore.joinRoom(roomCode, playerId, username, token);
+        roomMetadataStore.upsertParticipant(roomCode, playerId, username);
 
         return runtimeStore.roomSnapshot(roomCode)
                 .map(room -> new CreateRoomResponse(room.roomCode(), playerId, token, room.hostPlayerId(), room.isPrivate(), room.selectedGame(), room.status().name()))
@@ -58,22 +78,26 @@ public class RoomController {
 
     @PostMapping("/{roomCode}/join")
     @ResponseStatus(HttpStatus.OK)
-    public JoinRoomResponse joinRoom(@PathVariable String roomCode, @RequestBody(required = false) JoinRoomRequest request) {
+    public JoinRoomResponse joinRoom(Authentication authentication, @PathVariable String roomCode, @RequestBody(required = false) JoinRoomRequest request) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
+        RoomMetadataStore.StoredRoom stored = roomMetadataStore.room(roomCode)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
+        if (stored.status() != InMemoryRuntimeStore.RoomStatus.LOBBY) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Room is not joinable");
+        }
+        if (!runtimeStore.roomExists(roomCode)) {
+            hydrateRuntimeRoom(stored);
+        }
         if (!runtimeStore.roomExists(roomCode)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found");
         }
 
-        String playerId = request == null || blank(request.playerId())
-                ? "p" + (runtimeStore.participants(roomCode).size() + 1)
-                : request.playerId();
+        String playerId = user.userId();
         String username = request == null || blank(request.username()) ? null : request.username().trim();
+        String token = MatchmakingService.runtimeToken(roomCode, playerId);
 
-        String token = request == null || blank(request.token())
-                ? "dev-" + UUID.randomUUID()
-                : request.token();
-
-        // TEAM-DB-INTEGRATION: replace generated dev token/session registration with durable identity/session persistence.
         runtimeStore.joinRoom(roomCode, playerId, username, token);
+        roomMetadataStore.upsertParticipant(roomCode, playerId, username);
         gameWsHandler.publishLobbyState(roomCode);
 
         InMemoryRuntimeStore.RoomSnapshot room = runtimeStore.roomSnapshot(roomCode)
@@ -84,14 +108,16 @@ public class RoomController {
 
     @PostMapping("/{roomCode}/kick")
     @ResponseStatus(HttpStatus.OK)
-    public RoomActionResponse kickPlayer(@PathVariable String roomCode, @RequestBody KickPlayerRequest request) {
-        if (request == null || blank(request.actorToken()) || blank(request.targetPlayerId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "actorToken and targetPlayerId are required");
+    public RoomActionResponse kickPlayer(Authentication authentication, @PathVariable String roomCode, @RequestBody KickPlayerRequest request) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
+        if (request == null || blank(request.targetPlayerId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "targetPlayerId is required");
         }
 
         try {
-            InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.kickPlayer(roomCode, request.actorToken(), request.targetPlayerId())
+            InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.kickPlayer(roomCode, MatchmakingService.runtimeToken(roomCode, user.userId()), request.targetPlayerId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room or player not found"));
+            roomMetadataStore.removeParticipant(roomCode, request.targetPlayerId());
             gameWsHandler.publishRoomMutation(mutation);
             return new RoomActionResponse(true);
         } catch (IllegalStateException exception) {
@@ -101,27 +127,25 @@ public class RoomController {
 
     @PostMapping("/{roomCode}/leave")
     @ResponseStatus(HttpStatus.OK)
-    public RoomActionResponse leaveRoom(@PathVariable String roomCode, @RequestBody LeaveRoomRequest request) {
-        if (request == null || blank(request.token())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "token is required");
-        }
+    public RoomActionResponse leaveRoom(Authentication authentication, @PathVariable String roomCode, @RequestBody(required = false) LeaveRoomRequest request) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
 
-        InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.leaveRoom(roomCode, request.token())
+        InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.leaveRoom(roomCode, MatchmakingService.runtimeToken(roomCode, user.userId()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room or session not found"));
+        roomMetadataStore.removeParticipant(roomCode, user.userId());
         gameWsHandler.publishRoomMutation(mutation);
         return new RoomActionResponse(true);
     }
 
     @PostMapping("/{roomCode}/visibility")
     @ResponseStatus(HttpStatus.OK)
-    public RoomActionResponse updateVisibility(@PathVariable String roomCode, @RequestBody UpdateVisibilityRequest request) {
-        if (request == null || blank(request.actorToken())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "actorToken is required");
-        }
+    public RoomActionResponse updateVisibility(Authentication authentication, @PathVariable String roomCode, @RequestBody UpdateVisibilityRequest request) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
 
         try {
-            InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.updateVisibility(roomCode, request.actorToken(), request.isPrivate())
+            InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.updateVisibility(roomCode, MatchmakingService.runtimeToken(roomCode, user.userId()), request.isPrivate())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room or session not found"));
+            roomMetadataStore.updateRoomVisibility(roomCode, RoomMetadataStore.RoomVisibility.fromPrivateFlag(request.isPrivate()));
             gameWsHandler.publishRoomMutation(mutation);
             return new RoomActionResponse(true);
         } catch (IllegalStateException exception) {
@@ -131,22 +155,23 @@ public class RoomController {
 
     @PostMapping("/{roomCode}/claim-identity")
     @ResponseStatus(HttpStatus.OK)
-    public RoomActionResponse claimIdentity(@PathVariable String roomCode, @RequestBody ClaimIdentityRequest request) {
-        if (request == null || blank(request.token()) || blank(request.playerId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "token and playerId are required");
-        }
+    public RoomActionResponse claimIdentity(Authentication authentication, @PathVariable String roomCode, @RequestBody ClaimIdentityRequest request) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
+        String username = request == null || blank(request.username()) ? null : request.username().trim();
+        roomMetadataStore.upsertParticipant(roomCode, user.userId(), username);
+        gameWsHandler.publishLobbyState(roomCode);
+        return new RoomActionResponse(true);
+    }
 
-        try {
-            InMemoryRuntimeStore.RoomMutation mutation = runtimeStore.claimSessionIdentity(
-                    roomCode,
-                    request.token(),
-                    request.playerId(),
-                    request.username()
-            ).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room or session not found"));
-            gameWsHandler.publishRoomMutation(mutation);
-            return new RoomActionResponse(true);
-        } catch (IllegalStateException exception) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, exception.getMessage());
+    private void hydrateRuntimeRoom(RoomMetadataStore.StoredRoom stored) {
+        runtimeStore.mirrorRoom(stored.roomCode(), stored.selectedGame(), stored.isPrivate(), stored.hostPlayerId(), stored.status());
+        for (InMemoryRuntimeStore.PlayerSummary participant : stored.participants()) {
+            runtimeStore.joinRoom(
+                    stored.roomCode(),
+                    participant.playerId(),
+                    participant.username(),
+                    MatchmakingService.runtimeToken(stored.roomCode(), participant.playerId())
+            );
         }
     }
 
@@ -155,7 +180,7 @@ public class RoomController {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record CreateRoomRequest(String gameType, Boolean isPrivate, String playerId, String username, String token) {
+    public record CreateRoomRequest(String gameType, Boolean isPrivate, String username) {
     }
 
     public record CreateRoomResponse(
@@ -180,7 +205,7 @@ public class RoomController {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record JoinRoomRequest(String playerId, String username, String token) {
+    public record JoinRoomRequest(String username) {
     }
 
     public record JoinRoomResponse(
@@ -195,19 +220,19 @@ public class RoomController {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record KickPlayerRequest(String actorToken, String targetPlayerId) {
+    public record KickPlayerRequest(String targetPlayerId) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record LeaveRoomRequest(String token) {
+    public record LeaveRoomRequest() {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record UpdateVisibilityRequest(String actorToken, boolean isPrivate) {
+    public record UpdateVisibilityRequest(boolean isPrivate) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record ClaimIdentityRequest(String token, String playerId, String username) {
+    public record ClaimIdentityRequest(String username) {
     }
 
     public record RoomActionResponse(boolean ok) {

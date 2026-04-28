@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.ObjectProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Configuration
 public class RoomMetadataStoreConfiguration {
@@ -16,5 +17,14 @@ public class RoomMetadataStoreConfiguration {
             return new JdbcRoomMetadataStore(jdbcTemplate);
         }
         return new InMemoryRoomMetadataStore();
+    }
+
+    @Bean
+    MatchHistoryStore matchHistoryStore(ObjectProvider<JdbcTemplate> jdbcTemplateProvider, ObjectMapper objectMapper) {
+        JdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
+        if (jdbcTemplate != null) {
+            return new JdbcMatchHistoryStore(jdbcTemplate, objectMapper);
+        }
+        return new NoopMatchHistoryStore();
     }
 }

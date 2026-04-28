@@ -26,6 +26,7 @@ import {
     claimRoomIdentity,
     createRoom,
     enqueueMatchmaking,
+    getAccessTokenOrRedirect,
     getMatchmakingTicket,
     joinRoom,
     kickPlayer,
@@ -1235,7 +1236,7 @@ function wireLobbyEvents() {
         document.querySelectorAll<HTMLButtonElement>('button[data-action="set-room-visibility"]').forEach((button) => {
             button.addEventListener('click', () => {
                 const isPrivate = button.dataset.private === 'true';
-                void handleUpdateRoomVisibility(state.route.room!, state.route.token!, isPrivate);
+                void handleUpdateRoomVisibility(state.route.room!, isPrivate);
             });
         });
 
@@ -1247,7 +1248,7 @@ function wireLobbyEvents() {
             button.addEventListener('click', () => {
                 const playerId = button.dataset.playerId;
                 if (!playerId) return;
-                void handleKickPlayer(state.route.room!, state.route.token!, playerId);
+                void handleKickPlayer(state.route.room!, playerId);
             });
         });
     }
@@ -1288,9 +1289,7 @@ async function handleCreateLobby() {
         const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
             isPrivate: lobbyBrowserState.createPrivate,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
@@ -1329,9 +1328,7 @@ async function handleJoinByCode(rawRoomCode: string) {
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
@@ -1363,9 +1360,7 @@ async function handleHomepageCreateLobby() {
         const created = await createRoom({
             gameType: FALLBACK_LOBBY_GAME_ID,
             isPrivate: false,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
@@ -1404,9 +1399,7 @@ async function handleHomepageJoin() {
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
@@ -1429,7 +1422,7 @@ async function handleHomepageJoin() {
 
 async function handleLeaveLobby(roomCode: string, token: string) {
     try {
-        await leaveRoom({ roomCode, token });
+        await leaveRoom({ roomCode });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to leave lobby'));
     } finally {
@@ -1452,7 +1445,7 @@ async function handleLeaveActiveRoom() {
     }
 
     try {
-        await leaveRoom({ roomCode: route.room, token: route.token });
+        await leaveRoom({ roomCode: route.room });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to leave table'));
     } finally {
@@ -1462,18 +1455,18 @@ async function handleLeaveActiveRoom() {
     }
 }
 
-async function handleKickPlayer(roomCode: string, actorToken: string, targetPlayerId: string) {
+async function handleKickPlayer(roomCode: string, targetPlayerId: string) {
     try {
-        await kickPlayer({ roomCode, actorToken, targetPlayerId });
+        await kickPlayer({ roomCode, targetPlayerId });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to kick player'));
         renderView();
     }
 }
 
-async function handleUpdateRoomVisibility(roomCode: string, actorToken: string, isPrivate: boolean) {
+async function handleUpdateRoomVisibility(roomCode: string, isPrivate: boolean) {
     try {
-        await updateRoomVisibility({ roomCode, actorToken, isPrivate });
+        await updateRoomVisibility({ roomCode, isPrivate });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to update room visibility'));
         renderView();
@@ -1497,9 +1490,7 @@ async function syncActiveLobbyParticipantProfile() {
     try {
         await claimRoomIdentity({
             roomCode: activeLobby.room,
-            playerId: nextPlayerId,
             username: username ?? undefined,
-            token: activeLobby.token,
         });
         restartActiveLobbySession(activeLobby);
     } catch (error) {
@@ -1611,8 +1602,8 @@ async function loadAvatarData(userId: string): Promise<{ color: string; shape: s
     }
 
     const { data: avatar } = await supabase
-        .from('avatars')
-        .select('*')
+        .from('user_avatars')
+        .select('color, avatar_defs(shape)')
         .eq('user_id', userId)
         .single();
 
@@ -1621,8 +1612,8 @@ async function loadAvatarData(userId: string): Promise<{ color: string; shape: s
     }
 
     return {
-        color: avatar.avatar_color ?? '',
-        shape: avatar.avatar_shape ?? 'square',
+        color: avatar.color ?? '',
+        shape: avatar.avatar_defs?.shape ?? 'square',
     };
 }
 
@@ -1634,7 +1625,7 @@ async function loadProfileUsername(userId: string, fallbackUsername?: string | n
     const { data: profile } = await supabase
         .from('profiles')
         .select('username')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .single();
 
     return normalizeUsernameValue(profile?.username) ?? normalizeUsernameValue(fallbackUsername);
@@ -1655,7 +1646,7 @@ async function upsertProfileFromAuth(user: {
     }
 
     await supabase.from('profiles').upsert({
-        id: user.id,
+        user_id: user.id,
         username,
         country,
     });
@@ -1693,12 +1684,8 @@ function normalizeGameKey(game: string): string {
 
 async function startRealtimeRoom(gameType: string) {
     try {
-        const token = randomToken();
-        const playerId = token;
         const created = await createRoom({
             gameType,
-            playerId,
-            token,
         });
 
         navigate({
@@ -1744,9 +1731,8 @@ async function handleQuickPlay(gameType: string) {
         const identity = getLobbyIdentity();
         const ticket = await enqueueMatchmaking({
             gameType,
-            playerId: identity.playerId,
             username: identity.username ?? undefined,
-            token: identity.token,
+            clientSessionId: identity.token,
         });
         if (!isCurrentQuickPlayGeneration(generation)) {
             return;
@@ -1924,7 +1910,7 @@ async function cancelQuickPlayWithSupabase(ticket: MatchmakingResponse): Promise
     }
 }
 
-function subscribeQuickPlayRealtime(gameType: string, ticketId: string, generation = quickPlayGeneration) {
+function subscribeQuickPlayRealtime(_gameType: string, ticketId: string, generation = quickPlayGeneration) {
     if (!supabase || quickPlayRealtimeChannel) {
         return;
     }
@@ -1937,7 +1923,7 @@ function subscribeQuickPlayRealtime(gameType: string, ticketId: string, generati
                 event: '*',
                 schema: 'public',
                 table: 'matchmaking_tickets',
-                filter: `game_type=eq.${gameType}`,
+                filter: `id=eq.${ticketId}`,
             },
             () => {
                 scheduleRealtimeTicketRefresh(ticketId, generation);
@@ -2172,7 +2158,7 @@ async function leavePreservedLobbyBeforeTransition(targetRoomCode?: string | nul
     }
 
     try {
-        await leaveRoom({ roomCode: activeLobby.room, token: activeLobby.token });
+        await leaveRoom({ roomCode: activeLobby.room });
     } catch (error) {
         console.warn('[lobby] failed to leave preserved lobby before transition', error);
     } finally {
@@ -2213,8 +2199,11 @@ function syncActiveLobbySessionState() {
 
 function getLobbyIdentity() {
     const authenticatedUserId = authUiState.user?.id?.trim();
+    if (!authenticatedUserId) {
+        window.location.href = '/login';
+    }
     return {
-        playerId: authenticatedUserId || randomToken(),
+        playerId: authenticatedUserId || '',
         username: authUiState.user?.username?.trim() || null,
         token: randomToken(),
     };

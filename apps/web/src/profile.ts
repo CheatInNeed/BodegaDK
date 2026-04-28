@@ -34,12 +34,12 @@ export async function loadProfileData(): Promise<ProfileData> {
     const { data: profile } = await supabase
         .from('profiles')
         .select('username, country')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .single();
 
     const { data: avatar } = await supabase
-        .from('avatars')
-        .select('avatar_color, avatar_shape')
+        .from('user_avatars')
+        .select('color, avatar_defs(shape)')
         .eq('user_id', user.id)
         .single();
 
@@ -47,8 +47,8 @@ export async function loadProfileData(): Promise<ProfileData> {
         username: profile?.username ?? '—',
         email: user.email ?? '—',
         country: profile?.country ?? '—',
-        avatarColor: avatar?.avatar_color ?? '',
-        avatarShape: avatar?.avatar_shape ?? 'square',
+        avatarColor: avatar?.color ?? '',
+        avatarShape: avatar?.avatar_defs?.shape ?? 'square',
         isLive: true,
     };
 }

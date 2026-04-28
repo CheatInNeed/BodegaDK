@@ -3,6 +3,7 @@ import { buildPlayerNameMap } from './player-display.js';
 import type { GameAdapter, RoomBootstrap, RoomSessionState, RoomTransport, UiIntent } from './types.js';
 import { createWebSocketTransport } from './transport/ws-client.js';
 import { createMockServerTransport } from '../net/mock-server.js';
+import { getAccessTokenOrRedirect } from '../net/api.js';
 import { createDefaultCasinoValueMap, parseServerMessage, type ClientToServerMessage } from '../net/protocol.js';
 
 type SessionOptions<TPublic extends Record<string, unknown>, TPrivate extends Record<string, unknown>, TViewModel> = {
@@ -56,13 +57,16 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         store.dispatch({ type: 'SET_CONNECTION', connection: 'connecting' });
 
         transport.connect({
-            onOpen() {
+            async onOpen() {
                 store.dispatch({ type: 'SET_CONNECTION', connection: 'connected' });
+                const accessToken = options.bootstrap.useMock
+                    ? options.bootstrap.token
+                    : await getAccessTokenOrRedirect();
                 transport?.send({
                     type: 'CONNECT',
                     payload: {
                         roomCode: options.bootstrap.roomCode,
-                        token: options.bootstrap.token,
+                        accessToken,
                         game: options.bootstrap.game,
                         setup: options.bootstrap.game.toLowerCase() === 'casino'
                             ? {
