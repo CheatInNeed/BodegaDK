@@ -30,7 +30,13 @@ engine-specific game state still remains inside the Spring runtime.
 
 ## Migration workflow
 
-Schema changes live in `supabase/migrations/`.
+Schema changes live in `supabase/migrations/`. This is the only canonical
+database migration path for BodegaDK. Do not add backend-owned migrations or
+other parallel schema systems for app-owned tables.
+
+Architecture decision:
+
+- `docs/decisions/0001-canonical-database-and-migrations.md`
 
 Profile creation is now database-driven:
 
@@ -78,12 +84,10 @@ Required GitHub secrets:
 The workflow runs `supabase db push --linked --dry-run` and then
 `supabase db push --linked`.
 
-When the Spring backend is pointed at an existing Supabase schema that
-already contains app tables but does not yet contain
-`public.flyway_schema_history`, Flyway must baseline that schema before
-normal migrations can continue. The app now enables
-`spring.flyway.baseline-on-migrate=true` so the backend can boot cleanly
-against a pre-populated Supabase `public` schema.
+The Spring backend connects to the database at runtime through JDBC, but it
+does not own schema migrations. Hosted Supabase, local Supabase, and any
+Postgres database used for development must be prepared from the SQL files in
+`supabase/migrations/`.
 
 ## Frontend config
 
@@ -120,13 +124,9 @@ room metadata and matchmaking tickets through the Spring datasource:
 - `SPRING_DATASOURCE_USERNAME`
 - `SPRING_DATASOURCE_PASSWORD`
 
-In the Docker deploy stack, `infra/docker-compose.yml` now reads those
-values from the host environment with a fallback to the local Docker
-Postgres container:
-
-- default/fallback: `jdbc:postgresql://db:5432/bodegadk`
-- override for Supabase: set the three Spring datasource env vars on the
-  VM before `docker compose up`
+In the Docker deploy stack, `infra/docker-compose.yml` requires those values
+from the host environment. If any of them are missing, deployment fails before
+the server container starts. There is no fallback database in the deploy stack.
 
 Typical Supabase JDBC value shape:
 
@@ -142,8 +142,8 @@ Hosted Supabase migrations and web runtime config are separate concerns.
 - `supabase/migrations/` controls the hosted database schema
 - `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` control whether the
   built web app can use Supabase auth/profile features
-- `SPRING_DATASOURCE_*` controls whether the Spring backend persists
-  rooms/matchmaking into Supabase or into the fallback Docker Postgres
+- `SPRING_DATASOURCE_*` controls the Spring backend connection to the
+  canonical Supabase Postgres database
 
 For live deploys, the machine or CI job that runs `npm run web:build` or
 `npm run deploy:update` must provide those public values either through:

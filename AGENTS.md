@@ -87,7 +87,10 @@ Homepage V1 rules:
 - Do not surface partial plumbing as real homepage features. HighCard quickplay and Supabase auth/avatar support exist elsewhere, but homepage cards still follow the locked contract.
 
 Supabase rules:
+- Supabase Postgres is the canonical durable database; see `docs/decisions/0001-canonical-database-and-migrations.md`.
 - App-owned Supabase schema changes belong in `supabase/migrations/`.
+- Do not add backend-owned migration systems or duplicate schema migrations for app-owned tables.
+- Do not add a Docker/deploy fallback database; deploy must fail if `SPRING_DATASOURCE_*` is missing.
 - Do not treat the Supabase dashboard as the source of truth for schema.
 - Public browser config comes from `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` via generated runtime config.
 - Private migration credentials belong in GitHub secrets, not in source files.
@@ -127,6 +130,7 @@ Supabase rules:
 If behavior changes, update corresponding docs in the same task:
 - `docs/contracts/homepage_v1_contract.md` for homepage layout/behavior changes
 - `docs/instructions/SUPABASE.md` for Supabase schema/config/CI changes
+- `docs/decisions/0001-canonical-database-and-migrations.md` for changes to database ownership or migration strategy
 - `docs/design/PROTOCOL.md` for REST/WS payload or message changes
 - `docs/instructions/DEVELOPMENT.md` for local workflow changes
 - `docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md` for structural changes

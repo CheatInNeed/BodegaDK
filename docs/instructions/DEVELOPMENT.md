@@ -118,7 +118,6 @@ npm run server:local
 
 Det kører Spring med profile `local`:
 
-- disable Flyway
 - disable datasource auto-config
 - port 8080
 
@@ -194,11 +193,12 @@ docker compose up --build
 
 Bemærk om database:
 
-- hvis `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` og
-  `SPRING_DATASOURCE_PASSWORD` ikke er sat i shell environment, bruger
-  compose-stacken den lokale Docker Postgres service `db`
-- hvis de er sat til Supabase Postgres værdier, vil backend skrive rooms,
-  room players og matchmaking tickets til Supabase i stedet
+- `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` og
+  `SPRING_DATASOURCE_PASSWORD` skal være sat i shell environment eller
+  `.env.deploy`; ellers stopper Docker deployet med en konfigurationsfejl
+- disse værdier skal pege på den canonical Supabase Postgres database
+- database schema changes are not applied by the Spring backend; schema is
+  managed only through `supabase/migrations/`
 - `PUBLIC_SUPABASE_URL` og `PUBLIC_SUPABASE_ANON_KEY` påvirker kun web
   klientens auth/profile integration og ændrer ikke backendens datasource
 

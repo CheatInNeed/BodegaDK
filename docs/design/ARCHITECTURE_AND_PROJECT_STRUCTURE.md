@@ -226,7 +226,8 @@ rule enforcement
 
 Persistence split:
 
-- room metadata and queue tickets are stored in Postgres
+- durable app data is stored in canonical Supabase Postgres
+- schema changes are managed only through `supabase/migrations/`
 - WebSocket bindings and active engine state still live in memory
 
 Persistence Layer: - Users - Rooms metadata - Game history - Statistics
@@ -256,14 +257,16 @@ Purpose:
       docker-compose.yml
       nginx/
         nginx.conf
-      db/
       scripts/
 
 Services:
 
 -   nginx (static + reverse proxy)
 -   server (Spring Boot)
--   db (PostgreSQL)
+
+Database ownership and migration strategy:
+
+-   `docs/decisions/0001-canonical-database-and-migrations.md`
 
 Nginx proxies:
 
@@ -276,9 +279,11 @@ Nginx proxies:
 
 Production setup:
 
-Browser ↓ Nginx ↓ Spring Boot Server ↓ PostgreSQL
+Browser ↓ Nginx ↓ Spring Boot Server ↓ Supabase Postgres
 
-All services run inside Docker containers on a VM.
+The web and server services run inside Docker containers on a VM. The database
+is the canonical Supabase Postgres project and is not replaced by a deploy
+fallback database.
 
 ------------------------------------------------------------------------
 

@@ -66,6 +66,7 @@ These commands switch branch before deploying.
 
 - Contributor and agent guidance: [AGENTS.md](/Users/alex/WebstormProjects/BodegaDK/AGENTS.md)
 - Supabase migrations and web auth config: [docs/instructions/SUPABASE.md](/Users/alex/WebstormProjects/BodegaDK/docs/instructions/SUPABASE.md)
+- Database ownership decision: [docs/decisions/0001-canonical-database-and-migrations.md](/Users/alex/WebstormProjects/BodegaDK/docs/decisions/0001-canonical-database-and-migrations.md)
 - Local development guide: [docs/instructions/DEVELOPMENT.md](/Users/alex/WebstormProjects/BodegaDK/docs/instructions/DEVELOPMENT.md)
 - Debian/server deploy guide: [docs/instructions/SERVER_GUIDE.md](/Users/alex/WebstormProjects/BodegaDK/docs/instructions/SERVER_GUIDE.md)
 - Protocol contract: [docs/design/PROTOCOL.md](/Users/alex/WebstormProjects/BodegaDK/docs/design/PROTOCOL.md)

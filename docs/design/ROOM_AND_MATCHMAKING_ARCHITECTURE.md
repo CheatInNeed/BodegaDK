@@ -129,7 +129,8 @@ Implementations:
 - `InMemoryRoomMetadataStore`
 
 The JDBC version is used when Spring has a datasource. The in-memory
-fallback keeps the local profile working when JDBC is disabled.
+implementation is reserved for the local no-database profile when JDBC is
+disabled.
 
 ### `InMemoryRuntimeStore`
 
