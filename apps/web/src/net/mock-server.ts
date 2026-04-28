@@ -468,7 +468,11 @@ function registerToken(room: AnyMockRoomData, token: string): string | null {
     if (room.tokens[token]) return room.tokens[token];
 
     const usedPlayerIds = new Set(Object.values(room.tokens));
-    const players = room.game === 'casino' || room.game === 'fem' || room.game === 'krig' ? ['p1', 'p2'] : room.players;
+    const players = room.game === 'fem'
+        ? ['p1', 'p2', 'p3', 'p4']
+        : room.game === 'casino' || room.game === 'krig'
+        ? ['p1', 'p2']
+        : room.players;
     const available = players.find((playerId) => !usedPlayerIds.has(playerId));
     if (!available && (room.game === 'casino' || room.game === 'fem' || room.game === 'krig')) {
         return null;
@@ -515,13 +519,25 @@ function makeSnapshot(room: AnyMockRoomData, playerId: string): ServerToClientMe
     };
 }
 
+/**
+ * Mock initial state for 500 (fem-hundrede). Simulates a 4-player mid-game.
+ *
+ * To test different player counts, change the `players` array and trim the
+ * corresponding score/cardCount/meld entries:
+ *   2 players → ['p1', 'p2']
+ *   3 players → ['p1', 'p2', 'p3']
+ *   4 players → ['p1', 'p2', 'p3', 'p4']  ← current default
+ *
+ * To make turns actually advance (not just a static snapshot), implement the
+ * fem send() handler in the block around line 160 of this file.
+ */
 function makeFemPublicState(): Record<string, unknown> {
     return {
-        players: ['p1', 'p2'],
+        players: ['p1', 'p2', 'p3', 'p4'],
         turnPlayerId: 'p1',
         roundNumber: 2,
-        scores: { p1: 150, p2: 80 },
-        stockPileCount: 28,
+        scores: { p1: 150, p2: 80, p3: 210, p4: 45 },
+        stockPileCount: 18,
         discardPileTop: 'HQ',
         melds: [
             {
@@ -536,8 +552,14 @@ function makeFemPublicState(): Record<string, unknown> {
                 cards: ['DA', 'D2', 'D3'],
                 pointsPerPlayer: { p2: 30 },
             },
+            {
+                id: 'meld-3',
+                suit: 'S',
+                cards: ['SA', 'S2', 'S3', 'S4', 'S5'],
+                pointsPerPlayer: { p3: 50 },
+            },
         ],
-        playerCardCounts: { p1: 10, p2: 11 },
+        playerCardCounts: { p1: 10, p2: 11, p3: 8, p4: 12 },
         phase: 'PLAYING',
         discardGrabPhase: false,
         grabPriorityPlayerId: null,
@@ -546,10 +568,14 @@ function makeFemPublicState(): Record<string, unknown> {
 }
 
 function makeFemPrivateState(playerId: string): Record<string, unknown> {
-    const hand = playerId === 'p1'
-        ? ['H5', 'H6', 'H7', 'D7', 'D8', 'SA', 'CA', 'DA', 'S10', 'CK']
-        : ['C5', 'C6', 'C7', 'S5', 'S6', 'HK', 'DK', 'CQ', 'SQ', 'H9', 'D9'];
-    return { playerId, hand, projectedRoundScore: playerId === 'p1' ? 40 : 30 };
+    const hands: Record<string, string[]> = {
+        p1: ['H5', 'H6', 'H7', 'D7', 'D8', 'SA', 'CA', 'DA', 'S10', 'CK'],
+        p2: ['C5', 'C6', 'C7', 'S5', 'S6', 'HK', 'DK', 'CQ', 'SQ', 'H9', 'D9'],
+        p3: ['C8', 'C9', 'C10', 'S7', 'S8', 'H8', 'D6', 'CJ'],
+        p4: ['C2', 'C3', 'C4', 'S9', 'SK', 'HJ', 'DJ', 'SJ', 'H10', 'D10', 'CK', 'DQ'],
+    };
+    const scores: Record<string, number> = { p1: 40, p2: 30, p3: 50, p4: 0 };
+    return { playerId, hand: hands[playerId] ?? [], projectedRoundScore: scores[playerId] ?? 0 };
 }
 
 function makeKrigPublicState(): Record<string, unknown> {
