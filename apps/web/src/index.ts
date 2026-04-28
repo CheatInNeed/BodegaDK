@@ -1070,9 +1070,9 @@ function wireRoomEvents() {
         });
     });
 
-    document.querySelectorAll<HTMLButtonElement>('button[data-action="toggle-card"]').forEach((button) => {
-        button.addEventListener('click', () => {
-            const card = button.dataset.card;
+    document.querySelectorAll<HTMLElement>('[data-action="toggle-card"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const card = el.dataset.card;
             if (!card) return;
             roomSession?.toggleCard(card);
         });
