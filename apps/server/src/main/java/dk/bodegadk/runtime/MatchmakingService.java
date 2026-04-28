@@ -118,7 +118,9 @@ public class MatchmakingService {
             }
 
             roomMetadataStore.updateRoomStatus(roomCode, InMemoryRuntimeStore.RoomStatus.IN_GAME);
-            matchedTickets.forEach(ticket -> roomMetadataStore.markTicketMatched(ticket.ticketId(), roomCode));
+            for (RoomMetadataStore.MatchmakingTicket ticket : matchedTickets) {
+                roomMetadataStore.markTicketMatched(ticket.ticketId(), roomCode);
+            }
         }
     }
 

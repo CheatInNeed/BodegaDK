@@ -31,9 +31,13 @@ const env = {
     ...process.env,
 };
 
-const executable = process.platform === 'win32' && command[0] === 'npm' ? 'npm.cmd' : command[0];
+if (requiresBackendDatabase(command)) {
+    validateBackendEnvironment(env);
+}
 
-const child = spawn(executable, command.slice(1), {
+const commandParts = buildCommand(command);
+
+const child = spawn(commandParts.executable, commandParts.args, {
     cwd: repoRoot,
     env,
     shell: false,
@@ -96,4 +100,47 @@ function parseEnvFile(contents) {
     }
 
     return values;
+}
+
+function buildCommand(command) {
+    if (process.platform !== 'win32') {
+        return {
+            executable: command[0],
+            args: command.slice(1),
+        };
+    }
+
+    return {
+        executable: process.env.ComSpec || 'cmd.exe',
+        args: ['/d', '/s', '/c', command.map(quoteForCmd).join(' ')],
+    };
+}
+
+function requiresBackendDatabase(command) {
+    const commandText = command.join(' ');
+    return commandText.includes('server:local:raw') || commandText.includes('local:dev:raw');
+}
+
+function validateBackendEnvironment(env) {
+    const requiredNames = ['SPRING_DATASOURCE_URL', 'SPRING_DATASOURCE_USERNAME', 'SPRING_DATASOURCE_PASSWORD'];
+    const missingNames = requiredNames.filter((name) => !env[name]);
+
+    if (missingNames.length > 0) {
+        console.error(`[local-env] Missing required backend env: ${missingNames.join(', ')}`);
+        console.error('[local-env] Put them in .env.local or export them in your shell before running the server.');
+        process.exit(1);
+    }
+
+    if (!env.SPRING_DATASOURCE_URL.startsWith('jdbc:')) {
+        console.error('[local-env] SPRING_DATASOURCE_URL must be a JDBC URL starting with jdbc:.');
+        process.exit(1);
+    }
+}
+
+function quoteForCmd(value) {
+    if (!/[ \t"&|<>()^]/u.test(value)) {
+        return value;
+    }
+
+    return `"${value.replace(/"/gu, '\\"')}"`;
 }

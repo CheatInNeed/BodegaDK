@@ -202,6 +202,64 @@ Annullerer en quick-play ticket.
 
 ------------------------------------------------------------------------
 
+## GET /me/matches
+
+Returns recent completed matches for the authenticated user.
+
+Requires `Authorization: Bearer <supabase access token>`. The backend only
+returns matches where the token subject exists in `match_players`.
+
+### Query params
+
+- `limit`: optional, defaults to `20`, clamped to `1..50`
+- `before`: optional ISO-8601 instant cursor, compared against
+  `coalesce(ended_at, started_at)`
+
+### Response
+
+``` json
+{
+  "items": [
+    {
+      "matchId": "uuid",
+      "game": {
+        "id": "uuid",
+        "slug": "casino",
+        "title": "Casino"
+      },
+      "roomCode": "ABC123",
+      "status": "COMPLETED",
+      "startedAt": "2026-04-28T18:30:00Z",
+      "endedAt": "2026-04-28T18:42:00Z",
+      "resultType": "WIN",
+      "winnerUserId": "auth-user-uuid",
+      "currentUser": {
+        "userId": "auth-user-uuid",
+        "username": "Alice",
+        "result": "WIN",
+        "score": null,
+        "seatIndex": 0
+      },
+      "players": [
+        {
+          "userId": "auth-user-uuid",
+          "username": "Alice",
+          "result": "WIN",
+          "score": null,
+          "seatIndex": 0
+        }
+      ]
+    }
+  ],
+  "limit": 20,
+  "nextCursor": null
+}
+```
+
+`final_state` is intentionally not exposed by this endpoint.
+
+------------------------------------------------------------------------
+
 # WebSocket
 
 Endpoint:

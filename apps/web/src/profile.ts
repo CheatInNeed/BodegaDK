@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import { t, type Lang } from './i18n.js';
+import { getMyMatches, type MyMatchSummary } from './net/api.js';
 
 interface ProfileData {
     username: string;
@@ -8,6 +9,8 @@ interface ProfileData {
     avatarColor: string;
     avatarShape: string;
     isLive: boolean;
+    recentMatches: MyMatchSummary[];
+    historyError: boolean;
 }
 
 const placeholderProfile: ProfileData = {
@@ -17,6 +20,8 @@ const placeholderProfile: ProfileData = {
     avatarColor: '#ffb300',
     avatarShape: 'circle',
     isLive: false,
+    recentMatches: [],
+    historyError: false,
 };
 
 export async function loadProfileData(): Promise<ProfileData> {
@@ -43,13 +48,24 @@ export async function loadProfileData(): Promise<ProfileData> {
         .eq('user_id', user.id)
         .single();
 
+    let recentMatches: MyMatchSummary[] = [];
+    let historyError = false;
+    try {
+        recentMatches = (await getMyMatches({ limit: 20 })).items;
+    } catch (error) {
+        historyError = true;
+        console.warn('[profile] failed to load match history', error);
+    }
+
     return {
-        username: profile?.username ?? '—',
-        email: user.email ?? '—',
-        country: profile?.country ?? '—',
+        username: profile?.username ?? '---',
+        email: user.email ?? '---',
+        country: profile?.country ?? '---',
         avatarColor: avatar?.color ?? '',
         avatarShape: avatar?.avatar_defs?.shape ?? 'square',
         isLive: true,
+        recentMatches,
+        historyError,
     };
 }
 
@@ -109,14 +125,13 @@ export function renderProfilePage(lang: Lang, data: ProfileData): string {
           <p class="card-desc" data-i18n="profile.section.statsDesc"></p>
         </article>
 
-        <article class="card profile-section-card profile-placeholder-card" aria-disabled="true">
+        <article class="card profile-section-card">
           <div class="profile-section-header">
             <div>
               <div class="card-title" data-i18n="profile.section.historyTitle"></div>
             </div>
-            <span class="home-placeholder-tag" data-i18n="home.action.comingSoon"></span>
           </div>
-          <p class="card-desc" data-i18n="profile.section.historyDesc"></p>
+          ${renderRecentMatches(lang, data)}
         </article>
 
         <article class="card profile-section-card profile-placeholder-card" aria-disabled="true">
@@ -131,6 +146,66 @@ export function renderProfilePage(lang: Lang, data: ProfileData): string {
       </section>
     </section>
   `;
+}
+
+function renderRecentMatches(lang: Lang, data: ProfileData): string {
+    if (data.historyError) {
+        return `<p class="card-desc" data-i18n="profile.section.historyError"></p>`;
+    }
+
+    if (data.recentMatches.length === 0) {
+        return `<p class="card-desc" data-i18n="profile.section.historyEmpty"></p>`;
+    }
+
+    return `
+    <div class="profile-match-list">
+      ${data.recentMatches.map((match) => renderMatchRow(lang, match)).join('')}
+    </div>
+  `;
+}
+
+function renderMatchRow(lang: Lang, match: MyMatchSummary): string {
+    const result = match.currentUser.result ?? match.resultType ?? 'DRAW';
+    const resultClass = result.toLowerCase();
+    const scoreText = typeof match.currentUser.score === 'number'
+        ? `<span>${escapeHtml(t(lang, 'profile.match.score'))}: ${match.currentUser.score}</span>`
+        : '';
+    const opponents = match.players
+        .filter((player) => player.userId !== match.currentUser.userId)
+        .map((player) => player.username || player.userId)
+        .join(', ');
+    const opponentText = opponents || t(lang, 'profile.match.noOpponent');
+    const dateText = formatMatchDate(lang, match.endedAt ?? match.startedAt);
+
+    return `
+    <div class="profile-match-row">
+      <div>
+        <div class="profile-match-title">${escapeHtml(match.game.title || match.game.slug)}</div>
+        <div class="profile-match-meta">${escapeHtml(dateText)} - ${escapeHtml(opponentText)}</div>
+      </div>
+      <div class="profile-match-result">
+        <span class="profile-match-badge profile-match-badge-${escapeHtml(resultClass)}">${escapeHtml(formatResult(lang, result))}</span>
+        ${scoreText}
+      </div>
+    </div>
+  `;
+}
+
+function formatResult(lang: Lang, result: string): string {
+    const key = `profile.match.result.${result.toLowerCase()}`;
+    return t(lang, key);
+}
+
+function formatMatchDate(lang: Lang, value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return new Intl.DateTimeFormat(lang === 'da' ? 'da-DK' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    }).format(date);
 }
 
 function escapeHtml(str: string): string {

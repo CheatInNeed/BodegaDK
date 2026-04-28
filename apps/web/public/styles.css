@@ -3647,6 +3647,68 @@ button.lobby-game-card {
     font-weight: 500;
 }
 
+.profile-match-list {
+    display: grid;
+    gap: var(--s2);
+}
+
+.profile-match-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--s2);
+    align-items: center;
+    padding: var(--s2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface-soft);
+}
+
+.profile-match-title {
+    color: var(--color-text-strong);
+    font-weight: 700;
+}
+
+.profile-match-meta,
+.profile-match-result {
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+.profile-match-result {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    text-align: right;
+}
+
+.profile-match-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-text-strong);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.profile-match-badge-win {
+    background: color-mix(in srgb, var(--color-success) 18%, transparent);
+    color: var(--color-success);
+}
+
+.profile-match-badge-loss,
+.profile-match-badge-abandoned,
+.profile-match-badge-timeout,
+.profile-match-badge-resignation,
+.profile-match-badge-disconnect,
+.profile-match-badge-aborted {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+
 .btn.danger {
     color: var(--color-danger);
     border-color: var(--color-danger);
@@ -3664,6 +3726,15 @@ button.lobby-game-card {
     .profile-hero-card {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .profile-match-row {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-match-result {
+        align-items: flex-start;
+        text-align: left;
     }
 }
 

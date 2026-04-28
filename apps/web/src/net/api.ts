@@ -50,6 +50,37 @@ export type MatchmakingResponse = {
     estimatedWaitSeconds: number;
 };
 
+export type MyMatchPlayer = {
+    userId: string;
+    username: string;
+    result: 'WIN' | 'LOSS' | 'DRAW' | 'ABANDONED' | null;
+    score: number | null;
+    seatIndex: number | null;
+};
+
+export type MyMatchSummary = {
+    matchId: string;
+    game: {
+        id: string;
+        slug: string;
+        title: string;
+    };
+    roomCode: string | null;
+    status: 'COMPLETED';
+    startedAt: string;
+    endedAt: string | null;
+    resultType: 'WIN' | 'DRAW' | 'TIMEOUT' | 'RESIGNATION' | 'DISCONNECT' | 'ABORTED' | null;
+    winnerUserId: string | null;
+    currentUser: MyMatchPlayer;
+    players: MyMatchPlayer[];
+};
+
+export type MyMatchesResponse = {
+    items: MyMatchSummary[];
+    limit: number;
+    nextCursor: string | null;
+};
+
 export async function listRooms(): Promise<LobbyRoomSummary[]> {
     const response = await authenticatedFetch(`${resolveApiBaseUrl()}/rooms`);
     return parseJsonResponse<LobbyRoomSummary[]>(response, 'Failed to load public rooms');
@@ -180,6 +211,21 @@ export async function cancelMatchmakingTicket(ticketId: string): Promise<void> {
 
     const suffix = details ? `: ${details}` : '';
     throw new Error(`Failed to cancel matchmaking ticket (${response.status})${suffix}`);
+}
+
+export async function getMyMatches(input: { limit?: number; before?: string } = {}): Promise<MyMatchesResponse> {
+    const params = new URLSearchParams();
+    if (input.limit !== undefined) {
+        params.set('limit', String(input.limit));
+    }
+    if (input.before) {
+        params.set('before', input.before);
+    }
+
+    const query = params.toString();
+    const url = `${resolveApiBaseUrl()}/me/matches${query ? `?${query}` : ''}`;
+    const response = await authenticatedFetch(url);
+    return parseJsonResponse<MyMatchesResponse>(response, 'Failed to load match history');
 }
 
 export async function getAccessTokenOrRedirect(): Promise<string> {

@@ -51,7 +51,7 @@ Migration files:
 - `LobbyCoordinator` updates durable selected game state through `rooms.game_id`.
 - Matchmaking creates the durable room first, then mirrors room/player state into runtime memory.
 - Engine adapters can keep user IDs as strings internally, but those strings must become auth UUID strings for persisted players.
-- Game completion writes `matches` and `match_players`. Derived `user_game_stats` and `leaderboard_scores` are still future work.
+- Game completion writes `matches` and `match_players`; `GET /me/matches` and the profile Recent Games UI now read them. Derived `user_game_stats` and `leaderboard_scores` are still future work.
 - Backend tests still need a full compile/run pass on a machine with Maven.
 
 ### Frontend
@@ -63,7 +63,7 @@ Migration files:
 - `touch_room_heartbeat(text)` can keep the same RPC signature, but it now requires the signed-in user to be a persisted room participant.
 - Profile code uses `profiles.user_id`.
 - Avatar code uses `user_avatars` plus `avatar_defs`.
-- UI routes that expose profile, stats, friends, invite, or leaderboard data must remain placeholder/disabled until the matching backend/RLS-safe query path is complete.
+- Profile match history is live through the authenticated backend API. Stats, friends, invite, and leaderboard UI remain placeholder/disabled until their matching backend/RLS-safe query paths are complete.
 
 ### Supabase And Data
 
