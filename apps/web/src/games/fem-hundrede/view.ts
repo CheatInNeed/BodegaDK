@@ -1,4 +1,5 @@
 import { renderCardBack, renderCardFront, renderHandFan } from '../shared/cards.js';
+import { renderWinOverlay } from '../shared/win-overlay.js';
 
 export type FemMeld = {
     id: string;
@@ -17,6 +18,11 @@ export type FemPlayerInfo = {
     isCurrentTurn: boolean;
 };
 
+export type FemPostGame = {
+    winnerLabel: string;
+    scores: Array<{ name: string; score: number; isWinner: boolean }>;
+};
+
 export type FemViewModel = {
     selfPlayerId: string | null;
     players: FemPlayerInfo[];
@@ -31,6 +37,7 @@ export type FemViewModel = {
     selectedCards: string[];
     projectedRoundScore: number;
     winnerPlayerId: string | null;
+    postGame: FemPostGame | null;
     canDraw: boolean;
     canDrawDiscard: boolean;
     canTakePile: boolean;
@@ -40,8 +47,8 @@ export type FemViewModel = {
     canClose: boolean;
 };
 
-const CW = 68, CH = 95;
-const MW = 44, MH = 62;
+const CW = 78, CH = 109;
+const MW = 51, MH = 71;
 const SHADOW = '0 4px 18px rgba(0,0,0,0.6),0 1px 4px rgba(0,0,0,0.3)';
 
 function scoreBar(players: FemPlayerInfo[]): string {
@@ -155,13 +162,26 @@ function discardPile(top: string | null, canDrawDiscard: boolean): string {
 </div>`;
 }
 
-function gameOverBanner(vm: FemViewModel): string {
-    if (!vm.winnerPlayerId) return '';
-    const winner = vm.players.find((p) => p.playerId === vm.winnerPlayerId);
-    const label  = vm.winnerPlayerId === vm.selfPlayerId
-        ? 'Du vandt spillet!'
-        : `${winner?.displayName ?? vm.winnerPlayerId} vandt spillet!`;
-    return `<div style="position:absolute;top:0;left:0;right:0;background:rgba(255,179,0,0.15);border-bottom:2px solid rgba(255,179,0,0.4);padding:8px 16px;text-align:center;font-family:Georgia,serif;font-weight:700;font-size:14px;color:#ffb300;letter-spacing:1px;z-index:20;">${label}</div>`;
+function gameOverOverlay(vm: FemViewModel): string {
+    if (!vm.postGame) return '';
+    const scoreRows = vm.postGame.scores.map((s) =>
+        `<div class="win-overlay-score-row${s.isWinner ? ' is-winner' : ''}">${escapeHtml(s.name)}: ${s.score} point</div>`
+    ).join('');
+    return renderWinOverlay({
+        winnerLabel: vm.postGame.winnerLabel,
+        subtitle: 'Vinder af 500!',
+        buttonLabel: 'Nyt spil',
+        buttonAction: 'request-rematch',
+        extraHtml: `<div class="win-overlay-scores">${scoreRows}</div>`,
+    });
+}
+
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
 export function renderFemRoom(vm: FemViewModel): string {
@@ -224,7 +244,7 @@ export function renderFemRoom(vm: FemViewModel): string {
     <div class="g500-vignette" aria-hidden="true"></div>
     <div class="g500-ring" aria-hidden="true"></div>
 
-    ${gameOverBanner(vm)}
+    ${gameOverOverlay(vm)}
 
     <div class="g500-topbar">
       <button class="game-room-leave-btn" type="button" data-action="leave-table">← Forlad</button>

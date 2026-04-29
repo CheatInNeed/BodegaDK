@@ -29,6 +29,7 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String LAY_MELD = "LAY_MELD";
     private static final String EXTEND_MELD = "EXTEND_MELD";
     private static final String DISCARD = "DISCARD";
+    private static final String REQUEST_REMATCH = "REQUEST_REMATCH";
 
     private final InMemoryRuntimeStore runtimeStore;
     private final ObjectMapper objectMapper;
@@ -72,6 +73,7 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
             case LAY_MELD -> handleLayMeld(state, command, room);
             case EXTEND_MELD -> handleExtendMeld(state, command, room);
             case DISCARD -> handleDiscard(state, command, room);
+            case REQUEST_REMATCH -> handleRequestRematch(state, command, room);
             default -> GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         };
     }
@@ -243,6 +245,37 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
 
         FemAction action = new FemAction.Discard(command.playerId(), card);
         return applyGameAction(state, command, room, action);
+    }
+
+    /* ── REQUEST_REMATCH ── */
+
+    private GameLoopService.LoopResult handleRequestRematch(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+
+        FemState current = loadFemState(command.roomCode())
+                .orElseThrow(() -> new GameEngine.GameRuleException("Fem state missing"));
+
+        if (!current.isFinished()) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game is not finished");
+        }
+
+        FemState next = engine.init(room.participantIds());
+        runtimeStore.saveGameState(command.roomCode(), next);
+        GameLoopService.RoomState nextRoomState = toFemRoomState(state, room, command.playerId(), next);
+
+        return GameLoopService.LoopResult.success(
+                nextRoomState,
+                nextRoomState.publicState(),
+                privateUpdatesForAllPlayers(nextRoomState, room.participantIds()),
+                false,
+                null
+        );
     }
 
     /* ── Shared apply logic ── */

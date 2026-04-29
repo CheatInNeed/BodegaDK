@@ -1,4 +1,5 @@
 import { CARD_THEMES, renderGCardBack, renderGPlayingCard, type CardTheme } from '../shared/game-cards.js';
+import { renderWinOverlay } from '../shared/win-overlay.js';
 
 export type KrigViewModel = {
     roomCode: string;
@@ -99,13 +100,14 @@ export function renderKrigRoom(vm: KrigViewModel): string {
       </div>
     </div>
 
-    ${vm.postGame ? `
-    <div class="overlay">
-      <div class="overlay-title">${escapeHtml(winnerName)}</div>
-      <div class="overlay-sub">${vm.postGame.isTie ? 'Uafgjort' : 'Vinder af krig!'}</div>
-      <div class="bodega-quip">${escapeHtml(vm.postGame.rematchStatusText)}</div>
-      <button class="new-game-btn" data-action="request-rematch" ${vm.postGame.rematchDisabled ? 'disabled' : ''}>${escapeHtml(vm.postGame.rematchButtonLabel)}</button>
-    </div>` : ''}
+    ${vm.postGame ? renderWinOverlay({
+        winnerLabel: winnerName,
+        subtitle: vm.postGame.isTie ? 'Uafgjort' : 'Vinder af krig!',
+        quip: vm.postGame.rematchStatusText,
+        buttonLabel: vm.postGame.rematchButtonLabel,
+        buttonAction: 'request-rematch',
+        buttonDisabled: vm.postGame.rematchDisabled,
+    }) : ''}
 
     <button class="game-room-leave-btn kg-leave-btn" data-action="leave-table">← Forlad</button>
   </div>
