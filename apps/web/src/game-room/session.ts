@@ -24,7 +24,6 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
 ) {
     let krigRevealTimer: ReturnType<typeof setTimeout> | null = null;
     let krigResultTimer: ReturnType<typeof setTimeout> | null = null;
-    let krigWarTimer: ReturnType<typeof setTimeout> | null = null;
     const initialState: RoomSessionState = {
         connection: 'idle',
         roomCode: options.bootstrap.roomCode,
@@ -158,10 +157,6 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
             clearTimeout(krigResultTimer);
             krigResultTimer = null;
         }
-        if (krigWarTimer !== null) {
-            clearTimeout(krigWarTimer);
-            krigWarTimer = null;
-        }
     }
 
     function syncKrigPresentation(nextState: RoomSessionState, dispatch: ReturnType<typeof createRoomStore>['dispatch']) {
@@ -197,57 +192,31 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
 
         const isWar = typeof lastTrick?.warDepth === 'number' && lastTrick.warDepth > 0;
 
-        if (isWar) {
-            // War sequence: krig-reveal (see matching cards, no KRIG text) →
-            //               suspense (KRIG! animation) → idle (flip war cards)
-            dispatch({
-                type: 'SET_KRIG_PRESENTATION',
-                presentation: {
-                    phase: 'krig-reveal',
-                    activeBattleRound: battleRound,
-                    completedBattleRound: presentation.completedBattleRound,
-                },
-            });
+        dispatch({
+            type: 'SET_KRIG_PRESENTATION',
+            presentation: {
+                phase: 'suspense',
+                activeBattleRound: battleRound,
+                completedBattleRound: presentation.completedBattleRound,
+            },
+        });
 
-            krigRevealTimer = setTimeout(() => {
-                const current = store.getState();
-                if (current.krigPresentation.activeBattleRound !== battleRound) return;
+        krigRevealTimer = setTimeout(() => {
+            const current = store.getState();
+            if (current.krigPresentation.activeBattleRound !== battleRound) return;
+
+            if (isWar) {
+                // War: skip the result phase — go straight to idle so players can flip again
                 dispatch({
                     type: 'SET_KRIG_PRESENTATION',
                     presentation: {
-                        phase: 'suspense',
-                        activeBattleRound: battleRound,
-                        completedBattleRound: current.krigPresentation.completedBattleRound,
+                        phase: 'idle',
+                        activeBattleRound: null,
+                        completedBattleRound: battleRound,
                     },
                 });
-
-                krigWarTimer = setTimeout(() => {
-                    const latest = store.getState();
-                    if (latest.krigPresentation.activeBattleRound !== battleRound) return;
-                    dispatch({
-                        type: 'SET_KRIG_PRESENTATION',
-                        presentation: {
-                            phase: 'idle',
-                            activeBattleRound: null,
-                            completedBattleRound: battleRound,
-                        },
-                    });
-                }, 2500);
-            }, 1500);
-        } else {
-            // Normal sequence: suspense → result → idle
-            dispatch({
-                type: 'SET_KRIG_PRESENTATION',
-                presentation: {
-                    phase: 'suspense',
-                    activeBattleRound: battleRound,
-                    completedBattleRound: presentation.completedBattleRound,
-                },
-            });
-
-            krigRevealTimer = setTimeout(() => {
-                const current = store.getState();
-                if (current.krigPresentation.activeBattleRound !== battleRound) return;
+            } else {
+                // Normal: show result, then idle
                 dispatch({
                     type: 'SET_KRIG_PRESENTATION',
                     presentation: {
@@ -269,8 +238,8 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
                         },
                     });
                 }, 2000);
-            }, 1200);
-        }
+            }
+        }, 1200);
     }
 }
 

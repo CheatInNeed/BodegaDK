@@ -89,8 +89,7 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
         const warPresentationActive = !!trick
             && warDepth > 0
             && trick.trickNumber !== presentation.completedBattleRound
-            && !postGameVisible
-            && presentation.phase !== 'krig-reveal';
+            && !postGameVisible;
         const drawPileCounts = suspenseVisible && publicState?.drawPileCountsBeforeTrick
             ? publicState.drawPileCountsBeforeTrick
             : publicState?.drawPileCounts;
