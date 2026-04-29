@@ -357,7 +357,9 @@ function renderNotificationsButton(): string {
     return `
     <div class="notification-menu" id="notificationMenu">
       <button class="btn notification-button hidden" id="notificationsBtn" type="button" aria-expanded="${notificationsState.open ? 'true' : 'false'}" aria-label="${t(state.lang, 'notifications.title')}">
-        <span aria-hidden="true">●</span>
+        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M12 22a2.7 2.7 0 0 0 2.62-2h-5.24A2.7 2.7 0 0 0 12 22Zm7-6.4-1.55-1.74V9.6a5.46 5.46 0 0 0-4.2-5.33V3.6a1.25 1.25 0 1 0-2.5 0v.67a5.46 5.46 0 0 0-4.2 5.33v4.26L5 15.6V17h14v-1.4Z"></path>
+        </svg>
         ${badge}
       </button>
       ${panel}
@@ -373,10 +375,16 @@ function renderNotificationsPanel(): string {
             : notificationsState.items.length === 0
                 ? `<p class="card-desc" data-i18n="notifications.empty"></p>`
                 : `<div class="notification-list">${notificationsState.items.map(renderNotificationRow).join('')}</div>`;
+    const unreadSummary = notificationsState.unreadCount > 0
+        ? `<span class="notification-panel-count">${notificationsState.unreadCount > 99 ? '99+' : notificationsState.unreadCount}</span>`
+        : '';
     return `
     <section class="notification-panel card">
       <div class="notification-panel-header">
-        <strong data-i18n="notifications.title"></strong>
+        <div>
+          <strong data-i18n="notifications.title"></strong>
+          ${unreadSummary}
+        </div>
         <button class="btn" type="button" data-action="notifications-read-all" ${notificationsState.readAllBusy ? 'disabled' : ''} data-i18n="notifications.readAll"></button>
       </div>
       ${body}
@@ -392,10 +400,10 @@ function renderNotificationRow(notification: NotificationSummary): string {
     return `
     <article class="notification-row ${unread}">
       <button class="notification-copy" type="button" data-action="notification-open" data-notification-id="${escapeHtml(notification.id)}">
-        <span>${escapeHtml(message)}</span>
+        <span class="notification-message">${escapeHtml(message)}</span>
         <small>${escapeHtml(formatNotificationDate(notification.createdAt))}</small>
       </button>
-      <div class="notification-actions">
+      <div class="notification-actions" aria-label="${escapeHtml(t(state.lang, 'notifications.title'))}">
         ${actions}
         ${notification.readAt ? '' : `<button class="btn" type="button" data-action="notification-read" data-notification-id="${escapeHtml(notification.id)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.markRead"></button>`}
       </div>
@@ -407,13 +415,13 @@ function notificationActions(notification: NotificationSummary): string {
     const challengeId = stringPayload(notification.payload, 'challengeId');
     if (notification.type === 'challenge.received' && challengeId) {
         return `
-          <button class="btn primary" type="button" data-action="notification-challenge-accept" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.accept"></button>
-          <button class="btn" type="button" data-action="notification-challenge-decline" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.decline"></button>
+          <button class="btn primary notification-action-primary" type="button" data-action="notification-challenge-accept" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.accept"></button>
+          <button class="btn notification-action-secondary" type="button" data-action="notification-challenge-decline" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.decline"></button>
         `;
     }
     const roomCode = stringPayload(notification.payload, 'roomCode');
     if (roomCode) {
-        return `<button class="btn primary" type="button" data-action="notification-room" data-notification-id="${escapeHtml(notification.id)}" data-room-code="${escapeHtml(roomCode)}" data-game="${escapeHtml(stringPayload(notification.payload, 'gameType') || 'snyd')}" data-i18n="notifications.openRoom"></button>`;
+        return `<button class="btn primary notification-action-primary" type="button" data-action="notification-room" data-notification-id="${escapeHtml(notification.id)}" data-room-code="${escapeHtml(roomCode)}" data-game="${escapeHtml(stringPayload(notification.payload, 'gameType') || 'snyd')}" data-i18n="notifications.openRoom"></button>`;
     }
     return '';
 }
@@ -2172,7 +2180,7 @@ async function loadAvatarData(userId: string): Promise<{ color: string; shape: s
         .from('user_avatars')
         .select('color, avatar_defs(shape)')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
     if (!avatar) {
         return null;
@@ -2193,7 +2201,7 @@ async function loadProfileUsername(userId: string, fallbackUsername?: string | n
         .from('profiles')
         .select('username')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
     return normalizeUsernameValue(profile?.username) ?? normalizeUsernameValue(fallbackUsername);
 }

@@ -5,6 +5,7 @@ import {
     getFriends,
     getMyMatches,
     getMyStats,
+    ApiError,
     type FriendRequestsResponse,
     type FriendshipSummary,
     type MyGameStatsSummary,
@@ -20,12 +21,12 @@ interface ProfileData {
     avatarShape: string;
     isLive: boolean;
     gameStats: MyGameStatsSummary[];
-    statsError: boolean;
+    statsError: string | null;
     recentMatches: MyMatchSummary[];
-    historyError: boolean;
+    historyError: string | null;
     friends: FriendshipSummary[];
     friendRequests: FriendRequestsResponse;
-    friendsError: boolean;
+    friendsError: string | null;
 }
 
 const placeholderProfile: ProfileData = {
@@ -37,12 +38,12 @@ const placeholderProfile: ProfileData = {
     avatarShape: 'circle',
     isLive: false,
     gameStats: [],
-    statsError: false,
+    statsError: null,
     recentMatches: [],
-    historyError: false,
+    historyError: null,
     friends: [],
     friendRequests: { incoming: [], outgoing: [] },
-    friendsError: false,
+    friendsError: null,
 };
 
 export async function loadProfileData(): Promise<ProfileData> {
@@ -57,47 +58,55 @@ export async function loadProfileData(): Promise<ProfileData> {
         return placeholderProfile;
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('username, country')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-    const { data: avatar } = await supabase
+    if (profileError) {
+        console.warn('[profile] failed to load profile row', describeError(profileError));
+    }
+
+    const { data: avatar, error: avatarError } = await supabase
         .from('user_avatars')
         .select('color, avatar_defs(shape)')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
+
+    if (avatarError) {
+        console.warn('[profile] failed to load avatar row', describeError(avatarError));
+    }
 
     let gameStats: MyGameStatsSummary[] = [];
-    let statsError = false;
+    let statsError: string | null = null;
     try {
         gameStats = (await getMyStats()).items;
     } catch (error) {
-        statsError = true;
-        console.warn('[profile] failed to load game stats', error);
+        statsError = describeError(error);
+        console.warn('[profile] failed to load game stats', statsError, error);
     }
 
     let recentMatches: MyMatchSummary[] = [];
-    let historyError = false;
+    let historyError: string | null = null;
     try {
         recentMatches = (await getMyMatches({ limit: 20 })).items;
     } catch (error) {
-        historyError = true;
-        console.warn('[profile] failed to load match history', error);
+        historyError = describeError(error);
+        console.warn('[profile] failed to load match history', historyError, error);
     }
 
     let friends: FriendshipSummary[] = [];
     let friendRequests: FriendRequestsResponse = { incoming: [], outgoing: [] };
-    let friendsError = false;
+    let friendsError: string | null = null;
     try {
         [friends, friendRequests] = await Promise.all([
             getFriends(),
             getFriendRequests(),
         ]);
     } catch (error) {
-        friendsError = true;
-        console.warn('[profile] failed to load friends', error);
+        friendsError = describeError(error);
+        console.warn('[profile] failed to load friends', friendsError, error);
     }
 
     return {
@@ -234,6 +243,7 @@ function renderFriendsSection(lang: Lang, data: ProfileData, friendUiState: Prof
       ${renderFriendRequestForm(lang, friendUiState)}
       ${error}
       <p class="card-desc" data-i18n="profile.friends.error"></p>
+      ${renderErrorDetail(data.friendsError)}
     `;
     }
 
@@ -364,7 +374,10 @@ function isChallengeBusy(state: ProfileFriendUiState, userId: string): string {
 
 function renderGameStats(lang: Lang, data: ProfileData): string {
     if (data.statsError) {
-        return `<p class="card-desc" data-i18n="profile.section.statsError"></p>`;
+        return `
+      <p class="card-desc" data-i18n="profile.section.statsError"></p>
+      ${renderErrorDetail(data.statsError)}
+    `;
     }
 
     const playedStats = data.gameStats.filter((stats) => stats.gamesPlayed > 0);
@@ -411,7 +424,10 @@ function renderStatsRow(lang: Lang, stats: MyGameStatsSummary): string {
 
 function renderRecentMatches(lang: Lang, data: ProfileData): string {
     if (data.historyError) {
-        return `<p class="card-desc" data-i18n="profile.section.historyError"></p>`;
+        return `
+      <p class="card-desc" data-i18n="profile.section.historyError"></p>
+      ${renderErrorDetail(data.historyError)}
+    `;
     }
 
     if (data.recentMatches.length === 0) {
@@ -467,6 +483,36 @@ function formatMatchDate(lang: Lang, value: string): string {
         month: 'short',
         day: 'numeric',
     }).format(date);
+}
+
+function describeError(error: unknown): string {
+    if (error instanceof ApiError) {
+        return error.message;
+    }
+    if (error && typeof error === 'object') {
+        const record = error as Record<string, unknown>;
+        const message = record.message;
+        const code = record.code;
+        const details = record.details;
+        const hint = record.hint;
+        const parts = [
+            typeof code === 'string' && code.trim() ? `[${code.trim()}]` : '',
+            typeof message === 'string' && message.trim() ? message.trim() : '',
+            typeof details === 'string' && details.trim() ? details.trim() : '',
+            typeof hint === 'string' && hint.trim() ? `Hint: ${hint.trim()}` : '',
+        ].filter(Boolean);
+        if (parts.length > 0) {
+            return parts.join(' ');
+        }
+    }
+    if (error instanceof Error) {
+        return error.message;
+    }
+    return 'Unknown error';
+}
+
+function renderErrorDetail(message: string): string {
+    return `<p class="profile-error-detail">${escapeHtml(message)}</p>`;
 }
 
 function escapeHtml(str: string): string {

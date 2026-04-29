@@ -241,20 +241,45 @@ button { font: inherit; }
     display: flex;
     align-items: center;
     gap: var(--s2);
+    min-width: 0;
 }
 
 .notification-menu {
-    position: relative;
+    position: static;
+    display: flex;
+    align-items: center;
 }
 
 .notification-button {
     position: relative;
     min-width: 42px;
+    width: 42px;
+    height: 42px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border-color: color-mix(in srgb, var(--color-accent) 26%, var(--color-border));
+    background:
+        radial-gradient(circle at 50% 20%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 68%),
+        rgba(255, 255, 255, 0.035);
+    overflow: visible;
 }
 
-.notification-button > span:first-child {
+.notification-button svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
     color: var(--color-accent);
-    font-size: 0.8rem;
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--color-accent) 40%, transparent));
+}
+
+.notification-button:hover,
+.notification-button:focus-visible,
+.notification-button[aria-expanded="true"] {
+    border-color: color-mix(in srgb, var(--color-accent) 62%, var(--color-border));
+    background:
+        radial-gradient(circle at 50% 20%, color-mix(in srgb, var(--color-accent) 28%, transparent), transparent 68%),
+        rgba(255, 255, 255, 0.06);
 }
 
 .notification-badge {
@@ -272,33 +297,108 @@ button { font: inherit; }
     color: white;
     font-size: 0.72rem;
     font-weight: 800;
+    box-shadow: 0 0 0 2px var(--color-bg), 0 8px 18px rgba(0, 0, 0, 0.34);
 }
 
-.notification-panel {
-    position: absolute;
-    top: calc(100% + 10px);
-    right: 0;
-    z-index: 40;
-    width: min(420px, calc(100vw - 24px));
-    max-height: min(620px, calc(100vh - 90px));
-    overflow: auto;
+.notification-panel.card {
+    position: fixed;
+    top: calc(var(--topbarH) + 12px);
+    right: clamp(12px, 3vw, 28px);
+    z-index: 1000;
+    width: min(460px, calc(100vw - 24px));
+    max-height: calc(100dvh - var(--topbarH) - 24px);
+    overflow: visible;
     display: grid;
     gap: var(--s2);
-    padding: var(--s3);
+    padding: 0;
+    border-color: color-mix(in srgb, var(--color-accent) 26%, var(--color-border));
+    background:
+        radial-gradient(360px 180px at 90% 0%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 70%),
+        radial-gradient(320px 190px at 0% 18%, color-mix(in srgb, var(--color-secondary) 16%, transparent), transparent 72%),
+        color-mix(in srgb, var(--color-surface) 92%, black);
+    box-shadow: 0 22px 64px rgba(0, 0, 0, 0.54), 0 0 0 1px rgba(255, 255, 255, 0.025);
+    transform-origin: top right;
+    animation: notification-panel-in 0.16s ease-out;
 }
 
-.notification-panel-header,
-.notification-actions {
+.notification-panel.card::before {
+    content: none;
+}
+
+.notification-panel::after {
+    content: "";
+    position: absolute;
+    top: -7px;
+    right: 26px;
+    width: 14px;
+    height: 14px;
+    transform: rotate(45deg);
+    border-left: 1px solid color-mix(in srgb, var(--color-accent) 26%, var(--color-border));
+    border-top: 1px solid color-mix(in srgb, var(--color-accent) 26%, var(--color-border));
+    background: color-mix(in srgb, var(--color-surface) 92%, black);
+}
+
+@keyframes notification-panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.notification-panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--s2);
     flex-wrap: wrap;
+    padding: var(--s3) var(--s3) var(--s2);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.notification-panel-header > div {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+}
+
+.notification-panel-header strong {
+    font-family: var(--font);
+    font-size: 1.05rem;
+    letter-spacing: 0.02em;
+}
+
+.notification-panel-count {
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-accent);
+    font-size: 0.78rem;
+    font-weight: 800;
 }
 
 .notification-list {
     display: grid;
     gap: var(--s2);
+    max-height: min(560px, calc(100dvh - var(--topbarH) - 118px));
+    overflow: auto;
+    padding: var(--s3);
+    overscroll-behavior: contain;
+}
+
+.notification-panel > .card-desc,
+.notification-panel > .notification-error {
+    margin: 0;
+    padding: var(--s3);
 }
 
 .notification-row {
@@ -307,12 +407,17 @@ button { font: inherit; }
     padding: var(--s2);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
-    background: var(--color-surface-soft);
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+        var(--color-surface-soft);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
 .notification-row.unread {
     border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
-    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-soft));
+    background:
+        radial-gradient(220px 120px at 0% 0%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 72%),
+        color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-soft));
 }
 
 .notification-copy {
@@ -327,8 +432,35 @@ button { font: inherit; }
     cursor: pointer;
 }
 
+.notification-message {
+    color: var(--color-text-strong);
+    line-height: 1.35;
+}
+
 .notification-copy small {
     color: var(--color-muted);
+}
+
+.notification-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.notification-actions .btn {
+    min-height: 34px;
+    padding: 7px 12px;
+    font-size: 0.84rem;
+}
+
+.notification-action-primary {
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.notification-action-secondary {
+    border-color: color-mix(in srgb, var(--color-text) 16%, var(--color-border));
 }
 
 .notification-error {
@@ -701,6 +833,31 @@ button { font: inherit; }
 @media (max-width: 680px) {
     .grid { grid-template-columns: 1fr; }
     .main { padding: var(--s4); }
+    .topbar {
+        padding: 0 var(--s2);
+    }
+    .topbar-right {
+        gap: 6px;
+    }
+    .notification-panel {
+        top: calc(var(--topbarH) + 8px);
+        right: 8px;
+        left: 8px;
+        width: auto;
+        max-height: calc(100dvh - var(--topbarH) - 16px);
+    }
+    .notification-panel::after {
+        right: 112px;
+    }
+    .notification-panel-header {
+        align-items: flex-start;
+    }
+    .notification-panel-header .btn {
+        width: 100%;
+    }
+    .notification-actions .btn {
+        flex: 1 1 110px;
+    }
     .active-queue-bar {
         grid-template-columns: auto minmax(0, 1fr);
         align-items: start;
@@ -3813,6 +3970,17 @@ button.lobby-game-card {
     grid-column: span 6;
     display: grid;
     gap: var(--s3);
+    background: color-mix(in srgb, var(--color-surface) 92%, black);
+    box-shadow: var(--shadow1);
+    overflow: hidden;
+}
+
+.profile-section-card::before {
+    content: none;
+}
+
+.profile-section-card:hover {
+    background: color-mix(in srgb, var(--color-surface) 92%, black);
 }
 
 .profile-friends-card {
@@ -3880,6 +4048,19 @@ button.lobby-game-card {
     background: var(--color-danger-soft);
     color: var(--color-danger);
     font-size: 0.9rem;
+}
+
+.profile-error-detail {
+    margin: var(--s1) 0 0;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: rgba(0, 0, 0, 0.18);
+    color: var(--color-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
 }
 
 .profile-friends-grid {

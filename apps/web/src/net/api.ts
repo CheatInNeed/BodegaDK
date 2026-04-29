@@ -499,21 +499,71 @@ function redirectToLogin() {
     }
 }
 
+export class ApiError extends Error {
+    constructor(
+        message: string,
+        readonly status: number,
+        readonly statusText: string,
+        readonly url: string,
+        readonly body: unknown,
+    ) {
+        super(message);
+        this.name = 'ApiError';
+    }
+}
+
 async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
     if (response.ok) {
         return response.json() as Promise<T>;
     }
 
-    let details = '';
-    try {
-        const body = await response.json() as { message?: string };
-        details = typeof body.message === 'string' ? body.message : '';
-    } catch {
-        details = '';
+    const body = await readErrorBody(response);
+    const details = extractErrorMessage(body);
+    const diagnostic = details ? `: ${details}` : '';
+    const message = `${fallbackMessage} (${response.status} ${response.statusText || 'HTTP error'})${diagnostic}`;
+    console.error('[api] request failed', {
+        url: response.url,
+        status: response.status,
+        statusText: response.statusText,
+        body,
+    });
+    throw new ApiError(message, response.status, response.statusText, response.url, body);
+}
+
+async function readErrorBody(response: Response): Promise<unknown> {
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+        try {
+            return await response.json();
+        } catch {
+            return null;
+        }
     }
 
-    const suffix = details ? `: ${details}` : '';
-    throw new Error(`${fallbackMessage} (${response.status})${suffix}`);
+    try {
+        return await response.text();
+    } catch {
+        return null;
+    }
+}
+
+function extractErrorMessage(body: unknown): string {
+    if (typeof body === 'string') {
+        return body.trim().slice(0, 500);
+    }
+    if (!body || typeof body !== 'object') {
+        return '';
+    }
+
+    const record = body as Record<string, unknown>;
+    for (const key of ['message', 'error', 'detail', 'path']) {
+        const value = record[key];
+        if (typeof value === 'string' && value.trim()) {
+            return value.trim();
+        }
+    }
+
+    return JSON.stringify(body).slice(0, 500);
 }
 
 function resolveApiBaseUrl(): string {
