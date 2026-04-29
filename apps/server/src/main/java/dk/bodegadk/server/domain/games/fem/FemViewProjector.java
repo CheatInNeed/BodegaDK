@@ -47,6 +47,7 @@ public class FemViewProjector implements ViewProjector<FemState> {
         view.put("melds", meldViews);
         view.put("playerCardCounts", state.cardCounts());
         view.put("phase", state.phase().name());
+        view.put("firstRound", state.firstRound());
 
         if (state.winnerPlayerId() != null) {
             view.put("winnerPlayerId", state.winnerPlayerId());

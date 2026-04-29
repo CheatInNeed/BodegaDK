@@ -24,6 +24,8 @@ public class FemState extends GameState {
     private boolean roundClosed;
     private String closedByPlayerId;
     private boolean firstRound;
+    private boolean tookDiscardPileThisTurn;
+    private boolean laidMeldThisTurn;
 
     public FemState(List<String> playerIds) {
         super(playerIds);
@@ -37,6 +39,8 @@ public class FemState extends GameState {
         this.roundClosed = false;
         this.closedByPlayerId = null;
         this.firstRound = true;
+        this.tookDiscardPileThisTurn = false;
+        this.laidMeldThisTurn = false;
     }
 
     /** Copy constructor for immutable apply. */
@@ -62,6 +66,8 @@ public class FemState extends GameState {
         this.roundClosed = other.roundClosed;
         this.closedByPlayerId = other.closedByPlayerId;
         this.firstRound = other.firstRound;
+        this.tookDiscardPileThisTurn = other.tookDiscardPileThisTurn;
+        this.laidMeldThisTurn = other.laidMeldThisTurn;
     }
 
     @Override
@@ -77,18 +83,22 @@ public class FemState extends GameState {
     public List<Card> discardPile()              { return discardPile; }
     public Map<String, Integer> scores()         { return scores; }
     public int roundNumber()                     { return roundNumber; }
-    public boolean hasDrawnThisTurn()            { return hasDrawnThisTurn; }
-    public boolean roundClosed()                 { return roundClosed; }
-    public String closedByPlayerId()             { return closedByPlayerId; }
-    public boolean firstRound()                  { return firstRound; }
+    public boolean hasDrawnThisTurn()               { return hasDrawnThisTurn; }
+    public boolean roundClosed()                    { return roundClosed; }
+    public String closedByPlayerId()                { return closedByPlayerId; }
+    public boolean firstRound()                     { return firstRound; }
+    public boolean tookDiscardPileThisTurn()        { return tookDiscardPileThisTurn; }
+    public boolean laidMeldThisTurn()               { return laidMeldThisTurn; }
 
     /* ── Setters ── */
 
-    public void setRoundNumber(int roundNumber)             { this.roundNumber = roundNumber; }
-    public void setHasDrawnThisTurn(boolean drawn)          { this.hasDrawnThisTurn = drawn; }
-    public void setRoundClosed(boolean closed)              { this.roundClosed = closed; }
-    public void setClosedByPlayerId(String id)              { this.closedByPlayerId = id; }
-    public void setFirstRound(boolean firstRound)           { this.firstRound = firstRound; }
+    public void setRoundNumber(int roundNumber)                      { this.roundNumber = roundNumber; }
+    public void setHasDrawnThisTurn(boolean drawn)                   { this.hasDrawnThisTurn = drawn; }
+    public void setRoundClosed(boolean closed)                       { this.roundClosed = closed; }
+    public void setClosedByPlayerId(String id)                       { this.closedByPlayerId = id; }
+    public void setFirstRound(boolean firstRound)                    { this.firstRound = firstRound; }
+    public void setTookDiscardPileThisTurn(boolean took)             { this.tookDiscardPileThisTurn = took; }
+    public void setLaidMeldThisTurn(boolean laid)                    { this.laidMeldThisTurn = laid; }
 
     /* ── Helpers ── */
 

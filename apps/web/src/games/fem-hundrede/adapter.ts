@@ -108,6 +108,7 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
         const isPlaying = phase === 'PLAYING';
         const canAct    = isMyTurn && isPlaying;
         const selCount  = selectedCards.length;
+        const firstRound = publicState?.firstRound === true;
 
         return {
             selfPlayerId,
@@ -125,7 +126,7 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             winnerPlayerId,
             canDraw: canAct && stockPileCount > 0,
             canDrawDiscard: canAct && discardPileTop !== null,
-            canTakePile: canAct && discardPileTop !== null,
+            canTakePile: canAct && !firstRound && discardPileTop !== null,
             canLayMeld: canAct && selCount >= 3,
             canExtendMeld: canAct && selCount === 1 && melds.length > 0,
             canDiscard: canAct && selCount === 1,

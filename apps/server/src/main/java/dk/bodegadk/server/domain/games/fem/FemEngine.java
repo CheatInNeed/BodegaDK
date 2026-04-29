@@ -252,6 +252,7 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
         hand.addAll(state.discardPile());
         state.discardPile().clear();
         state.setHasDrawnThisTurn(true);
+        state.setTookDiscardPileThisTurn(true);
     }
 
     private void applyLayMeld(FemAction.LayMeld lay, FemState state) {
@@ -272,6 +273,7 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
         contributedBy.put(lay.playerId(), new ArrayList<>(cards));
 
         state.melds().add(new FemState.Meld(meldId, suit, cards, contributedBy, lay.playerId()));
+        state.setLaidMeldThisTurn(true);
 
         checkAutoClose(lay.playerId(), state);
     }
@@ -288,6 +290,10 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
                 .computeIfAbsent(ext.playerId(), k -> new ArrayList<>())
                 .add(card);
 
+        // Transfer ownership to whoever extended — their zone shows this meld
+        int idx = state.melds().indexOf(meld);
+        state.melds().set(idx, new FemState.Meld(meld.id(), meld.suit(), meld.cards(), meld.contributedBy(), ext.playerId()));
+
         checkAutoClose(ext.playerId(), state);
     }
 
@@ -297,6 +303,7 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
         hand.remove(card);
 
         if (hand.isEmpty() && !state.firstRound()) {
+            applyTurnEnd(disc.playerId(), state);
             state.discardPile().add(card);
             closeRound(disc.playerId(), state);
             return;
@@ -308,7 +315,16 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
 
     /* ── Turn management ── */
 
+    private void applyTurnEnd(String playerId, FemState state) {
+        if (state.tookDiscardPileThisTurn() && !state.laidMeldThisTurn()) {
+            state.scores().merge(playerId, -50, Integer::sum);
+        }
+        state.setTookDiscardPileThisTurn(false);
+        state.setLaidMeldThisTurn(false);
+    }
+
     private void advanceToNextPlayer(FemState state) {
+        applyTurnEnd(state.currentPlayerId(), state);
         state.advanceTurn();
         state.setHasDrawnThisTurn(false);
     }
@@ -318,6 +334,7 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
     private void checkAutoClose(String playerId, FemState state) {
         List<Card> hand = state.hands().get(playerId);
         if (hand.isEmpty() && !state.firstRound()) {
+            applyTurnEnd(playerId, state);
             closeRound(playerId, state);
         }
     }
