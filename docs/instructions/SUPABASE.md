@@ -130,7 +130,8 @@ It reads from shell env vars first, then local env files:
 - `.env`
 
 For VM deploys, `npm run deploy:update` exports the current public
-Supabase URL and anon key before running the web build.
+Supabase URL, anon key, and default JWT issuer before running the web build
+and Docker Compose.
 
 If these values are missing, the web app still builds, but Supabase
 auth/profile features are disabled.
@@ -149,7 +150,10 @@ room metadata and matchmaking tickets through the Spring datasource:
 - `SUPABASE_JWT_ISSUER`
 
 In the Docker deploy stack, `infra/docker-compose.yml` requires those values
-from the host environment. If any of them are missing, deployment fails before
+from the host environment. `npm run deploy:update` supplies the non-secret
+default `SUPABASE_JWT_ISSUER` for the current Supabase project, but
+`SPRING_DATASOURCE_*` values must still come from the host shell or
+`.env.deploy`. If any required value is still missing, deployment fails before
 the server container starts. There is no fallback database in the deploy stack.
 
 Typical Supabase JDBC value shape:
@@ -177,12 +181,14 @@ Hosted Supabase migrations and web runtime config are separate concerns.
   built web app can use Supabase auth/profile features
 - `SPRING_DATASOURCE_*` controls the Spring backend connection to the
   canonical Supabase Postgres database
+- `SUPABASE_JWT_ISSUER` controls backend validation of Supabase access tokens;
+  the deploy script defaults it for the current project unless overridden
 
 For live deploys, the machine or CI job that runs `npm run web:build` or
-`npm run deploy:update` must provide those public values either through:
+`npm run deploy:update` must provide deployment values either through:
 
 - environment variables in the deploy environment, or
-- a deployment-local `.env.local` file that exists on the server but is
+- a deployment-local `.env.local` or `.env.deploy` file that exists on the server but is
   not committed
 
 Pushing migrations alone does not populate `apps/web/public/app-config.js`

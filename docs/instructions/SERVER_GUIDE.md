@@ -60,14 +60,20 @@ before deploying:
 SPRING_DATASOURCE_URL="jdbc:postgresql://..."
 SPRING_DATASOURCE_USERNAME="..."
 SPRING_DATASOURCE_PASSWORD="..."
-SUPABASE_JWT_ISSUER="https://<project-ref>.supabase.co/auth/v1"
 PUBLIC_SUPABASE_URL="https://<project-ref>.supabase.co"
 PUBLIC_SUPABASE_ANON_KEY="..."
 ```
 
+`SUPABASE_JWT_ISSUER` is optional for the default BodegaDK Supabase project
+because `npm run deploy:update` supplies
+`https://awdhzmyieafhfpjmzwsh.supabase.co/auth/v1`. Set it explicitly when
+deploying against a different Supabase project.
+
 Important:
 
 - `SPRING_DATASOURCE_*` must point at the canonical Supabase Postgres database.
+- `SUPABASE_JWT_ISSUER` must match the Supabase project that issues browser
+  access tokens.
 - The Spring backend does not apply app schema migrations.
 - App schema migrations live in `supabase/migrations/`.
 - There is no deploy fallback database; missing datasource settings should stop

@@ -218,6 +218,9 @@ Bemærk om database:
   `SPRING_DATASOURCE_PASSWORD` skal være sat i shell environment eller
   `.env.deploy`; ellers stopper Docker deployet med en konfigurationsfejl
 - disse værdier skal pege på den canonical Supabase Postgres database
+- `npm run deploy:update` sætter default `SUPABASE_JWT_ISSUER` for det
+  nuværende Supabase projekt; override den i `.env.deploy`, hvis du deployer
+  mod et andet project
 - database schema changes are not applied by the Spring backend; schema is
   managed only through `supabase/migrations/`
 - `PUBLIC_SUPABASE_URL` og `PUBLIC_SUPABASE_ANON_KEY` påvirker kun web
