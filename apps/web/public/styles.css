@@ -1,3 +1,27 @@
+/* =============================================================================
+   TABLE OF CONTENTS
+   Use Ctrl+F on the section name or jump to the line number.
+   =============================================================================
+
+   1.  Foundation / tokens ............... L1
+   2.  Shared shell ...................... L168
+   3.  Topbar ............................ L180
+   4.  Leaderboard ....................... L698
+   5.  Auth .............................. L985
+   6.  Homepage .......................... L1235
+   7.  Settings .......................... L1382
+   8.  Game room variants ................ L2493
+       └─ Lobby .......................... L2805
+   9.  500 card game ..................... L3480
+       └─ Shared leave-table button ...... L3540
+       └─ Multi-opponent layout .......... L3660
+   10. Profile page ...................... L3894
+   11. Krig game ......................... L4274
+       └─ Generic win overlay ............ L4541
+       └─ Krig layout overrides .......... L4595
+
+   ============================================================================= */
+
 /* Foundation / tokens */
 :root,
 :root[data-theme="bodega"] {
@@ -4591,45 +4615,6 @@ button.lobby-game-card {
     color: #d4af6a; font-weight: 700;
 }
 
-/* ── game over overlay (krig legacy — kept for compatibility) ── */
-#krig-root .overlay {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.8);
-    z-index: 50; gap: 14px;
-    animation: fade-in 0.5s ease;
-}
-#krig-root .overlay-title {
-    font-family: 'Playfair Display', serif;
-    font-size: clamp(42px, 7vw, 78px);
-    font-weight: 900;
-    color: #d4af6a;
-    text-shadow: 0 0 28px rgba(212,175,106,0.45);
-}
-#krig-root .overlay-sub {
-    font-family: 'Playfair Display SC', serif;
-    font-size: 13px;
-    color: rgba(212,175,106,0.55);
-    letter-spacing: 0.14em;
-}
-#krig-root .bodega-quip {
-    font-family: 'Playfair Display SC', serif;
-    font-size: 12px;
-    color: rgba(212,175,106,0.35);
-    letter-spacing: 0.08em;
-    margin-top: 4px;
-}
-#krig-root .new-game-btn {
-    background: linear-gradient(135deg, #c4902a, #9a6e1e);
-    border: none; border-radius: 50px;
-    color: #1a0e00; font-family: 'Playfair Display', serif;
-    font-size: 14px; font-weight: 900; letter-spacing: 0.07em;
-    padding: 10px 30px; cursor: pointer; text-transform: uppercase;
-    margin-top: 10px; box-shadow: 0 4px 20px rgba(196,144,42,0.35);
-    transition: transform 0.12s;
-}
-#krig-root .new-game-btn:hover { transform: translateY(-2px); }
 
 /* ── leave button (position override for fixed krig layout) ── */
 #krig-root .kg-leave-btn {
