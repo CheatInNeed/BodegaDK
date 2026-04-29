@@ -5,6 +5,7 @@ export type FemMeld = {
     suit: string;
     cards: string[];
     pointsPerPlayer: Record<string, number>;
+    ownerId: string;
 };
 
 export type FemPlayerInfo = {
@@ -29,9 +30,6 @@ export type FemViewModel = {
     hand: string[];
     selectedCards: string[];
     projectedRoundScore: number;
-    discardGrabPhase: boolean;
-    grabPriorityPlayerId: string | null;
-    isGrabPriority: boolean;
     winnerPlayerId: string | null;
     canDraw: boolean;
     canDrawDiscard: boolean;
@@ -39,12 +37,11 @@ export type FemViewModel = {
     canLayMeld: boolean;
     canExtendMeld: boolean;
     canDiscard: boolean;
-    canClaimDiscard: boolean;
-    canPassGrab: boolean;
+    canClose: boolean;
 };
 
 const CW = 68, CH = 95;
-const MW = 48, MH = 67;
+const MW = 44, MH = 62;
 const SHADOW = '0 4px 18px rgba(0,0,0,0.6),0 1px 4px rgba(0,0,0,0.3)';
 
 function scoreBar(players: FemPlayerInfo[]): string {
@@ -113,11 +110,9 @@ function meldGroup(meld: FemMeld, cw: number, ch: number, action?: string): stri
 }
 
 function meldSection(melds: FemMeld[], cw: number, ch: number, clickAction?: string): string {
-    if (!melds.length) {
-        return `<div style="height:${ch}px;display:flex;align-items:center;color:rgba(255,255,255,0.2);font-size:11px;letter-spacing:0.5px;font-style:italic;padding-left:4px;">ingen stik lagt endnu</div>`;
-    }
-    return `<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-  ${melds.map((m, gi) => `<div style="position:relative;margin-bottom:16px;"><div style="position:absolute;top:-13px;left:0;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,179,0,0.55);font-weight:700;">${m.suit} ${gi + 1}</div>${meldGroup(m, cw, ch, clickAction)}</div>`).join('')}
+    if (!melds.length) return '';
+    return `<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;padding-bottom:14px;">
+  ${melds.map((m, gi) => `<div style="position:relative;"><div style="position:absolute;top:-13px;left:0;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,179,0,0.55);font-weight:700;">${m.suit} ${gi + 1}</div>${meldGroup(m, cw, ch, clickAction)}</div>`).join('')}
 </div>`;
 }
 
@@ -160,30 +155,6 @@ function discardPile(top: string | null, canDrawDiscard: boolean): string {
 </div>`;
 }
 
-function grabPhasePanel(vm: FemViewModel): string {
-    if (!vm.discardGrabPhase) return '';
-
-    const grabberName = vm.players.find((p) => p.playerId === vm.grabPriorityPlayerId)?.displayName ?? vm.grabPriorityPlayerId ?? '?';
-
-    if (!vm.isGrabPriority) {
-        return `<div style="text-align:center;padding:10px 0;color:rgba(255,255,255,0.55);font-size:12px;letter-spacing:0.5px;">
-  <div class="g500-waiting"><div class="g500-waiting-dot"></div><span>Venter på ${grabberName} (grab-fase)</span></div>
-</div>`;
-    }
-
-    const claimButtons = vm.melds.map((m) =>
-        `<button class="btn primary" style="font-size:11px;" data-action="fem-claim-discard" data-meld-id="${m.id}" type="button">Tilføj til ${m.suit}-stik</button>`
-    ).join('');
-
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px 0;">
-  <div style="color:#ffb300;font-size:12px;font-weight:700;letter-spacing:1px;">Grab-fase: tag det aflagte kort</div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
-    ${claimButtons}
-    <button class="btn" data-action="fem-pass-grab" type="button">Pas</button>
-  </div>
-</div>`;
-}
-
 function gameOverBanner(vm: FemViewModel): string {
     if (!vm.winnerPlayerId) return '';
     const winner = vm.players.find((p) => p.playerId === vm.winnerPlayerId);
@@ -199,9 +170,7 @@ export function renderFemRoom(vm: FemViewModel): string {
     const selSet    = new Set(vm.selectedCards);
     const selCount  = vm.selectedCards.length;
 
-    const meldClickAction = vm.discardGrabPhase && vm.isGrabPriority
-        ? 'fem-claim-discard'
-        : vm.isMyTurn && !vm.discardGrabPhase && vm.canExtendMeld
+    const meldClickAction = vm.isMyTurn && vm.canExtendMeld
         ? 'fem-extend-meld'
         : undefined;
 
@@ -209,35 +178,43 @@ export function renderFemRoom(vm: FemViewModel): string {
     const oppFanCw = oppCount >= 3 ? 36 : oppCount === 2 ? 42 : 50;
     const oppFanCh = oppCount >= 3 ? 50 : oppCount === 2 ? 59 : 70;
 
-    const oppZones = opponents.map((opp) => `
+    const oppZones = opponents.map((opp) => {
+        const oppMelds = vm.melds.filter((m) => m.ownerId === opp.playerId);
+        return `
 <div class="g500-zone g500-opponent${opp.isCurrentTurn ? ' g500-zone-active' : ''}">
   <div class="g500-zone-row">
     ${playerBadge(opp, true)}
-    ${oppCount === 1 ? `<div style="margin-top:12px;">${meldSection(vm.melds, MW, MH)}</div>` : ''}
   </div>
+  ${oppMelds.length > 0 ? `<div style="padding:6px 0 2px;">${meldSection(oppMelds, MW, MH, meldClickAction)}</div>` : ''}
   <div style="display:flex;justify-content:center;margin-top:6px;">
     ${renderHandFan(Array.from({ length: opp.cardCount }, (_, i) => `back${i}`), new Set(), false, false, oppFanCw, oppFanCh)}
   </div>
-</div>`).join('');
+</div>`;
+    }).join('');
 
     const oppWrapper = `<div class="g500-opponents g500-opponents-${oppCount}">${oppZones}</div>`;
+
+    const selfMelds = vm.melds.filter((m) => m.ownerId === vm.selfPlayerId);
 
     const actionButtons = (() => {
         if (vm.phase !== 'PLAYING' && vm.winnerPlayerId) return '';
         if (!vm.isMyTurn) return `<div class="g500-waiting"><div class="g500-waiting-dot"></div><span>Venter...</span></div>`;
-        if (vm.discardGrabPhase) return grabPhasePanel(vm);
 
         const btns: string[] = [];
         if (vm.canDraw) btns.push(`<button class="btn primary" data-action="fem-draw-stock" type="button">Træk fra bunke</button>`);
         if (vm.canDrawDiscard && vm.discardPileTop) btns.push(`<button class="btn" data-action="fem-draw-discard" type="button">Tag aflagt kort</button>`);
         if (vm.canTakePile) btns.push(`<button class="btn" data-action="fem-take-pile" type="button">Tag hele bunken</button>`);
         if (vm.canLayMeld) btns.push(`<button class="btn primary" data-action="fem-lay-meld" type="button">Læg stik (${selCount} kort)</button>`);
-        if (vm.canDiscard && selCount === 1) btns.push(`<button class="btn" data-action="fem-discard" type="button">Aflæg</button>`);
+        if (vm.canClose) {
+            btns.push(`<button class="btn primary" data-action="fem-close" data-card="${vm.hand[0]}" type="button">Luk</button>`);
+        } else if (vm.canDiscard && selCount === 1) {
+            btns.push(`<button class="btn" data-action="fem-discard" type="button">Aflæg</button>`);
+        }
 
         return btns.join('');
     })();
 
-    const extendHint = vm.isMyTurn && !vm.discardGrabPhase && vm.canExtendMeld && vm.melds.length > 0
+    const extendHint = vm.isMyTurn && vm.canExtendMeld && vm.melds.length > 0
         ? `<div style="font-size:10px;color:rgba(255,179,0,0.6);letter-spacing:0.5px;">Klik på et stik for at tilføje dit valgte kort</div>`
         : '';
 
@@ -259,17 +236,13 @@ export function renderFemRoom(vm: FemViewModel): string {
 
     <div class="g500-center">
       <div class="g500-center-oval" aria-hidden="true"></div>
-      <div style="position:relative;z-index:2;">${drawPile(vm.stockPileCount, vm.canDraw && !vm.discardGrabPhase)}</div>
+      <div style="position:relative;z-index:2;">${drawPile(vm.stockPileCount, vm.canDraw)}</div>
       <div class="g500-divider" aria-hidden="true"></div>
-      <div style="position:relative;z-index:2;">${discardPile(vm.discardPileTop, vm.canDrawDiscard && !vm.discardGrabPhase)}</div>
-    </div>
-
-    <div style="position:relative;z-index:2;padding:8px 16px 4px;">
-      ${meldSection(vm.melds, MW, MH, meldClickAction)}
+      <div style="position:relative;z-index:2;">${discardPile(vm.discardPileTop, vm.canDrawDiscard)}</div>
     </div>
 
     <div class="g500-zone g500-player${vm.isMyTurn ? ' g500-zone-active g500-player-active' : ''}">
-      ${vm.discardGrabPhase && vm.isGrabPriority ? grabPhasePanel(vm) : ''}
+      ${selfMelds.length > 0 ? `<div style="padding:2px 0 6px;">${meldSection(selfMelds, MW, MH, meldClickAction)}</div>` : ''}
       <div style="display:flex;justify-content:center;margin-bottom:8px;">
         ${renderHandFan(vm.hand, selSet, true, true, CW, CH)}
       </div>
@@ -277,10 +250,9 @@ export function renderFemRoom(vm: FemViewModel): string {
         ${self ? playerBadge(self) : ''}
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
           ${extendHint}
-          ${vm.isMyTurn && !vm.discardGrabPhase ? actionButtons : (!vm.isMyTurn && !vm.discardGrabPhase ? actionButtons : '')}
+          ${actionButtons}
         </div>
       </div>
-      ${vm.discardGrabPhase && !vm.isGrabPriority ? `<div style="display:flex;justify-content:center;">${grabPhasePanel(vm)}</div>` : ''}
     </div>
   </div>
 </section>`;

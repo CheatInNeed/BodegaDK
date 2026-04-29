@@ -25,11 +25,6 @@ public class FemState extends GameState {
     private String closedByPlayerId;
     private boolean firstRound;
 
-    // Discard grab phase
-    private boolean discardGrabPhase;
-    private Card discardGrabCard;
-    private int grabPriorityIndex;
-
     public FemState(List<String> playerIds) {
         super(playerIds);
         this.hands = new LinkedHashMap<>();
@@ -42,9 +37,6 @@ public class FemState extends GameState {
         this.roundClosed = false;
         this.closedByPlayerId = null;
         this.firstRound = true;
-        this.discardGrabPhase = false;
-        this.discardGrabCard = null;
-        this.grabPriorityIndex = 0;
     }
 
     /** Copy constructor for immutable apply. */
@@ -60,7 +52,7 @@ public class FemState extends GameState {
             for (var e : m.contributedBy().entrySet()) {
                 contribCopy.put(e.getKey(), new ArrayList<>(e.getValue()));
             }
-            this.melds.add(new Meld(m.id(), m.suit(), new ArrayList<>(m.cards()), contribCopy));
+            this.melds.add(new Meld(m.id(), m.suit(), new ArrayList<>(m.cards()), contribCopy, m.ownerPlayerId()));
         }
         this.stockPile = new ArrayList<>(other.stockPile);
         this.discardPile = new ArrayList<>(other.discardPile);
@@ -70,9 +62,6 @@ public class FemState extends GameState {
         this.roundClosed = other.roundClosed;
         this.closedByPlayerId = other.closedByPlayerId;
         this.firstRound = other.firstRound;
-        this.discardGrabPhase = other.discardGrabPhase;
-        this.discardGrabCard = other.discardGrabCard;
-        this.grabPriorityIndex = other.grabPriorityIndex;
     }
 
     @Override
@@ -92,9 +81,6 @@ public class FemState extends GameState {
     public boolean roundClosed()                 { return roundClosed; }
     public String closedByPlayerId()             { return closedByPlayerId; }
     public boolean firstRound()                  { return firstRound; }
-    public boolean discardGrabPhase()            { return discardGrabPhase; }
-    public Card discardGrabCard()                { return discardGrabCard; }
-    public int grabPriorityIndex()               { return grabPriorityIndex; }
 
     /* ── Setters ── */
 
@@ -103,9 +89,6 @@ public class FemState extends GameState {
     public void setRoundClosed(boolean closed)              { this.roundClosed = closed; }
     public void setClosedByPlayerId(String id)              { this.closedByPlayerId = id; }
     public void setFirstRound(boolean firstRound)           { this.firstRound = firstRound; }
-    public void setDiscardGrabPhase(boolean phase)          { this.discardGrabPhase = phase; }
-    public void setDiscardGrabCard(Card card)               { this.discardGrabCard = card; }
-    public void setGrabPriorityIndex(int index)             { this.grabPriorityIndex = index; }
 
     /* ── Helpers ── */
 
@@ -122,5 +105,5 @@ public class FemState extends GameState {
     }
 
     /** A meld on the table: consecutive same-suit cards with contribution tracking. */
-    public record Meld(String id, String suit, List<Card> cards, Map<String, List<Card>> contributedBy) {}
+    public record Meld(String id, String suit, List<Card> cards, Map<String, List<Card>> contributedBy, String ownerPlayerId) {}
 }

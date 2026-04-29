@@ -28,8 +28,8 @@ class FemEngineTest {
         assertEquals("alice", state.currentPlayerId());
         assertEquals(7, state.hands().get("alice").size());
         assertEquals(7, state.hands().get("bob").size());
-        // 54 total - 14 dealt - 1 discard = 39 stock
-        assertEquals(39, state.stockPile().size());
+        // 52 total - 14 dealt - 1 discard = 37 stock
+        assertEquals(37, state.stockPile().size());
         assertEquals(1, state.discardPile().size());
         assertEquals(1, state.roundNumber());
         assertTrue(state.firstRound());
@@ -42,8 +42,8 @@ class FemEngineTest {
         assertEquals(7, state.hands().get("a").size());
         assertEquals(7, state.hands().get("b").size());
         assertEquals(7, state.hands().get("c").size());
-        // 54 - 21 dealt - 1 discard = 32 stock
-        assertEquals(32, state.stockPile().size());
+        // 52 - 21 dealt - 1 discard = 30 stock
+        assertEquals(30, state.stockPile().size());
     }
 
     @Test
@@ -114,7 +114,6 @@ class FemEngineTest {
     void takeEntireDiscardPileAddsAllCardsToHand() {
         FemState state = buildBasicState();
         state.setFirstRound(false);
-        // Add more cards to discard pile
         state.discardPile().add(new Card("H", "5"));
         state.discardPile().add(new Card("H", "6"));
         int discardSize = state.discardPile().size();
@@ -141,7 +140,6 @@ class FemEngineTest {
     @Test
     void cannotMeldBeforeDrawing() {
         FemState state = buildBasicState();
-        // Give alice a valid meld hand
         state.hands().get("alice").clear();
         state.hands().get("alice").addAll(List.of(
                 new Card("H", "3"), new Card("H", "4"), new Card("H", "5"),
@@ -170,7 +168,8 @@ class FemEngineTest {
         assertEquals(1, next.melds().size());
         assertEquals("H", next.melds().getFirst().suit());
         assertEquals(3, next.melds().getFirst().cards().size());
-        assertEquals(5, next.hands().get("alice").size()); // 8 - 3
+        assertEquals(5, next.hands().get("alice").size());
+        assertEquals("alice", next.melds().getFirst().ownerPlayerId());
     }
 
     @Test
@@ -218,23 +217,6 @@ class FemEngineTest {
     }
 
     @Test
-    void layMeldWithJokerAsGap() {
-        FemState state = buildStateWithDrawn();
-        state.hands().get("alice").clear();
-        state.hands().get("alice").addAll(List.of(
-                new Card("H", "3"), new Card("JK", "1"), new Card("H", "5"),
-                new Card("D", "7"), new Card("D", "8"), new Card("D", "9"),
-                new Card("S", "K"), new Card("C", "2")));
-
-        FemState next = engine.apply(
-                new FemAction.LayMeld("alice", List.of("H3", "JK1", "H5")), state);
-
-        assertEquals(1, next.melds().size());
-        assertEquals("H", next.melds().getFirst().suit());
-        assertEquals(3, next.melds().getFirst().cards().size());
-    }
-
-    @Test
     void rejectMeldWithFewerThan3Cards() {
         FemState state = buildStateWithDrawn();
         state.hands().get("alice").clear();
@@ -277,7 +259,6 @@ class FemEngineTest {
     void extendExistingMeldWithValidCard() {
         FemState state = buildStateWithMeld();
 
-        // Meld is H3-H4-H5 (id "m1"). Alice has H6 in hand. Extend with H6.
         FemState next = engine.apply(
                 new FemAction.ExtendMeld("alice", "m1", "H6"), state);
 
@@ -289,33 +270,8 @@ class FemEngineTest {
     void extendMeldWithInvalidCardThrows() {
         FemState state = buildStateWithMeld();
 
-        // Meld is H3-H4-H5. Try to extend with H8 (not consecutive).
         assertThrows(GameRuleException.class, () ->
                 engine.apply(new FemAction.ExtendMeld("alice", "m1", "D7"), state));
-    }
-
-    @Test
-    void swapJokerWithRealCard() {
-        FemState state = buildStateWithDrawn();
-        // Create a meld with a joker: H3-JK1-H5
-        state.hands().get("alice").clear();
-        state.hands().get("alice").addAll(List.of(
-                new Card("H", "3"), new Card("JK", "1"), new Card("H", "5"),
-                new Card("H", "4"), // the real card to swap in
-                new Card("D", "8"), new Card("D", "9"), new Card("S", "K"), new Card("C", "2")));
-
-        // First lay the meld with joker
-        FemState afterMeld = engine.apply(
-                new FemAction.LayMeld("alice", List.of("H3", "JK1", "H5")), state);
-
-        // Now swap the joker with H4
-        FemState afterSwap = engine.apply(
-                new FemAction.SwapJoker("alice", "m1", "JK1", "H4"), afterMeld);
-
-        // Joker should be in hand, H4 in meld
-        assertTrue(afterSwap.hands().get("alice").contains(new Card("JK", "1")));
-        assertTrue(afterSwap.melds().getFirst().cards().contains(new Card("H", "4")));
-        assertFalse(afterSwap.melds().getFirst().cards().contains(new Card("JK", "1")));
     }
 
     /* ══════════════════════════════════════════════════════════════
@@ -326,14 +282,24 @@ class FemEngineTest {
     void discardEndsPlayerTurn() {
         FemState state = buildBasicState();
 
-        // Draw first
         FemState afterDraw = engine.apply(new FemAction.DrawFromStock("alice"), state);
         String cardToDiscard = afterDraw.hands().get("alice").getLast().toString();
 
         FemState afterDiscard = engine.apply(
                 new FemAction.Discard("alice", cardToDiscard), afterDraw);
 
-        // No grab phase because no melds exist
+        assertEquals("bob", afterDiscard.currentPlayerId());
+        assertFalse(afterDiscard.hasDrawnThisTurn());
+    }
+
+    @Test
+    void discardWithMeldsOnTableStillAdvancesTurn() {
+        FemState state = buildStateWithMeld();
+        String cardToDiscard = state.hands().get("alice").getLast().toString();
+
+        FemState afterDiscard = engine.apply(
+                new FemAction.Discard("alice", cardToDiscard), state);
+
         assertEquals("bob", afterDiscard.currentPlayerId());
         assertFalse(afterDiscard.hasDrawnThisTurn());
     }
@@ -351,7 +317,6 @@ class FemEngineTest {
     void closeRoundBlockedOnFirstRound() {
         FemState state = buildStateWithDrawn();
         state.setFirstRound(true);
-        // Give alice only one card
         state.hands().get("alice").clear();
         state.hands().get("alice").add(new Card("H", "7"));
 
@@ -363,14 +328,11 @@ class FemEngineTest {
     void discardLastCardClosesRound() {
         FemState state = buildStateWithDrawn();
         state.setFirstRound(false);
-        // Alice has one card left
         state.hands().get("alice").clear();
         state.hands().get("alice").add(new Card("H", "7"));
 
         FemState next = engine.apply(new FemAction.Discard("alice", "H7"), state);
 
-        // Round should have closed and a new round should have started
-        // (since no one has 500 points)
         assertEquals(2, next.roundNumber());
         assertFalse(next.firstRound());
         assertEquals(7, next.hands().get("alice").size());
@@ -393,12 +355,8 @@ class FemEngineTest {
     void roundScoringCalculatesCorrectPoints() {
         FemState state = buildStateForScoring();
 
-        // Close the round
         FemState next = engine.apply(new FemAction.Discard("alice", "H7"), state);
 
-        // Alice: melded H3(5)+H4(5)+H5(5)=15, hand was H7(5) -> now 0. Score: 15 - 0 = 15
-        // But H7 was discarded to close, so hand=0 at scoring.
-        // Bob: melded 0, hand has D7(5)+D8(5)+D9(5)+SK(10)+C2(5)+C3(5)+C4(5) = 40. Score: 0 - 40 = -40
         assertEquals(15, next.scores().get("alice"));
         assertEquals(-40, next.scores().get("bob"));
     }
@@ -406,7 +364,7 @@ class FemEngineTest {
     @Test
     void gameEndsWhenPlayerReaches500() {
         FemState state = buildStateForScoring();
-        state.scores().put("alice", 490); // 490 + 15 = 505 >= 500
+        state.scores().put("alice", 490);
 
         FemState next = engine.apply(new FemAction.Discard("alice", "H7"), state);
 
@@ -422,14 +380,7 @@ class FemEngineTest {
 
         FemState next = engine.apply(new FemAction.Discard("alice", "H7"), state);
 
-        // Bob: -100 + (0 - 40) = -140
         assertEquals(-140, next.scores().get("bob"));
-    }
-
-    @Test
-    void jokerWorth25Points() {
-        assertEquals(25, FemEngine.cardPoints(new Card("JK", "1")));
-        assertEquals(25, FemEngine.cardPoints(new Card("JK", "2")));
     }
 
     @Test
@@ -454,128 +405,6 @@ class FemEngineTest {
     }
 
     /* ══════════════════════════════════════════════════════════════
-       GRAB PHASE TESTS
-       ══════════════════════════════════════════════════════════════ */
-
-    @Test
-    void discardStartsGrabPhaseWhenMeldsExist() {
-        FemState state = buildStateWithMeld();
-        String cardToDiscard = state.hands().get("alice").getLast().toString();
-
-        FemState next = engine.apply(
-                new FemAction.Discard("alice", cardToDiscard), state);
-
-        assertTrue(next.discardGrabPhase());
-        assertNotNull(next.discardGrabCard());
-        // Priority should be bob (next after alice)
-        assertEquals("bob", next.playerIds().get(next.grabPriorityIndex()));
-    }
-
-    @Test
-    void claimDiscardExtendsExistingMeld() {
-        FemState state = buildStateWithMeld();
-        // Clear discard pile and set H2 as the grab card
-        state.discardPile().clear();
-        state.discardPile().add(new Card("H", "2"));
-        state.setDiscardGrabPhase(true);
-        state.setDiscardGrabCard(new Card("H", "2"));
-        // Meld is H3-H4-H5, so H2 extends at low end
-        int bobIdx = state.playerIds().indexOf("bob");
-        state.setGrabPriorityIndex(bobIdx);
-
-        FemState next = engine.apply(
-                new FemAction.ClaimDiscard("bob", "m1"), state);
-
-        assertFalse(next.discardGrabPhase());
-        assertEquals(4, next.melds().getFirst().cards().size());
-        // H2 should no longer be in discard pile
-        assertFalse(next.discardPile().contains(new Card("H", "2")));
-    }
-
-    @Test
-    void passGrabMovesToNextPlayer() {
-        FemState state = buildStateWithMeld();
-        state.setDiscardGrabPhase(true);
-        state.setDiscardGrabCard(new Card("H", "2"));
-        state.discardPile().add(new Card("H", "2"));
-        int bobIdx = state.playerIds().indexOf("bob");
-        state.setGrabPriorityIndex(bobIdx);
-
-        FemState next = engine.apply(new FemAction.PassGrab("bob"), state);
-
-        // With 2 players, after bob passes, priority goes back to alice (the discarder).
-        // Since alice is the discarder, grab phase ends.
-        assertFalse(next.discardGrabPhase());
-    }
-
-    @Test
-    void allPassEndGrabPhase() {
-        // 3-player game
-        FemState state = new FemState(List.of("alice", "bob", "charlie"));
-        state.setPhase(GameState.Phase.PLAYING);
-        state.hands().put("alice", new ArrayList<>(List.of(
-                new Card("D", "7"), new Card("D", "8"), new Card("D", "9"),
-                new Card("S", "K"), new Card("C", "2"), new Card("C", "3"), new Card("C", "4"))));
-        state.hands().put("bob", new ArrayList<>(List.of(
-                new Card("S", "3"), new Card("S", "4"), new Card("S", "5"),
-                new Card("S", "6"), new Card("S", "7"), new Card("S", "8"), new Card("S", "9"))));
-        state.hands().put("charlie", new ArrayList<>(List.of(
-                new Card("D", "2"), new Card("D", "3"), new Card("D", "4"),
-                new Card("D", "5"), new Card("D", "6"), new Card("C", "7"), new Card("C", "8"))));
-        state.stockPile().addAll(List.of(new Card("H", "10"), new Card("H", "J")));
-        state.discardPile().add(new Card("H", "9"));
-        state.scores().put("alice", 0);
-        state.scores().put("bob", 0);
-        state.scores().put("charlie", 0);
-
-        // Create a meld on the table
-        state.melds().add(new FemState.Meld("m1", "H", new ArrayList<>(List.of(
-                new Card("H", "3"), new Card("H", "4"), new Card("H", "5"))),
-                new LinkedHashMap<>(Map.of("alice", new ArrayList<>(List.of(
-                        new Card("H", "3"), new Card("H", "4"), new Card("H", "5")))))));
-
-        // Set up grab phase: alice discarded, bob has priority
-        state.setDiscardGrabPhase(true);
-        state.setDiscardGrabCard(new Card("H", "9"));
-        state.setGrabPriorityIndex(1); // bob
-        state.setCurrentTurnIndex(0); // alice is the discarder
-
-        // Bob passes
-        FemState afterBobPass = engine.apply(new FemAction.PassGrab("bob"), state);
-        assertTrue(afterBobPass.discardGrabPhase());
-        assertEquals(2, afterBobPass.grabPriorityIndex()); // charlie
-
-        // Charlie passes
-        FemState afterCharliePass = engine.apply(new FemAction.PassGrab("charlie"), afterBobPass);
-        assertFalse(afterCharliePass.discardGrabPhase()); // back to discarder => end
-    }
-
-    @Test
-    void wrongPlayerCannotActDuringGrabPhase() {
-        FemState state = buildStateWithMeld();
-        state.setDiscardGrabPhase(true);
-        state.setDiscardGrabCard(new Card("H", "2"));
-        state.discardPile().add(new Card("H", "2"));
-        int bobIdx = state.playerIds().indexOf("bob");
-        state.setGrabPriorityIndex(bobIdx);
-
-        assertThrows(GameRuleException.class, () ->
-                engine.apply(new FemAction.PassGrab("alice"), state));
-    }
-
-    @Test
-    void cannotDrawDuringGrabPhase() {
-        FemState state = buildStateWithMeld();
-        state.setDiscardGrabPhase(true);
-        state.setDiscardGrabCard(new Card("H", "2"));
-        int bobIdx = state.playerIds().indexOf("bob");
-        state.setGrabPriorityIndex(bobIdx);
-
-        assertThrows(GameRuleException.class, () ->
-                engine.apply(new FemAction.DrawFromStock("bob"), state));
-    }
-
-    /* ══════════════════════════════════════════════════════════════
        MULTI-ROUND TESTS
        ══════════════════════════════════════════════════════════════ */
 
@@ -585,7 +414,6 @@ class FemEngineTest {
 
         FemState next = engine.apply(new FemAction.Discard("alice", "H7"), state);
 
-        // New round should have fresh hands and no melds
         assertEquals(2, next.roundNumber());
         assertEquals(7, next.hands().get("alice").size());
         assertEquals(7, next.hands().get("bob").size());
@@ -601,7 +429,6 @@ class FemEngineTest {
 
         FemState next = engine.apply(new FemAction.Discard("alice", "H7"), state);
 
-        // alice: 100 + 15 = 115, bob: 50 + (-40) = 10
         assertEquals(115, next.scores().get("alice"));
         assertEquals(10, next.scores().get("bob"));
     }
@@ -639,39 +466,23 @@ class FemEngineTest {
         assertNotNull(view.get("projectedRoundScore"));
     }
 
-    /* ══════════════════════════════════════════════════════════════
-       CARD PRIMITIVE TESTS (Joker support)
-       ══════════════════════════════════════════════════════════════ */
-
     @Test
-    void parseJokerCodes() {
-        Card j1 = Card.parse("JK1");
-        assertEquals("JK", j1.suit());
-        assertEquals("1", j1.rank());
+    void publicViewMeldIncludesOwnerId() {
+        FemState state = buildStateForScoring();
+        FemViewProjector projector = new FemViewProjector();
 
-        Card j2 = Card.parse("JK2");
-        assertEquals("JK", j2.suit());
-        assertEquals("2", j2.rank());
-    }
+        Map<String, Object> view = projector.toPublicView(state);
 
-    @Test
-    void jokerValueIsZero() {
-        assertEquals(0, new Card("JK", "1").value());
-        assertEquals(0, new Card("JK", "2").value());
-    }
-
-    @Test
-    void jokerToStringRoundTrips() {
-        Card j1 = new Card("JK", "1");
-        assertEquals("JK1", j1.toString());
-        assertEquals(j1, Card.parse(j1.toString()));
+        @SuppressWarnings("unchecked")
+        var melds = (List<Map<String, Object>>) view.get("melds");
+        assertFalse(melds.isEmpty());
+        assertEquals("alice", melds.getFirst().get("ownerId"));
     }
 
     /* ══════════════════════════════════════════════════════════════
        HELPERS — deterministic states for testing
        ══════════════════════════════════════════════════════════════ */
 
-    /** Basic state: two players, 7 cards each, stock and discard ready, alice's turn. */
     private FemState buildBasicState() {
         FemState state = new FemState(List.of("alice", "bob"));
         state.setPhase(GameState.Phase.PLAYING);
@@ -691,22 +502,19 @@ class FemEngineTest {
         return state;
     }
 
-    /** State where alice has already drawn (hasDrawnThisTurn = true). */
     private FemState buildStateWithDrawn() {
         FemState state = buildBasicState();
         state.setHasDrawnThisTurn(true);
         return state;
     }
 
-    /** State with an existing meld on the table, alice has drawn. */
     private FemState buildStateWithMeld() {
         FemState state = buildStateWithDrawn();
-        // Meld: H3-H4-H5
         state.melds().add(new FemState.Meld("m1", "H", new ArrayList<>(List.of(
                 new Card("H", "3"), new Card("H", "4"), new Card("H", "5"))),
                 new LinkedHashMap<>(Map.of("alice", new ArrayList<>(List.of(
-                        new Card("H", "3"), new Card("H", "4"), new Card("H", "5")))))));
-        // Remove those cards from alice's hand and give her H6 + extras
+                        new Card("H", "3"), new Card("H", "4"), new Card("H", "5"))))),
+                "alice"));
         state.hands().get("alice").clear();
         state.hands().get("alice").addAll(List.of(
                 new Card("H", "6"), new Card("D", "7"), new Card("D", "8"),
@@ -714,25 +522,22 @@ class FemEngineTest {
         return state;
     }
 
-    /** State ready for round close: alice has 1 card, meld on table, not first round. */
     private FemState buildStateForScoring() {
         FemState state = new FemState(List.of("alice", "bob"));
         state.setPhase(GameState.Phase.PLAYING);
         state.setFirstRound(false);
         state.setHasDrawnThisTurn(true);
 
-        // Alice has just one card left
         state.hands().put("alice", new ArrayList<>(List.of(new Card("H", "7"))));
-        // Bob has a full hand
         state.hands().put("bob", new ArrayList<>(List.of(
                 new Card("D", "7"), new Card("D", "8"), new Card("D", "9"),
                 new Card("S", "K"), new Card("C", "2"), new Card("C", "3"), new Card("C", "4"))));
 
-        // Meld contributed by alice: H3+H4+H5
         state.melds().add(new FemState.Meld("m1", "H", new ArrayList<>(List.of(
                 new Card("H", "3"), new Card("H", "4"), new Card("H", "5"))),
                 new LinkedHashMap<>(Map.of("alice", new ArrayList<>(List.of(
-                        new Card("H", "3"), new Card("H", "4"), new Card("H", "5")))))));
+                        new Card("H", "3"), new Card("H", "4"), new Card("H", "5"))))),
+                "alice"));
 
         state.stockPile().addAll(List.of(new Card("H", "10"), new Card("H", "J")));
         state.discardPile().add(new Card("H", "9"));

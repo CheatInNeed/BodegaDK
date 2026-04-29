@@ -22,22 +22,20 @@ public class FemViewProjector implements ViewProjector<FemState> {
         view.put("scores", state.scores());
         view.put("stockPileCount", state.stockPile().size());
 
-        // Top of discard pile
         if (!state.discardPile().isEmpty()) {
             view.put("discardPileTop", state.discardPile().getLast().toString());
         } else {
             view.put("discardPileTop", null);
         }
 
-        // Melds with point breakdown
         List<Map<String, Object>> meldViews = new ArrayList<>();
         for (FemState.Meld meld : state.melds()) {
             Map<String, Object> mv = new LinkedHashMap<>();
             mv.put("id", meld.id());
             mv.put("suit", meld.suit());
             mv.put("cards", meld.cards().stream().map(Card::toString).toList());
+            mv.put("ownerId", meld.ownerPlayerId());
 
-            // Points per player
             Map<String, Integer> pointsPerPlayer = new LinkedHashMap<>();
             for (var entry : meld.contributedBy().entrySet()) {
                 int pts = entry.getValue().stream().mapToInt(FemEngine::cardPoints).sum();
@@ -49,13 +47,6 @@ public class FemViewProjector implements ViewProjector<FemState> {
         view.put("melds", meldViews);
         view.put("playerCardCounts", state.cardCounts());
         view.put("phase", state.phase().name());
-        view.put("discardGrabPhase", state.discardGrabPhase());
-
-        if (state.discardGrabPhase()) {
-            view.put("grabPriorityPlayerId", state.playerIds().get(state.grabPriorityIndex()));
-        } else {
-            view.put("grabPriorityPlayerId", null);
-        }
 
         if (state.winnerPlayerId() != null) {
             view.put("winnerPlayerId", state.winnerPlayerId());
@@ -73,7 +64,6 @@ public class FemViewProjector implements ViewProjector<FemState> {
         view.put("playerId", playerId);
         view.put("hand", handCodes);
 
-        // Projected round score if round ended now
         int meldPoints = 0;
         for (FemState.Meld meld : state.melds()) {
             List<Card> contributed = meld.contributedBy().getOrDefault(playerId, List.of());

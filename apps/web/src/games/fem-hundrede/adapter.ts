@@ -13,8 +13,6 @@
  *   melds              Meld[]                 — face-up sets on the table
  *   playerCardCounts   Record<id, number>     — how many cards each player holds
  *   phase              "PLAYING" | "FINISHED"
- *   discardGrabPhase   boolean                — true when players race to grab discard pile
- *   grabPriorityPlayerId string | null        — who has first claim in grab phase
  *   winnerPlayerId     string | null          — set when game ends
  *
  * privateState (per-player, sent only to that player):
@@ -24,19 +22,9 @@
  *
  * CLIENT → SERVER intents (see buildAction below):
  *   DRAW_FROM_STOCK, DRAW_FROM_DISCARD, TAKE_DISCARD_PILE,
- *   LAY_MELD, EXTEND_MELD, SWAP_JOKER, DISCARD,
- *   CLAIM_DISCARD, PASS_GRAB
+ *   LAY_MELD, EXTEND_MELD, DISCARD
  *
- * PLAYER COUNT: 2–4 players supported. UI layout adapts automatically:
- *   2 players  → 1 opponent shown full-width above center
- *   3 players  → 2 opponents shown side-by-side (smaller card fans)
- *   4 players  → 3 opponents shown side-by-side (smallest card fans)
- *
- * TODO (to make the game playable end-to-end):
- *   1. Implement the mock send() handler in mock-server.ts so dev sessions
- *      can advance turns without a real backend (Shift+click testing).
- *   2. Verify field names above exactly match what the Java backend sends.
- *   3. Wire LEAVE_TABLE intent → server message when backend supports it.
+ * PLAYER COUNT: 2–4 players supported. UI layout adapts automatically.
  */
 import { resolvePlayerName } from '../../game-room/player-display.js';
 import type { GameAdapter, RoomSessionState, UiIntent } from '../../game-room/types.js';
@@ -55,11 +43,10 @@ type FemPublicState = {
         suit: string;
         cards: string[];
         pointsPerPlayer: Record<string, number>;
+        ownerId: string;
     }>;
     playerCardCounts?: Record<string, number>;
     phase?: string;
-    discardGrabPhase?: boolean;
-    grabPriorityPlayerId?: string | null;
     winnerPlayerId?: string | null;
     [key: string]: unknown;
 };
@@ -78,7 +65,7 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
         return game.toLowerCase() === 'fem';
     },
 
-    toViewModel({ sessionState, publicState, privateState, selectedCards, selfPlayerId, playerNames }) {
+    toViewModel({ publicState, privateState, selectedCards, selfPlayerId, playerNames }) {
         const rawPlayers = Array.isArray(publicState?.players) ? publicState.players : [];
         const playerIds: string[] = rawPlayers.map((p) =>
             typeof p === 'string' ? p : (typeof p === 'object' && p !== null ? (p as { playerId: string }).playerId : '')
@@ -93,9 +80,6 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
         const turnPlayerId = typeof publicState?.turnPlayerId === 'string' ? publicState.turnPlayerId : null;
         const isMyTurn = !!selfPlayerId && selfPlayerId === turnPlayerId;
         const phase = typeof publicState?.phase === 'string' ? publicState.phase : 'PLAYING';
-        const discardGrabPhase = publicState?.discardGrabPhase === true;
-        const grabPriorityPlayerId = typeof publicState?.grabPriorityPlayerId === 'string' ? publicState.grabPriorityPlayerId : null;
-        const isGrabPriority = !!selfPlayerId && selfPlayerId === grabPriorityPlayerId;
         const winnerPlayerId = typeof publicState?.winnerPlayerId === 'string' ? publicState.winnerPlayerId : null;
         const stockPileCount = typeof publicState?.stockPileCount === 'number' ? publicState.stockPileCount : 0;
         const discardPileTop = typeof publicState?.discardPileTop === 'string' ? publicState.discardPileTop : null;
@@ -109,6 +93,7 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             pointsPerPlayer: (typeof m.pointsPerPlayer === 'object' && m.pointsPerPlayer !== null)
                 ? m.pointsPerPlayer as Record<string, number>
                 : {},
+            ownerId: String(m.ownerId ?? ''),
         }));
 
         const players: FemPlayerInfo[] = playerIds.map((playerId) => ({
@@ -121,7 +106,7 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
         }));
 
         const isPlaying = phase === 'PLAYING';
-        const canAct    = isMyTurn && isPlaying && !discardGrabPhase;
+        const canAct    = isMyTurn && isPlaying;
         const selCount  = selectedCards.length;
 
         return {
@@ -137,9 +122,6 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             hand,
             selectedCards,
             projectedRoundScore,
-            discardGrabPhase,
-            grabPriorityPlayerId,
-            isGrabPriority,
             winnerPlayerId,
             canDraw: canAct && stockPileCount > 0,
             canDrawDiscard: canAct && discardPileTop !== null,
@@ -147,8 +129,7 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             canLayMeld: canAct && selCount >= 3,
             canExtendMeld: canAct && selCount === 1 && melds.length > 0,
             canDiscard: canAct && selCount === 1,
-            canClaimDiscard: discardGrabPhase && isGrabPriority && melds.length > 0,
-            canPassGrab: discardGrabPhase && isGrabPriority,
+            canClose: canAct && hand.length === 1,
         };
     },
 
@@ -168,15 +149,11 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             case 'FEM_EXTEND_MELD':
                 if (selected.length !== 1) return null;
                 return { type: 'EXTEND_MELD', payload: { meldId: intent.meldId, card: selected[0] } };
-            case 'FEM_SWAP_JOKER':
-                return { type: 'SWAP_JOKER', payload: { meldId: intent.meldId, jokerCode: intent.jokerCode, realCardCode: intent.realCardCode } };
             case 'FEM_DISCARD':
                 if (selected.length !== 1) return null;
                 return { type: 'DISCARD', payload: { card: selected[0] } };
-            case 'FEM_CLAIM_DISCARD':
-                return { type: 'CLAIM_DISCARD', payload: { meldId: intent.meldId } };
-            case 'FEM_PASS_GRAB':
-                return { type: 'PASS_GRAB', payload: {} };
+            case 'FEM_CLOSE_ROUND':
+                return { type: 'DISCARD', payload: { card: intent.card } };
             default:
                 return null;
         }

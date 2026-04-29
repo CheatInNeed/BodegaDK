@@ -141,6 +141,8 @@ function applyTheme(theme: ThemeId) {
     document.documentElement.dataset.theme = theme;
 }
 let casinoSelectedStackIds: string[] = [];
+let femHandOrder: string[] | null = null;
+let femDraggedCard: string | null = null;
 
 function supportsLobbyLifecycle(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
@@ -295,6 +297,17 @@ function navItem(view: View, i18nKey: string | null, icon: string, literalLabel?
       ${labelHtml}
     </div>
   `;
+}
+
+function applyFemHandOrder(serverHand: string[]): string[] {
+    if (!femHandOrder) return serverHand;
+    const handSet = new Set(serverHand);
+    const kept = femHandOrder.filter((c) => handSet.has(c));
+    const keptSet = new Set(kept);
+    const newCards = serverHand.filter((c) => !keptSet.has(c));
+    const ordered = [...kept, ...newCards];
+    femHandOrder = ordered;
+    return ordered;
 }
 
 function renderView() {
@@ -547,7 +560,9 @@ function renderRoomContent(): string {
     let bodyHtml = '';
 
     if (adapter.id === femAdapter.id) {
-        return renderFemRoom(viewModel as FemViewModel);
+        const femVm = viewModel as FemViewModel;
+        const orderedHand = applyFemHandOrder(femVm.hand);
+        return renderFemRoom({ ...femVm, hand: orderedHand });
     }
 
     if (adapter.id === casinoAdapter.id) {
@@ -641,6 +656,8 @@ function cleanupRoomSession() {
     highCardAutoStartKey = null;
     roomHandTrayOpen = false;
     casinoSelectedStackIds = [];
+    femHandOrder = null;
+    femDraggedCard = null;
 }
 
 function cleanupRoomSessionIfUnneeded() {
@@ -1154,8 +1171,12 @@ function wireRoomEvents() {
     document.querySelectorAll<HTMLElement>('[data-action="fem-discard"]').forEach((el) => {
         el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DISCARD' }));
     });
-    document.querySelectorAll<HTMLElement>('[data-action="fem-pass-grab"]').forEach((el) => {
-        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_PASS_GRAB' }));
+    document.querySelectorAll<HTMLElement>('[data-action="fem-close"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const card = el.dataset.card;
+            if (!card) return;
+            roomSession?.sendIntent({ type: 'FEM_CLOSE_ROUND', card });
+        });
     });
     document.querySelectorAll<HTMLElement>('[data-action="fem-extend-meld"]').forEach((el) => {
         el.addEventListener('click', () => {
@@ -1164,11 +1185,35 @@ function wireRoomEvents() {
             roomSession?.sendIntent({ type: 'FEM_EXTEND_MELD', meldId });
         });
     });
-    document.querySelectorAll<HTMLElement>('[data-action="fem-claim-discard"]').forEach((el) => {
-        el.addEventListener('click', () => {
-            const meldId = el.dataset.meldId;
-            if (!meldId) return;
-            roomSession?.sendIntent({ type: 'FEM_CLAIM_DISCARD', meldId });
+
+    // Hand drag-to-sort
+    document.querySelectorAll<HTMLElement>('[data-drag-card]').forEach((el) => {
+        el.addEventListener('dragstart', (e) => {
+            femDraggedCard = el.dataset.dragCard ?? null;
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', femDraggedCard ?? '');
+            }
+        });
+        el.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        });
+        el.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const targetCard = el.dataset.dragCard;
+            if (!femDraggedCard || !targetCard || femDraggedCard === targetCard) return;
+            const femVm = roomSession?.toViewModel() as { hand?: string[] } | undefined;
+            const currentOrder = femHandOrder ?? (femVm?.hand ?? []);
+            const fromIdx = currentOrder.indexOf(femDraggedCard);
+            const toIdx = currentOrder.indexOf(targetCard);
+            if (fromIdx === -1 || toIdx === -1) return;
+            const newOrder = [...currentOrder];
+            newOrder.splice(fromIdx, 1);
+            newOrder.splice(toIdx, 0, femDraggedCard);
+            femHandOrder = newOrder;
+            femDraggedCard = null;
+            renderView();
         });
     });
 
