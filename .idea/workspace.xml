@@ -6,22 +6,23 @@
   <component name="ChangeListManager">
     <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="finished call sites, updated documentation,">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/MeController.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/MeController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcMatchHistoryStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcMatchHistoryStore.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/rest/MeControllerTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/rest/MeControllerTest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/public/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/public/styles.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/app/router.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/app/router.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/i18n.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/i18n.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/net/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/net/api.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/contracts/homepage_v1_contract.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/contracts/homepage_v1_contract.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/design/DATABASE_V1_SCHEMA_RESET.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/DATABASE_V1_SCHEMA_RESET.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/design/PROTOCOL.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/supabase/migrations/202604281500_v1_schema_reset.sql" beforeDir="false" afterPath="$PROJECT_DIR$/supabase/migrations/202604281500_v1_schema_reset.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/ROOM_AND_MATCHMAKING_ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/ROOM_AND_MATCHMAKING_ARCHITECTURE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -70,25 +71,25 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.MCP Project settings loaded": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "git-widget-placeholder": "database-overhaul-2",
-    "ignore.virus.scanning.warn.message": "true",
-    "javascript.preferred.runtime.type.id": "node",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "configurable.group.language",
-    "ts.external.directory.path": "C:\\Users\\lille\\WebstormProjects\\BodegaDK\\node_modules\\typescript\\lib",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;database-overhaul-2&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.language&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\lille\\WebstormProjects\\BodegaDK\\node_modules\\typescript\\lib&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>

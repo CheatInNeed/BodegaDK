@@ -1,6 +1,8 @@
 # Database V1 Schema Reset
 
-Status: draft implementation plan. Do not run the destructive reset against dev or production until the breakage checklist below has been resolved.
+Status: implemented migration set for the V1 Supabase schema. This reset is
+destructive and must only be applied in a coordinated release with compatible
+backend/frontend code.
 
 Migration files:
 
@@ -53,11 +55,12 @@ Migration files:
 - `LobbyCoordinator` updates durable selected game state through `rooms.game_id`.
 - Matchmaking creates the durable room first, then mirrors room/player state into runtime memory.
 - Engine adapters can keep user IDs as strings internally, but those strings must become auth UUID strings for persisted players.
-- Game completion writes `matches` and `match_players`, updates `user_game_stats` in the same backend completion flow, and leaves `leaderboard_scores` for future work.
+- Game completion writes `matches` and `match_players`, updates `user_game_stats`, and updates all-time `leaderboard_scores` in the same backend completion flow.
 - `user_game_stats` is rebuildable from completed `matches` plus `match_players`; it is a cached projection, not the source of truth.
 - `GET /me/matches` and the profile Recent Games UI read match history. `GET /me/stats` reads `user_game_stats` joined with active `games`.
 - V1 leaderboard scoring has no seasons: `leaderboard_scores.score` means all-time wins, with one current row per `(game_id, user_id, mode)`.
-- Backend tests still need a full compile/run pass on a machine with Maven.
+- Friends, challenges, and notifications are wired through Spring REST APIs using the existing V1 social tables.
+- Backend validation has a Java 21 Maven test target: `cd apps/server && mvn test`.
 
 ### Frontend
 
@@ -68,7 +71,7 @@ Migration files:
 - `touch_room_heartbeat(text)` can keep the same RPC signature, but it now requires the signed-in user to be a persisted room participant.
 - Profile code uses `profiles.user_id`.
 - Avatar code uses `user_avatars` plus `avatar_defs`.
-- Profile match history and profile stats are live through authenticated backend APIs. Friends, invite, and leaderboard UI remain placeholder/disabled until their matching backend/RLS-safe query paths are complete.
+- Profile match history, profile stats, leaderboard, friends, challenges, and notifications are live through authenticated backend APIs.
 
 ### Supabase And Data
 
@@ -76,18 +79,19 @@ Migration files:
 - Existing auth users remain because `auth.users` is Supabase-managed and is not dropped.
 - Existing profile rows are not migrated; profiles are recreated from `auth.users.raw_user_meta_data`.
 - No `games` rows are inserted by the reset itself. The game catalog seed migration must run before DB-backed rooms/matchmaking can create rows.
-- RLS policies are intentionally minimal. Before exposing new social/history features directly to the browser, add feature-specific policies and tests.
+- RLS policies are intentionally minimal. Current social/history/profile features go through Spring APIs; before exposing new direct browser reads/writes, add feature-specific policies and tests.
 
 ### Deployment
 
 - The migration is destructive and must deploy with compatible backend/frontend code.
-- Because Supabase migrations may run automatically from GitHub on push, do not push this reset to `dev` until the compatible backend/frontend code is ready or the deployment order is deliberately controlled.
+- Because Supabase migrations may run automatically from GitHub on push, do not push this reset to shared branches until the compatible backend/frontend code is ready or the deployment order is deliberately controlled.
 - The correct production shape is one coordinated release: compatible code plus this schema reset plus real game catalog rows.
 
 ## Pre-Run Checklist
 
-- Run server tests on a machine with Maven.
+- Run server tests on a machine with Java 21 and Maven.
 - Run at least one authenticated create/join/start/finish flow against Supabase.
+- Run an authenticated profile/friends/challenges/notifications smoke flow against Supabase.
 - Apply the real `games` catalog seed migration.
 - Confirm RLS policies for any direct browser reads/writes used by the frontend.
 - Run web build.

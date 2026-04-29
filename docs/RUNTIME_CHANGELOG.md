@@ -1,5 +1,43 @@
 # Runtime Changelog
 
+## 2026-04-29 -- Supabase V1 Platform, Friends, Challenges, Notifications
+
+### What changed
+- **Canonical Supabase schema**: Added the V1 schema reset and game catalog
+  seed migrations. Supabase Postgres is now the durable source of truth for
+  profiles, avatars, rooms, room players, matchmaking tickets, match history,
+  per-game stats, all-time leaderboard scores, friendships, challenges, and
+  notifications. Spring no longer owns app schema migrations through Flyway.
+- **Authenticated runtime**: Room, matchmaking, profile, leaderboard, friends,
+  challenges, notifications, and WebSocket flows now derive durable user
+  identity from Supabase JWTs instead of guest/session-token fallbacks.
+- **Durable room and matchmaking metadata**: `JdbcRoomMetadataStore` persists
+  room lifecycle, participants, selected games, heartbeats, and quick-play
+  tickets. Runtime socket bindings and active engine snapshots remain
+  in-memory.
+- **Match history, profile stats, and leaderboard**: Completed games write
+  permanent match rows, match-player rows, cached user stats, and all-time win
+  leaderboard scores. Profile and leaderboard UI now read those authenticated
+  backend APIs.
+- **Friends system**: Added backend friend request/list/accept/decline/remove
+  endpoints backed by the existing `friendships` table, plus Profile-page UI
+  for friends, incoming requests, outgoing requests, and add-by-username.
+- **Challenges system**: Added direct friends-only Snyd challenges. Accepting a
+  challenge creates a private `LOBBY` room with both users attached and returns
+  normal room navigation data.
+- **Notifications system**: Added notification list/read/read-all APIs, social
+  notification emission for friend requests and challenges, and a topbar
+  notification dropdown with unread badge and challenge actions.
+- **Local/deploy tooling**: Root npm scripts now generate public web config,
+  run local web/server development together, and require explicit Supabase
+  datasource/JWT environment for DB-backed server operation.
+
+### Why
+This branch moves BodegaDK from mostly local/placeholder multiplayer surfaces
+to an authenticated Supabase-backed platform foundation while preserving the
+core invariant that Spring remains authoritative for room lifecycle, game
+rules, matchmaking decisions, and result writes.
+
 ## 2026-04-25 -- Krig Multiplayer UI Wiring
 
 ### What changed

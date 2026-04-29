@@ -24,8 +24,8 @@ Installer følgende:
 
 -   `apps/web` = browser client (TypeScript + HTML/CSS)
 -   `apps/server` = backend (Spring Boot + Maven)
--   `infra` = docker-compose + nginx + db
--   `packages/protocol` = REST/WS kontrakt (payload-formater)
+-   `infra` = docker-compose + nginx/server deployment wiring
+-   `supabase/migrations` = canonical app schema migrations
 -   `docs` = dokumentation
 
 ------------------------------------------------------------------------
@@ -93,14 +93,21 @@ har `"outDir": "public/dist"`
 
 ### Fast iteration (anbefalet uden Docker)
 
-Kør i to terminaler fra repo root:
+Kør normalt one-command flowet:
+
+``` bash
+npm run local:dev
+```
+
+Hvis du vil splitte web processerne manuelt, kan du køre to terminaler fra
+repo root:
 
 ``` bash
 # terminal A: compile TypeScript on changes
 npm run web:watch
 
 # terminal B: serve web on 5173
-npm run web:dev
+npm run web:serve
 ```
 
 Web URL:
@@ -235,7 +242,7 @@ Eksempel:
 http://localhost:5173/?view=room&game=snyd&room=ABC123
 ```
 
-### Mock mode (indtil rigtig server-logic findes)
+### Mock mode (kun til isoleret client debugging)
 
 Tilføj `mock=1` for lokal simulation af server updates:
 
@@ -305,6 +312,28 @@ skal wiring være på plads i både backend, web og docs:
    Tilføj mindst én backend test for matchmaking/start flow og opdater
    relevante docs, typisk `docs/design/PROTOCOL.md`,
    `docs/instructions/DEVELOPMENT.md` eller changelog/design docs.
+
+------------------------------------------------------------------------
+
+## Validering
+
+Kør den mindste relevante validering for dit scope:
+
+``` bash
+# Web-only changes
+npm run web:build
+
+# Server-only changes, using Java 21
+cd apps/server
+JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home mvn test
+```
+
+For cross-cutting REST/WS/profile/social changes, run both checks. For manual
+smoke testing, use:
+
+- `/?view=profile` for profile, friends, challenges, and notification dropdown
+- `/?view=leaderboard` for leaderboard reads
+- `/?view=lobby-browser`, `/?view=lobby`, and `/?view=room` for room flow
 
 ------------------------------------------------------------------------
 

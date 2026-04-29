@@ -102,6 +102,62 @@ export type MyStatsResponse = {
     items: MyGameStatsSummary[];
 };
 
+export type FriendUser = {
+    userId: string;
+    username: string;
+    displayName: string | null;
+};
+
+export type FriendshipSummary = {
+    id: string;
+    status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'BLOCKED';
+    requester: FriendUser;
+    addressee: FriendUser;
+    createdAt: string | null;
+    updatedAt: string | null;
+};
+
+export type FriendRequestsResponse = {
+    incoming: FriendshipSummary[];
+    outgoing: FriendshipSummary[];
+};
+
+export type ChallengeSummary = {
+    id: string;
+    status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED' | 'EXPIRED';
+    challenger: FriendUser;
+    challenged: FriendUser;
+    game: {
+        id: string;
+        slug: string;
+        title: string;
+    };
+    roomCode: string | null;
+    createdAt: string | null;
+    expiresAt: string | null;
+    respondedAt: string | null;
+};
+
+export type ChallengeAcceptResponse = {
+    challenge: ChallengeSummary;
+    room: CreateRoomResponse;
+};
+
+export type NotificationSummary = {
+    id: string;
+    type: string;
+    actor: FriendUser | null;
+    payload: Record<string, unknown>;
+    readAt: string | null;
+    createdAt: string | null;
+};
+
+export type NotificationsResponse = {
+    items: NotificationSummary[];
+    unreadCount: number;
+    limit: number;
+};
+
 export type LeaderboardEntry = {
     rank: number;
     userId: string;
@@ -288,6 +344,118 @@ export async function getMyStats(input: { game?: string } = {}): Promise<MyStats
     const url = `${resolveApiBaseUrl()}/me/stats${query ? `?${query}` : ''}`;
     const response = await authenticatedFetch(url);
     return parseJsonResponse<MyStatsResponse>(response, 'Failed to load game stats');
+}
+
+export async function getFriends(): Promise<FriendshipSummary[]> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/friends`);
+    return parseJsonResponse<FriendshipSummary[]>(response, 'Failed to load friends');
+}
+
+export async function getFriendRequests(): Promise<FriendRequestsResponse> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/friends/requests`);
+    return parseJsonResponse<FriendRequestsResponse>(response, 'Failed to load friend requests');
+}
+
+export async function sendFriendRequest(username: string): Promise<FriendshipSummary> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/friends/request`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username }),
+    });
+    return parseJsonResponse<FriendshipSummary>(response, 'Failed to send friend request');
+}
+
+export async function acceptFriendRequest(friendshipId: string): Promise<FriendshipSummary> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/friends/${encodeURIComponent(friendshipId)}/accept`, {
+        method: 'POST',
+    });
+    return parseJsonResponse<FriendshipSummary>(response, 'Failed to accept friend request');
+}
+
+export async function declineFriendRequest(friendshipId: string): Promise<FriendshipSummary> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/friends/${encodeURIComponent(friendshipId)}/decline`, {
+        method: 'POST',
+    });
+    return parseJsonResponse<FriendshipSummary>(response, 'Failed to decline friend request');
+}
+
+export async function removeFriendship(friendshipId: string): Promise<void> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/friends/${encodeURIComponent(friendshipId)}`, {
+        method: 'DELETE',
+    });
+
+    if (response.ok) {
+        return;
+    }
+
+    let details = '';
+    try {
+        const body = await response.json() as { message?: string };
+        details = typeof body.message === 'string' ? body.message : '';
+    } catch {
+        details = '';
+    }
+
+    const suffix = details ? `: ${details}` : '';
+    throw new Error(`Failed to remove friend (${response.status})${suffix}`);
+}
+
+export async function createChallenge(input: { username: string; gameType?: string }): Promise<ChallengeSummary> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/challenges`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(input),
+    });
+    return parseJsonResponse<ChallengeSummary>(response, 'Failed to send challenge');
+}
+
+export async function acceptChallenge(challengeId: string): Promise<ChallengeAcceptResponse> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/challenges/${encodeURIComponent(challengeId)}/accept`, {
+        method: 'POST',
+    });
+    return parseJsonResponse<ChallengeAcceptResponse>(response, 'Failed to accept challenge');
+}
+
+export async function declineChallenge(challengeId: string): Promise<ChallengeSummary> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/challenges/${encodeURIComponent(challengeId)}/decline`, {
+        method: 'POST',
+    });
+    return parseJsonResponse<ChallengeSummary>(response, 'Failed to decline challenge');
+}
+
+export async function cancelChallenge(challengeId: string): Promise<ChallengeSummary> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/challenges/${encodeURIComponent(challengeId)}/cancel`, {
+        method: 'POST',
+    });
+    return parseJsonResponse<ChallengeSummary>(response, 'Failed to cancel challenge');
+}
+
+export async function getNotifications(input: { limit?: number } = {}): Promise<NotificationsResponse> {
+    const params = new URLSearchParams();
+    if (input.limit !== undefined) {
+        params.set('limit', String(input.limit));
+    }
+    const query = params.toString();
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/notifications${query ? `?${query}` : ''}`);
+    return parseJsonResponse<NotificationsResponse>(response, 'Failed to load notifications');
+}
+
+export async function markNotificationRead(notificationId: string): Promise<NotificationSummary> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/notifications/${encodeURIComponent(notificationId)}/read`, {
+        method: 'POST',
+    });
+    return parseJsonResponse<NotificationSummary>(response, 'Failed to mark notification as read');
+}
+
+export async function markAllNotificationsRead(): Promise<{ ok: boolean }> {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/notifications/read-all`, {
+        method: 'POST',
+    });
+    return parseJsonResponse<{ ok: boolean }>(response, 'Failed to mark notifications as read');
 }
 
 export async function getLeaderboard(input: { game: string; mode?: string; limit?: number }): Promise<LeaderboardResponse> {

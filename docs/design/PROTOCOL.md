@@ -260,6 +260,329 @@ returns matches where the token subject exists in `match_players`.
 
 ------------------------------------------------------------------------
 
+## GET /friends
+
+Returns accepted friendships for the authenticated user.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Response
+
+``` json
+[
+  {
+    "id": "friendship-uuid",
+    "status": "ACCEPTED",
+    "requester": {
+      "userId": "auth-user-uuid",
+      "username": "Alice",
+      "displayName": null
+    },
+    "addressee": {
+      "userId": "auth-user-uuid",
+      "username": "Bob",
+      "displayName": null
+    },
+    "createdAt": "2026-04-29T12:00:00Z",
+    "updatedAt": "2026-04-29T12:01:00Z"
+  }
+]
+```
+
+------------------------------------------------------------------------
+
+## GET /friends/requests
+
+Returns pending friend requests split by current-user perspective.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Response
+
+``` json
+{
+  "incoming": [],
+  "outgoing": []
+}
+```
+
+`incoming` contains pending rows where the current user is the addressee.
+`outgoing` contains pending rows where the current user is the requester.
+Each item uses the same friendship shape as `GET /friends`.
+
+------------------------------------------------------------------------
+
+## POST /friends/request
+
+Sends a friend request by exact username.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Request
+
+``` json
+{
+  "username": "Bob"
+}
+```
+
+### Response
+
+Returns the created pending friendship.
+
+### Errors
+
+- `400`: blank username or self-friendship
+- `404`: username not found
+- `409`: a pending or accepted friendship already exists in either direction
+
+------------------------------------------------------------------------
+
+## POST /friends/{id}/accept
+
+Accepts a pending friend request.
+
+Only the addressee may accept. Returns the updated accepted friendship.
+
+### Errors
+
+- `400`: invalid friendship id
+- `404`: request not found, not pending, or current user is not the addressee
+
+------------------------------------------------------------------------
+
+## POST /friends/{id}/decline
+
+Declines a pending friend request.
+
+Only the addressee may decline. Returns the updated declined friendship.
+
+### Errors
+
+- `400`: invalid friendship id
+- `404`: request not found, not pending, or current user is not the addressee
+
+------------------------------------------------------------------------
+
+## DELETE /friends/{id}
+
+Removes an accepted friendship or cancels/removes a relationship row involving
+the current user.
+
+Only participants can delete a friendship row.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+- `400`: invalid friendship id
+- `404`: friendship not found or current user is not a participant
+
+Social side effect: creating a friend request emits a
+`friend.request.received` notification for the addressee. Accepting a friend
+request emits a `friend.request.accepted` notification for the requester.
+
+------------------------------------------------------------------------
+
+## POST /challenges
+
+Creates a direct game challenge for an accepted friend.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+V1 challenge creation uses exact username lookup and requires an accepted
+friendship between the challenger and challenged user.
+
+### Request
+
+``` json
+{
+  "username": "Bob",
+  "gameType": "snyd"
+}
+```
+
+`gameType` defaults through the server game catalog normalization rules. The
+frontend V1 sends `snyd`.
+
+### Response
+
+``` json
+{
+  "id": "challenge-uuid",
+  "status": "PENDING",
+  "challenger": {
+    "userId": "auth-user-uuid",
+    "username": "Alice",
+    "displayName": null
+  },
+  "challenged": {
+    "userId": "auth-user-uuid",
+    "username": "Bob",
+    "displayName": null
+  },
+  "game": {
+    "id": "game-uuid",
+    "slug": "snyd",
+    "title": "Snyd"
+  },
+  "roomCode": null,
+  "createdAt": "2026-04-29T12:00:00Z",
+  "expiresAt": "2026-04-30T12:00:00Z",
+  "respondedAt": null
+}
+```
+
+### Errors
+
+- `400`: blank username, self-challenge, non-friend target, or inactive/non-challengeable game
+- `404`: username not found
+
+Social side effect: emits `challenge.received` for the challenged user.
+
+------------------------------------------------------------------------
+
+## POST /challenges/{id}/accept
+
+Accepts a pending challenge as the challenged user.
+
+The backend expires old pending challenges first. Expired, cancelled,
+declined, or already accepted challenges cannot be accepted.
+
+On success the backend creates a private `LOBBY` room, adds both users as room
+participants, marks the challenge `ACCEPTED`, and returns the challenge plus
+room navigation data.
+
+### Response
+
+``` json
+{
+  "challenge": {
+    "id": "challenge-uuid",
+    "status": "ACCEPTED",
+    "roomCode": "ABC123"
+  },
+  "room": {
+    "roomCode": "ABC123",
+    "playerId": "challenged-user-uuid",
+    "hostPlayerId": "challenger-user-uuid",
+    "isPrivate": true,
+    "selectedGame": "snyd",
+    "status": "LOBBY"
+  }
+}
+```
+
+The example omits unchanged challenge fields; actual responses use the full
+challenge shape from `POST /challenges`.
+
+### Errors
+
+- `400`: invalid challenge id
+- `404`: challenge not found or current user is not the challenged user
+- `409`: challenge is no longer pending
+
+Social side effect: emits `challenge.accepted` for the challenger with
+`roomCode` in the notification payload.
+
+------------------------------------------------------------------------
+
+## POST /challenges/{id}/decline
+
+Declines a pending challenge as the challenged user.
+
+### Errors
+
+- `400`: invalid challenge id
+- `404`: challenge not found or current user is not the challenged user
+- `409`: challenge is no longer pending
+
+Social side effect: emits `challenge.declined` for the challenger.
+
+------------------------------------------------------------------------
+
+## POST /challenges/{id}/cancel
+
+Cancels a pending challenge as the challenger.
+
+### Errors
+
+- `400`: invalid challenge id
+- `404`: challenge not found or current user is not the challenger
+- `409`: challenge is no longer pending
+
+------------------------------------------------------------------------
+
+## GET /notifications
+
+Returns recent notifications scoped to the authenticated user.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Query params
+
+- `limit`: optional, defaults to `20`, clamped to `1..50`
+
+### Response
+
+``` json
+{
+  "items": [
+    {
+      "id": "notification-uuid",
+      "type": "challenge.received",
+      "actor": {
+        "userId": "auth-user-uuid",
+        "username": "Alice",
+        "displayName": null
+      },
+      "payload": {
+        "entityKey": "challenge-uuid",
+        "challengeId": "challenge-uuid",
+        "gameType": "snyd",
+        "action": "challenge"
+      },
+      "readAt": null,
+      "createdAt": "2026-04-29T12:00:00Z"
+    }
+  ],
+  "unreadCount": 1,
+  "limit": 20
+}
+```
+
+Notification reads are always scoped to the token subject.
+
+------------------------------------------------------------------------
+
+## POST /notifications/{id}/read
+
+Marks one current-user notification as read and returns the updated
+notification.
+
+### Errors
+
+- `400`: invalid notification id
+- `404`: notification not found for current user
+
+------------------------------------------------------------------------
+
+## POST /notifications/read-all
+
+Marks all current-user notifications as read.
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+------------------------------------------------------------------------
+
 ## GET /me/stats
 
 Returns per-game cached stats for the authenticated user.

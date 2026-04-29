@@ -4,11 +4,18 @@ Supabase is currently used by the web client for:
 
 - email/password auth
 - signup metadata
-- avatar/profile data in `public.avatars`
+- profile/avatar data in `public.profiles`, `public.avatar_defs`, and
+  `public.user_avatars`
 - persisted room metadata in `public.rooms`
 - room participants in `public.room_players`
 - active-room heartbeat and stale-room cleanup
 - quick-play queue tickets in `public.matchmaking_tickets`
+- friend relationships in `public.friendships`, written through the Spring
+  friends API
+- direct game challenges in `public.challenges`, written through the Spring
+  challenges API
+- user-facing notifications in `public.notifications`, written through the
+  Spring notifications/social APIs
 
 It is not the game backend. Gameplay, lobby state, and rules stay in the
 Spring Boot server.
@@ -18,11 +25,9 @@ Spring Boot server.
 Current Supabase files in the repo:
 
 - `supabase/config.toml`
-- `supabase/migrations/202604081410_init.sql`
-- `supabase/migrations/202604191100_room_matchmaking.sql`
-- `supabase/migrations/202604201130_profiles_auth_trigger.sql`
-- `supabase/migrations/202604211200_matchmaking_realtime_cancel.sql`
-- `supabase/migrations/202604221200_room_heartbeat_cleanup.sql`
+- `supabase/migrations/202604281500_v1_schema_reset.sql`
+- `supabase/migrations/202604281510_seed_game_catalog.sql`
+- `supabase/migrations/202604281520_remove_leaderboard_seasons.sql`
 - `.github/workflows/supabase-migrations.yml`
 
 Room/session metadata now lives in Supabase/Postgres, while live
@@ -55,9 +60,27 @@ cancel support:
 - the Spring backend remains authoritative for matching players and creating
   rooms
 
+Friends use the existing V1 `public.friendships` table:
+
+- the Spring backend resolves `profiles.username` to user ids for friend
+  requests
+- the table constraints prevent self-friendship and duplicate inverse
+  friendships
+- browser UI calls the authenticated Spring REST API instead of writing
+  friendship rows directly through the Supabase anon client
+
+Challenges and notifications use the existing V1 social tables:
+
+- `public.challenges` stores direct friend-to-friend game invites, status,
+  expiry, and the room created when a challenge is accepted
+- `public.notifications` stores user-scoped social notifications with JSON
+  payloads used by the browser for profile/challenge/room actions
+- the browser reads and mutates these through authenticated Spring REST
+  endpoints; it does not write rows directly through the Supabase anon client
+
 Active room cleanup uses Supabase RPCs:
 
-- `public.touch_room_heartbeat(room_code_input)` updates `public.rooms.last_heartbeat`
+- `public.touch_room_heartbeat(room_code_input)` updates `public.rooms.last_heartbeat_at`
   for active `IN_GAME` rooms
 - `public.finish_stale_rooms(stale_after interval default interval '60 seconds')`
   updates stale `IN_GAME` rooms to `FINISHED`

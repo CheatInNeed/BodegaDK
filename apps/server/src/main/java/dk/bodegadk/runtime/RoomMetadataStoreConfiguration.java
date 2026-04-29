@@ -32,4 +32,25 @@ public class RoomMetadataStoreConfiguration {
     LeaderboardQueryStore leaderboardQueryStore(JdbcTemplate jdbcTemplate) {
         return new JdbcLeaderboardQueryStore(jdbcTemplate);
     }
+
+    @Bean
+    NotificationsStore notificationsStore(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
+        return new JdbcNotificationsStore(jdbcTemplate, objectMapper);
+    }
+
+    @Bean
+    FriendsStore friendsStore(JdbcTemplate jdbcTemplate, NotificationsStore notificationsStore) {
+        return new JdbcFriendsStore(jdbcTemplate, notificationsStore);
+    }
+
+    @Bean
+    ChallengesStore challengesStore(
+            JdbcTemplate jdbcTemplate,
+            GameCatalogService gameCatalogService,
+            RoomMetadataStore roomMetadataStore,
+            InMemoryRuntimeStore runtimeStore,
+            NotificationsStore notificationsStore
+    ) {
+        return new JdbcChallengesStore(jdbcTemplate, gameCatalogService, roomMetadataStore, runtimeStore, notificationsStore);
+    }
 }

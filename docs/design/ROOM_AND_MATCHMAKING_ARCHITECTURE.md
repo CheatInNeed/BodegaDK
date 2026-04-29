@@ -1,75 +1,97 @@
 # Room And Matchmaking Architecture
 
-This document describes the current BodegaDK implementation for the
-shared room lifecycle that powers both:
+This document describes the current BodegaDK implementation for the shared room
+lifecycle that powers:
 
-- quick play / matchmaking
-- private and public lobbies
+- Quick play and matchmaking
+- Private and public lobbies
+- Challenge-created private lobbies
 
-The key design rule is that game engines do not decide whether a session
-is a lobby or a live match. The room owns that lifecycle through a room
-status field.
+The key design rule is that game engines do not decide whether a session is a
+lobby or a live match. The room owns that lifecycle through persisted room
+metadata, and engines only initialize live game state when `START_GAME` is
+accepted.
 
 ## Lifecycle Model
 
-Every realtime session is represented by one room with:
+Every realtime session is represented by one persisted room with:
 
-- a `game_type`
-- a `room_status`
-- a visibility flag
-- a participant list
+- A canonical `game_id`
+- A human-facing `room_code`
+- A `status`
+- A `visibility`
+- A host user
+- A participant list
 
 Current room statuses:
 
 - `LOBBY`
 - `IN_GAME`
+- `FINISHED`
+- `ABANDONED`
 
-Two product flows reuse the same room model:
+Two primary product flows reuse the same room model.
 
-### Private Lobby
+### Private Or Public Lobby
 
-1. Client creates a room with `room_status = LOBBY`
-2. Players join by code or from the public room browser
-3. Host chooses the game if needed
-4. Host sends `START_GAME`
-5. Backend marks the room `IN_GAME`
-6. Engine initializes game state lazily
-7. Clients transition from lobby view to room view
+1. Client creates a room with `status = LOBBY`.
+2. Players join by room code or from the public room browser.
+3. Host chooses the game if needed.
+4. Host sends `START_GAME`.
+5. Backend marks the room `IN_GAME`.
+6. Engine initializes game state lazily.
+7. Clients transition from lobby view to room view.
 
 ### Quick Play
 
-1. Client joins the matchmaking queue for a game
-2. Backend collects enough waiting tickets for that game's player rules
-3. Backend creates a room in `LOBBY`
-4. Backend attaches matched players to the room
-5. Backend immediately runs the same `START_GAME` lifecycle
-6. Room becomes `IN_GAME`
-7. Client polls ticket status and navigates directly to the room view
+1. Client joins the matchmaking queue for a game.
+2. Backend collects enough waiting tickets for that game's player rules.
+3. Backend creates a room in `LOBBY`.
+4. Backend attaches matched players to the room.
+5. Backend immediately runs the same `START_GAME` lifecycle.
+6. Room becomes `IN_GAME`.
+7. Client polls ticket status and navigates directly to the room view.
 
 Quick play is therefore not a separate engine path. It is an automated
 room-start flow.
 
+### Direct Challenge
+
+1. User challenges an accepted friend for an active game.
+2. Backend creates a pending challenge with an expiry timestamp.
+3. Challenged user accepts.
+4. Backend creates a private `LOBBY` room.
+5. Backend attaches challenger and challenged user as participants.
+6. Challenge is marked `ACCEPTED` and the accept response returns room
+   navigation data.
+
+Challenge accept intentionally returns a lobby, not an already-started game,
+so the normal room flow remains the single place where live gameplay starts.
+
 ## Database Schema
 
-Room metadata is persisted in Supabase / Postgres.
+Room metadata is persisted in Supabase Postgres through the V1 schema reset
+migration:
 
-Migration:
-
-- `supabase/migrations/202604191100_room_matchmaking.sql`
-
-Tables:
+- `supabase/migrations/202604281500_v1_schema_reset.sql`
+- `supabase/migrations/202604281510_seed_game_catalog.sql`
+- `supabase/migrations/202604281520_remove_leaderboard_seasons.sql`
 
 ### `public.rooms`
 
 Stores room-level lifecycle and visibility metadata.
 
-Columns:
+Important columns:
 
-- `room_code` primary key
-- `host_player_id`
-- `game_type`
-- `room_status`
-- `is_private`
+- `id`
+- `room_code`
+- `game_id`
+- `host_user_id`
+- `status`
+- `visibility`
+- `max_players`
+- `selected_game_slug`
+- `last_heartbeat_at`
 - `created_at`
 - `updated_at`
 
@@ -77,11 +99,12 @@ Columns:
 
 Stores the participant list for each room.
 
-Columns:
+Important columns:
 
-- `room_code` foreign key to `public.rooms`
-- `player_id`
-- `username`
+- `room_id`
+- `user_id`
+- `username_snapshot`
+- `status`
 - `joined_at`
 - `updated_at`
 
@@ -89,15 +112,15 @@ Columns:
 
 Stores quick-play queue entries.
 
-Columns:
+Important columns:
 
-- `ticket_id`
-- `game_type`
-- `player_id`
-- `username`
+- `id`
+- `game_id`
+- `user_id`
 - `client_session_id`
-- `ticket_status`
-- `room_code`
+- `username_snapshot`
+- `status`
+- `matched_room_id`
 - `min_players`
 - `max_players`
 - `strict_count`
@@ -108,14 +131,17 @@ Columns:
 
 Current persistence boundaries:
 
-- room metadata is persisted in SQL
-- room participants are persisted in SQL
-- matchmaking tickets are persisted in SQL
-- WebSocket connection bindings remain in memory
-- live engine board state remains in memory for now
+- Room metadata is persisted in SQL.
+- Room participants are persisted in SQL.
+- Matchmaking tickets are persisted in SQL.
+- Completed matches, match players, profile stats, and leaderboard scores are
+  persisted in SQL.
+- Friends, challenges, and notifications are persisted in SQL.
+- WebSocket connection bindings remain in memory.
+- Live engine board state remains in memory for now.
 
-This means room recovery is stronger than before, while active match
-engine snapshots still behave like transient runtime state.
+This means room recovery is stronger than before, while active match engine
+snapshots still behave like transient runtime state.
 
 ## Backend Components
 
@@ -123,82 +149,81 @@ engine snapshots still behave like transient runtime state.
 
 Abstraction over room and matchmaking persistence.
 
-Implementations:
+Implementation:
 
 - `JdbcRoomMetadataStore`
 
-The Spring app uses the JDBC implementation. Without a configured datasource,
-startup should fail instead of silently falling back to a second persistence
-model.
+The Spring app uses the JDBC implementation when a datasource is configured.
+Deploys must fail instead of silently falling back to a second persistence
+model when required Supabase datasource settings are missing.
 
 ### `InMemoryRuntimeStore`
 
 Still owns:
 
-- active socket/runtime binding helpers
-- heartbeats
-- room executor queues
-- live engine state maps
+- Active socket/runtime binding helpers
+- Heartbeats and executor queues
+- Live engine state maps
 
-But room metadata operations now delegate through `RoomMetadataStore`.
+Room metadata operations delegate through `RoomMetadataStore`.
 
 ### `GameCatalogService`
 
 Defines:
 
-- min player counts
-- max player counts
-- strict versus threshold queue matching
-- whether quick play is enabled
-- whether realtime engine support exists
+- Game IDs and aliases
+- Min player counts
+- Max player counts
+- Strict versus threshold queue matching
+- Whether quick play is enabled
+- Whether lobby switching is enabled
+- Whether realtime engine support exists
 
 This allows matchmaking behavior to vary by game:
 
-- exact player count games such as `casino` and `krig`
-- threshold-based games such as future poker-style tables
-- instant single-player quick start for `highcard`
+- Exact player count games such as `casino` and `krig`
+- Threshold-based games such as future poker-style tables
+- Instant single-player quick start for `highcard`
 
 ### `MatchmakingService`
 
 Responsibilities:
 
-- enqueue quick-play tickets
-- inspect waiting tickets per game
-- compute whether enough players are available
-- atomically create a room
-- attach matched players
-- trigger `START_GAME`
-- mark tickets as `MATCHED`
+- Enqueue quick-play tickets
+- Inspect waiting tickets per game
+- Compute whether enough players are available
+- Atomically create a room
+- Attach matched players
+- Trigger `START_GAME`
+- Mark tickets as `MATCHED`
 
 ## Engine Contract
 
 All realtime engines should follow the same pattern:
 
-1. If the room status is `LOBBY`, snapshot methods return lobby-shaped
-   room metadata rather than a live board.
+1. If the room status is `LOBBY`, snapshot methods return lobby-shaped room
+   metadata rather than a live board.
 2. `SELECT_GAME` is handled by the centralized lobby coordinator, not by
    engine adapters.
 3. `START_GAME` is the only place where engine state is initialized.
 4. In-game actions are rejected while the room is still in `LOBBY`.
 
-This now applies consistently across High Card, Krig, Casino, Snyd, and
-Fem. Krig is no longer a special-case lobby transition target; it is just
-another `lobbyEnabled` game in the shared coordinator flow.
+This applies consistently across High Card, Krig, Casino, Snyd, and Fem.
 
 ## Frontend Flow
 
 ### Play View
 
-The play screen is now the quick-play entrypoint.
+The play screen is the quick-play entrypoint.
 
 Behavior:
 
-- all primary game actions use `Play`
-- supported realtime games enqueue into matchmaking
-- queue status is shown in the UI
-- the client polls the ticket endpoint
-- when the backend marks the ticket `MATCHED`, the client navigates
-  straight to `view=room`
+- Primary game actions use `Play`.
+- Supported realtime games enqueue into matchmaking.
+- Queue status is shown in the UI.
+- The client polls the ticket endpoint.
+- When the backend marks the ticket `MATCHED`, the client navigates straight
+  to `view=room`.
 
 ### Lobby Browser
 
@@ -206,27 +231,20 @@ The lobby browser is the custom room entrypoint.
 
 Behavior:
 
-- host chooses a game
-- host chooses private or public visibility
-- public rooms appear in the browser
-- public rooms may still be joinable after `IN_GAME` if the game has
-  spare capacity
-- private rooms reject new participants once already running
+- Host chooses a game.
+- Host chooses private or public visibility.
+- Public `LOBBY` rooms appear in the browser.
+- Join endpoint accepts participants only while the room is joinable.
+- Exact-count games usually fill before they start.
 
-## Public vs Private Running Rooms
+### Profile Challenges
 
-The visibility rule is:
-
-- private room + `IN_GAME`: no new participants
-- public room + `IN_GAME`: new participants allowed if capacity remains
-
-This is useful for games with open seats. For exact-count games such as
-Casino and Krig, the room will usually already be full by the time the
-match starts, so the rule matters more for future table games.
+The Profile friends section can send a V1 Snyd challenge to an accepted friend.
+Accepted challenge notifications can create and navigate to a private lobby
+through the normal room route.
 
 ## Current Limitation
 
-The room and matchmaking metadata are now persisted, but live engine
-board state is still in-memory. A future migration can move engine state
-and session recovery into durable storage once the room lifecycle API is
-stable.
+Room and matchmaking metadata are persisted, but live engine board state is
+still in memory. A future migration can move engine state and session recovery
+into durable storage once the room lifecycle API is stable.

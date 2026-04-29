@@ -20,22 +20,33 @@ import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
 import { renderLeaderboardPage, type LeaderboardViewState } from './leaderboard.js';
-import { loadProfileData, renderProfilePage } from './profile.js';
+import { loadProfileData, renderProfilePage, type ProfileFriendUiState } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
+    acceptChallenge,
+    acceptFriendRequest,
     cancelMatchmakingTicket,
     claimRoomIdentity,
     createRoom,
+    createChallenge,
+    declineChallenge,
+    declineFriendRequest,
     enqueueMatchmaking,
     getLeaderboard,
     getMatchmakingTicket,
+    getNotifications,
     joinRoom,
     kickPlayer,
     leaveRoom,
     listRooms,
+    markAllNotificationsRead,
+    markNotificationRead,
+    removeFriendship,
+    sendFriendRequest,
     updateRoomVisibility,
     type LobbyRoomSummary,
     type MatchmakingResponse,
+    type NotificationSummary,
 } from './net/api.js';
 
 type GenericAdapter = GameAdapter<Record<string, unknown>, Record<string, unknown>, unknown>;
@@ -111,6 +122,24 @@ const leaderboardState: LeaderboardViewState = {
     errorMessage: null,
     data: null,
     game: 'snyd',
+};
+
+const profileFriendUiState: ProfileFriendUiState = {
+    addUsername: '',
+    sending: false,
+    busyFriendshipId: null,
+    busyChallengeUserId: null,
+    errorMessage: null,
+};
+
+const notificationsState = {
+    open: false,
+    loading: false,
+    items: [] as NotificationSummary[],
+    unreadCount: 0,
+    errorMessage: null as string | null,
+    busyId: null as string | null,
+    readAllBusy: false,
 };
 
 type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, unknown>>;
@@ -256,6 +285,7 @@ function renderApp() {
             <option value="en">EN</option>
           </select>
 
+          ${renderNotificationsButton()}
           <div id="avatarDisplay" class="avatar hidden" aria-hidden="true"></div>
           <button class="btn" id="loginBtn" data-i18n="top.login"></button>
           <button class="btn primary" id="signupBtn" data-i18n="top.signup"></button>
@@ -304,6 +334,120 @@ function navItem(view: View, i18nKey: string | null, icon: string, literalLabel?
       ${labelHtml}
     </div>
   `;
+}
+
+function renderNotificationsButton(): string {
+    const badge = notificationsState.unreadCount > 0
+        ? `<span class="notification-badge">${notificationsState.unreadCount > 99 ? '99+' : notificationsState.unreadCount}</span>`
+        : '';
+    const panel = notificationsState.open ? renderNotificationsPanel() : '';
+    return `
+    <div class="notification-menu" id="notificationMenu">
+      <button class="btn notification-button hidden" id="notificationsBtn" type="button" aria-expanded="${notificationsState.open ? 'true' : 'false'}" aria-label="${t(state.lang, 'notifications.title')}">
+        <span aria-hidden="true">●</span>
+        ${badge}
+      </button>
+      ${panel}
+    </div>
+  `;
+}
+
+function renderNotificationsPanel(): string {
+    const body = notificationsState.loading
+        ? `<p class="card-desc" data-i18n="notifications.loading"></p>`
+        : notificationsState.errorMessage
+            ? `<p class="card-desc notification-error">${escapeHtml(notificationsState.errorMessage)}</p>`
+            : notificationsState.items.length === 0
+                ? `<p class="card-desc" data-i18n="notifications.empty"></p>`
+                : `<div class="notification-list">${notificationsState.items.map(renderNotificationRow).join('')}</div>`;
+    return `
+    <section class="notification-panel card">
+      <div class="notification-panel-header">
+        <strong data-i18n="notifications.title"></strong>
+        <button class="btn" type="button" data-action="notifications-read-all" ${notificationsState.readAllBusy ? 'disabled' : ''} data-i18n="notifications.readAll"></button>
+      </div>
+      ${body}
+    </section>
+  `;
+}
+
+function renderNotificationRow(notification: NotificationSummary): string {
+    const unread = notification.readAt ? '' : 'unread';
+    const actor = notification.actor?.displayName || notification.actor?.username || t(state.lang, 'notifications.someone');
+    const message = notificationMessage(notification, actor);
+    const actions = notificationActions(notification);
+    return `
+    <article class="notification-row ${unread}">
+      <button class="notification-copy" type="button" data-action="notification-open" data-notification-id="${escapeHtml(notification.id)}">
+        <span>${escapeHtml(message)}</span>
+        <small>${escapeHtml(formatNotificationDate(notification.createdAt))}</small>
+      </button>
+      <div class="notification-actions">
+        ${actions}
+        ${notification.readAt ? '' : `<button class="btn" type="button" data-action="notification-read" data-notification-id="${escapeHtml(notification.id)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.markRead"></button>`}
+      </div>
+    </article>
+  `;
+}
+
+function notificationActions(notification: NotificationSummary): string {
+    const challengeId = stringPayload(notification.payload, 'challengeId');
+    if (notification.type === 'challenge.received' && challengeId) {
+        return `
+          <button class="btn primary" type="button" data-action="notification-challenge-accept" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.accept"></button>
+          <button class="btn" type="button" data-action="notification-challenge-decline" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.decline"></button>
+        `;
+    }
+    const roomCode = stringPayload(notification.payload, 'roomCode');
+    if (roomCode) {
+        return `<button class="btn primary" type="button" data-action="notification-room" data-notification-id="${escapeHtml(notification.id)}" data-room-code="${escapeHtml(roomCode)}" data-game="${escapeHtml(stringPayload(notification.payload, 'gameType') || 'snyd')}" data-i18n="notifications.openRoom"></button>`;
+    }
+    return '';
+}
+
+function notificationMessage(notification: NotificationSummary, actor: string): string {
+    const gameType = stringPayload(notification.payload, 'gameType') || 'snyd';
+    switch (notification.type) {
+        case 'friend.request.received':
+            return t(state.lang, 'notifications.message.friendRequest').replace('{actor}', actor);
+        case 'friend.request.accepted':
+            return t(state.lang, 'notifications.message.friendAccepted').replace('{actor}', actor);
+        case 'challenge.received':
+            return t(state.lang, 'notifications.message.challengeReceived').replace('{actor}', actor).replace('{game}', formatGameName(gameType));
+        case 'challenge.accepted':
+            return t(state.lang, 'notifications.message.challengeAccepted').replace('{actor}', actor).replace('{game}', formatGameName(gameType));
+        case 'challenge.declined':
+            return t(state.lang, 'notifications.message.challengeDeclined').replace('{actor}', actor).replace('{game}', formatGameName(gameType));
+        default:
+            return t(state.lang, 'notifications.message.generic').replace('{actor}', actor);
+    }
+}
+
+function stringPayload(payload: Record<string, unknown>, key: string): string | null {
+    const value = payload[key];
+    return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function formatNotificationDate(value: string | null): string {
+    if (!value) {
+        return '';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return new Intl.DateTimeFormat(state.lang === 'da' ? 'da-DK' : 'en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
+}
+
+function escapeHtml(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
 }
 
 function renderView() {
@@ -877,7 +1021,7 @@ function renderHomepage() {
 
 function renderProfileView(): string {
     if (profileDataCache) {
-        return renderProfilePage(state.lang, profileDataCache);
+        return renderProfilePage(state.lang, profileDataCache, profileFriendUiState);
     }
 
     // Load async, then re-render
@@ -890,6 +1034,232 @@ function renderProfileView(): string {
     <h1 class="h1" data-i18n="profile.title"></h1>
     <p class="sub">${state.lang === 'en' ? 'Loading...' : 'Indlæser...'}</p>
   `;
+}
+
+function resetProfileFriendUi() {
+    profileFriendUiState.addUsername = '';
+    profileFriendUiState.sending = false;
+    profileFriendUiState.busyFriendshipId = null;
+    profileFriendUiState.busyChallengeUserId = null;
+    profileFriendUiState.errorMessage = null;
+}
+
+async function refreshProfileView() {
+    profileDataCache = await loadProfileData();
+    if (state.view === 'profile') {
+        renderView();
+    }
+}
+
+async function handleSendFriendRequest() {
+    const username = profileFriendUiState.addUsername.trim();
+    if (!username) {
+        profileFriendUiState.errorMessage = t(state.lang, 'profile.friends.addRequired');
+        renderView();
+        return;
+    }
+
+    profileFriendUiState.sending = true;
+    profileFriendUiState.errorMessage = null;
+    renderView();
+
+    try {
+        await sendFriendRequest(username);
+        profileFriendUiState.addUsername = '';
+        await refreshNotifications(false);
+        await refreshProfileView();
+    } catch (error) {
+        profileFriendUiState.errorMessage = toErrorMessage(error, t(state.lang, 'profile.friends.addError'));
+        renderView();
+    } finally {
+        profileFriendUiState.sending = false;
+        if (state.view === 'profile') {
+            renderView();
+        }
+    }
+}
+
+async function handleSendChallenge(username: string | undefined, userId: string | undefined) {
+    if (!username || !userId) {
+        return;
+    }
+
+    profileFriendUiState.busyChallengeUserId = userId;
+    profileFriendUiState.errorMessage = null;
+    renderView();
+
+    try {
+        await createChallenge({ username, gameType: 'snyd' });
+        await refreshNotifications(false);
+    } catch (error) {
+        profileFriendUiState.errorMessage = toErrorMessage(error, t(state.lang, 'profile.friends.challengeError'));
+    } finally {
+        profileFriendUiState.busyChallengeUserId = null;
+        if (state.view === 'profile') {
+            renderView();
+        }
+    }
+}
+
+async function handleFriendshipAction(friendshipId: string | undefined, action: 'accept' | 'decline' | 'remove') {
+    if (!friendshipId) {
+        return;
+    }
+
+    profileFriendUiState.busyFriendshipId = friendshipId;
+    profileFriendUiState.errorMessage = null;
+    renderView();
+
+    try {
+        if (action === 'accept') {
+            await acceptFriendRequest(friendshipId);
+        } else if (action === 'decline') {
+            await declineFriendRequest(friendshipId);
+        } else {
+            await removeFriendship(friendshipId);
+        }
+        await refreshNotifications(false);
+        await refreshProfileView();
+    } catch (error) {
+        profileFriendUiState.errorMessage = toErrorMessage(error, t(state.lang, 'profile.friends.actionError'));
+        renderView();
+    } finally {
+        profileFriendUiState.busyFriendshipId = null;
+        if (state.view === 'profile') {
+            renderView();
+        }
+    }
+}
+
+async function refreshNotifications(renderAfter = true) {
+    if (!authUiState.user) {
+        notificationsState.items = [];
+        notificationsState.unreadCount = 0;
+        notificationsState.errorMessage = null;
+        notificationsState.loading = false;
+        if (renderAfter) {
+            renderApp();
+        }
+        return;
+    }
+
+    notificationsState.loading = true;
+    notificationsState.errorMessage = null;
+    if (renderAfter) {
+        renderApp();
+    }
+
+    try {
+        const data = await getNotifications({ limit: 20 });
+        notificationsState.items = data.items;
+        notificationsState.unreadCount = data.unreadCount;
+    } catch (error) {
+        notificationsState.errorMessage = toErrorMessage(error, t(state.lang, 'notifications.error'));
+    } finally {
+        notificationsState.loading = false;
+        if (renderAfter) {
+            renderApp();
+        }
+    }
+}
+
+async function handleMarkNotificationRead(notificationId: string | undefined) {
+    if (!notificationId) {
+        return;
+    }
+    notificationsState.busyId = notificationId;
+    renderApp();
+    try {
+        await markNotificationRead(notificationId);
+        await refreshNotifications(false);
+    } catch (error) {
+        notificationsState.errorMessage = toErrorMessage(error, t(state.lang, 'notifications.actionError'));
+    } finally {
+        notificationsState.busyId = null;
+        renderApp();
+    }
+}
+
+async function handleMarkAllNotificationsRead() {
+    notificationsState.readAllBusy = true;
+    renderApp();
+    try {
+        await markAllNotificationsRead();
+        await refreshNotifications(false);
+    } catch (error) {
+        notificationsState.errorMessage = toErrorMessage(error, t(state.lang, 'notifications.actionError'));
+    } finally {
+        notificationsState.readAllBusy = false;
+        renderApp();
+    }
+}
+
+async function handleOpenNotification(notificationId: string | undefined) {
+    const notification = notificationsState.items.find((item) => item.id === notificationId);
+    if (!notification) {
+        return;
+    }
+    if (!notification.readAt) {
+        await markNotificationRead(notification.id);
+    }
+    notificationsState.open = false;
+    const roomCode = stringPayload(notification.payload, 'roomCode');
+    if (roomCode) {
+        navigate({
+            view: 'lobby',
+            game: stringPayload(notification.payload, 'gameType') || 'snyd',
+            room: roomCode,
+            mock: false,
+        });
+        return;
+    }
+    navigate({ view: 'profile' });
+}
+
+async function handleNotificationChallenge(notificationId: string | undefined, challengeId: string | undefined, accept: boolean) {
+    if (!notificationId || !challengeId) {
+        return;
+    }
+    notificationsState.busyId = notificationId;
+    renderApp();
+    try {
+        if (accept) {
+            const result = await acceptChallenge(challengeId);
+            await markNotificationRead(notificationId);
+            notificationsState.open = false;
+            navigate({
+                view: supportsLobbyLifecycle(result.room.selectedGame) ? 'lobby' : 'room',
+                game: result.room.selectedGame,
+                room: result.room.roomCode,
+                mock: false,
+            });
+            return;
+        }
+        await declineChallenge(challengeId);
+        await markNotificationRead(notificationId);
+        await refreshNotifications(false);
+    } catch (error) {
+        notificationsState.errorMessage = toErrorMessage(error, t(state.lang, 'notifications.actionError'));
+    } finally {
+        notificationsState.busyId = null;
+        renderApp();
+    }
+}
+
+async function handleNotificationRoom(notificationId: string | undefined, roomCode: string | undefined, game: string | undefined) {
+    if (!roomCode) {
+        return;
+    }
+    if (notificationId) {
+        await markNotificationRead(notificationId);
+    }
+    notificationsState.open = false;
+    navigate({
+        view: 'lobby',
+        game: game || 'snyd',
+        room: roomCode,
+        mock: false,
+    });
 }
 
 function ensureLeaderboardLoaded() {
@@ -1059,7 +1429,42 @@ function wireViewEvents() {
         if (!supabase) return;
         await supabase.auth.signOut();
         profileDataCache = null;
+        resetProfileFriendUi();
         navigate({ view: 'home' });
+    });
+
+    const friendUsernameInput = document.getElementById('friendUsernameInput') as HTMLInputElement | null;
+    friendUsernameInput?.addEventListener('input', () => {
+        profileFriendUiState.addUsername = friendUsernameInput.value;
+    });
+
+    document.getElementById('friendRequestForm')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void handleSendFriendRequest();
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-accept"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleFriendshipAction(button.dataset.friendshipId, 'accept');
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-decline"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleFriendshipAction(button.dataset.friendshipId, 'decline');
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-remove"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleFriendshipAction(button.dataset.friendshipId, 'remove');
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-challenge"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleSendChallenge(button.dataset.username, button.dataset.userId);
+        });
     });
 }
 
@@ -1122,6 +1527,48 @@ function wireEvents() {
     if (profileBtn) {
         profileBtn.onclick = () => navigate({ view: 'profile' });
     }
+
+    document.getElementById('notificationsBtn')?.addEventListener('click', () => {
+        notificationsState.open = !notificationsState.open;
+        if (notificationsState.open) {
+            void refreshNotifications();
+        }
+        renderApp();
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="notifications-read-all"]')?.addEventListener('click', () => {
+        void handleMarkAllNotificationsRead();
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-read"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleMarkNotificationRead(button.dataset.notificationId);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-open"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleOpenNotification(button.dataset.notificationId);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-challenge-accept"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleNotificationChallenge(button.dataset.notificationId, button.dataset.challengeId, true);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-challenge-decline"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleNotificationChallenge(button.dataset.notificationId, button.dataset.challengeId, false);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-room"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleNotificationRoom(button.dataset.notificationId, button.dataset.roomCode, button.dataset.game);
+        });
+    });
 }
 
 function wireRoomEvents() {
@@ -1565,6 +2012,7 @@ function applyAuthUI() {
     const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null;
     const signupBtn = document.getElementById('signupBtn') as HTMLButtonElement | null;
     const profileBtn = document.getElementById('profileBtn') as HTMLButtonElement | null;
+    const notificationsBtn = document.getElementById('notificationsBtn') as HTMLButtonElement | null;
     const avatarDisplay = document.getElementById('avatarDisplay') as HTMLDivElement | null;
 
     if (!loginBtn || !signupBtn || !profileBtn) return;
@@ -1578,6 +2026,7 @@ function applyAuthUI() {
         signupBtn.onclick = null;
         profileBtn.textContent = state.lang === 'en' ? 'Loading...' : 'Indlæser...';
         profileBtn.onclick = null;
+        notificationsBtn?.classList.add('hidden');
         avatarDisplay?.classList.add('hidden');
         return;
     }
@@ -1596,6 +2045,8 @@ function applyAuthUI() {
             avatarDisplay.classList.add('hidden');
             avatarDisplay.style.background = '';
         }
+        notificationsBtn?.classList.add('hidden');
+        notificationsState.open = false;
         return;
     }
 
@@ -1607,6 +2058,7 @@ function applyAuthUI() {
     signupBtn.onclick = () => navigate('/custom');
     profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
     profileBtn.onclick = () => navigate({ view: 'profile' });
+    notificationsBtn?.classList.remove('hidden');
 
     if (!avatarDisplay) return;
     if (!authUiState.avatar) {
@@ -1647,6 +2099,13 @@ async function syncAuthState(renderAfter = true) {
             ? { id: user.id, username: await loadProfileUsername(user.id, user.user_metadata?.username) }
             : null;
         authUiState.avatar = user ? await loadAvatarData(user.id) : null;
+        if (authUiState.user) {
+            await refreshNotifications(false);
+        } else {
+            notificationsState.items = [];
+            notificationsState.unreadCount = 0;
+            notificationsState.open = false;
+        }
     } catch (error) {
         console.error('Failed to sync auth UI', error);
         authUiState.initialized = true;
