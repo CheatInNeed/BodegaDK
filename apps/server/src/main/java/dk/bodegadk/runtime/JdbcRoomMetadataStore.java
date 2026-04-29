@@ -2,6 +2,7 @@ package dk.bodegadk.runtime;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -28,24 +29,30 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     }
 
     @Override
-    public void createRoom(String roomCode, String hostPlayerId, boolean isPrivate, String gameType, InMemoryRuntimeStore.RoomStatus status) {
+    public void createRoom(String roomCode, String hostUserId, RoomVisibility visibility, String gameType, InMemoryRuntimeStore.RoomStatus status) {
         jdbcTemplate.update(
                 """
-                insert into public.rooms (room_code, host_player_id, game_type, room_status, is_private)
-                values (?, ?, ?, ?, ?)
+                insert into public.rooms (room_code, game_id, host_user_id, status, visibility)
+                values (?, public.resolve_game_id(?), ?::uuid, ?, ?)
                 """,
                 roomCode,
-                hostPlayerId,
                 gameType,
+                hostUserId,
                 status.name(),
-                isPrivate
+                visibility.name()
         );
     }
 
     @Override
     public Optional<StoredRoom> room(String roomCode) {
         List<StoredRoom> rooms = jdbcTemplate.query(
-                "select room_code, host_player_id, is_private, game_type, room_status from public.rooms where room_code = ?",
+                """
+                select rooms.room_code, rooms.host_user_id::text as host_user_id, rooms.visibility,
+                       games.slug as game_type, rooms.status
+                from public.rooms
+                join public.games on games.id = rooms.game_id
+                where rooms.room_code = ?
+                """,
                 (rs, rowNum) -> mapRoom(rs, loadParticipants(roomCode)),
                 roomCode
         );
@@ -55,7 +62,14 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     @Override
     public List<StoredRoom> publicRooms() {
         return jdbcTemplate.query(
-                "select room_code, host_player_id, is_private, game_type, room_status from public.rooms where is_private = false and room_status <> 'FINISHED' order by room_code asc",
+                """
+                select rooms.room_code, rooms.host_user_id::text as host_user_id, rooms.visibility,
+                       games.slug as game_type, rooms.status
+                from public.rooms
+                join public.games on games.id = rooms.game_id
+                where rooms.visibility = 'PUBLIC' and rooms.status = 'LOBBY'
+                order by rooms.created_at asc, rooms.room_code asc
+                """,
                 (rs, rowNum) -> {
                     String roomCode = rs.getString("room_code");
                     return mapRoom(rs, loadParticipants(roomCode));
@@ -64,34 +78,42 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     }
 
     @Override
-    public void upsertParticipant(String roomCode, String playerId, String username) {
+    public void upsertParticipant(String roomCode, String userId, String username) {
         jdbcTemplate.update(
                 """
-                insert into public.room_players (room_code, player_id, username)
-                values (?, ?, ?)
-                on conflict (room_code, player_id) do update
-                set username = excluded.username
+                insert into public.room_players (room_id, user_id, status, username_snapshot)
+                select rooms.id, ?::uuid, 'JOINED', ?
+                from public.rooms
+                where rooms.room_code = ?
+                on conflict (room_id, user_id) do update
+                set status = 'JOINED',
+                    username_snapshot = excluded.username_snapshot
+                """,
+                userId,
+                username,
+                roomCode
+        );
+    }
+
+    @Override
+    public void removeParticipant(String roomCode, String userId) {
+        jdbcTemplate.update(
+                """
+                update public.room_players
+                set status = 'LEFT'
+                where room_id = (select id from public.rooms where room_code = ?)
+                  and user_id = ?::uuid
                 """,
                 roomCode,
-                playerId,
-                username
+                userId
         );
     }
 
     @Override
-    public void removeParticipant(String roomCode, String playerId) {
+    public void updateRoomHost(String roomCode, String hostUserId) {
         jdbcTemplate.update(
-                "delete from public.room_players where room_code = ? and player_id = ?",
-                roomCode,
-                playerId
-        );
-    }
-
-    @Override
-    public void updateRoomHost(String roomCode, String hostPlayerId) {
-        jdbcTemplate.update(
-                "update public.rooms set host_player_id = ? where room_code = ?",
-                hostPlayerId,
+                "update public.rooms set host_user_id = ?::uuid where room_code = ?",
+                hostUserId,
                 roomCode
         );
     }
@@ -99,8 +121,17 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     @Override
     public void updateRoomGameType(String roomCode, String gameType) {
         jdbcTemplate.update(
-                "update public.rooms set game_type = ? where room_code = ?",
+                "update public.rooms set game_id = public.resolve_game_id(?) where room_code = ?",
                 gameType,
+                roomCode
+        );
+    }
+
+    @Override
+    public void updateRoomVisibility(String roomCode, RoomVisibility visibility) {
+        jdbcTemplate.update(
+                "update public.rooms set visibility = ? where room_code = ?",
+                visibility.name(),
                 roomCode
         );
     }
@@ -108,7 +139,7 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     @Override
     public void updateRoomStatus(String roomCode, InMemoryRuntimeStore.RoomStatus status) {
         jdbcTemplate.update(
-                "update public.rooms set room_status = ?, last_heartbeat = case when ? = 'IN_GAME' then now() else last_heartbeat end where room_code = ?",
+                "update public.rooms set status = ?, last_heartbeat = case when ? = 'IN_GAME' then now() else last_heartbeat end where room_code = ?",
                 status.name(),
                 status.name(),
                 roomCode
@@ -117,21 +148,21 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
 
     @Override
     public void deleteRoom(String roomCode) {
-        jdbcTemplate.update("delete from public.rooms where room_code = ?", roomCode);
+        jdbcTemplate.update("update public.rooms set status = 'ABANDONED' where room_code = ?", roomCode);
     }
 
     @Override
-    public UUID enqueueTicket(String gameType, String playerId, String username, String token, int minPlayers, int maxPlayers, boolean strictCount) {
+    public UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId, int minPlayers, int maxPlayers, boolean strictCount) {
         List<UUID> existingTickets = jdbcTemplate.query(
                 """
-                select ticket_id
+                select id
                 from public.matchmaking_tickets
-                where player_id = ? and ticket_status = 'WAITING'
+                where user_id = ?::uuid and status = 'WAITING'
                 order by created_at asc
                 limit 1
                 """,
-                (rs, rowNum) -> UUID.fromString(rs.getString("ticket_id")),
-                playerId
+                (rs, rowNum) -> UUID.fromString(rs.getString("id")),
+                userId
         );
         if (!existingTickets.isEmpty()) {
             return existingTickets.getFirst();
@@ -141,14 +172,14 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
         jdbcTemplate.update(
                 """
                 insert into public.matchmaking_tickets
-                    (ticket_id, game_type, player_id, username, session_token, ticket_status, min_players, max_players, strict_count)
-                values (?, ?, ?, ?, ?, 'WAITING', ?, ?, ?)
+                    (id, game_id, user_id, client_session_id, username_snapshot, status, min_players, max_players, strict_count)
+                values (?, public.resolve_game_id(?), ?::uuid, ?, ?, 'WAITING', ?, ?, ?)
                 """,
                 ticketId,
                 gameType,
-                playerId,
+                userId,
+                clientSessionId,
                 username,
-                token,
                 minPlayers,
                 maxPlayers,
                 strictCount
@@ -160,10 +191,13 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     public Optional<MatchmakingTicket> ticket(UUID ticketId) {
         List<MatchmakingTicket> tickets = jdbcTemplate.query(
                 """
-                select ticket_id, game_type, player_id, username, session_token, ticket_status, room_code,
-                       min_players, max_players, strict_count, created_at
-                from public.matchmaking_tickets
-                where ticket_id = ?
+                select tickets.id, games.slug as game_type, tickets.user_id::text as user_id,
+                       tickets.username_snapshot, tickets.client_session_id, tickets.status,
+                       rooms.room_code, tickets.min_players, tickets.max_players, tickets.strict_count, tickets.created_at
+                from public.matchmaking_tickets tickets
+                join public.games on games.id = tickets.game_id
+                left join public.rooms on rooms.id = tickets.matched_room_id
+                where tickets.id = ?
                 """,
                 ticketMapper(),
                 ticketId
@@ -175,11 +209,14 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     public List<MatchmakingTicket> waitingTickets(String gameType) {
         return jdbcTemplate.query(
                 """
-                select ticket_id, game_type, player_id, username, session_token, ticket_status, room_code,
-                       min_players, max_players, strict_count, created_at
-                from public.matchmaking_tickets
-                where game_type = ? and ticket_status = 'WAITING'
-                order by created_at asc
+                select tickets.id, games.slug as game_type, tickets.user_id::text as user_id,
+                       tickets.username_snapshot, tickets.client_session_id, tickets.status,
+                       rooms.room_code, tickets.min_players, tickets.max_players, tickets.strict_count, tickets.created_at
+                from public.matchmaking_tickets tickets
+                join public.games on games.id = tickets.game_id
+                left join public.rooms on rooms.id = tickets.matched_room_id
+                where games.slug = ? and tickets.status = 'WAITING'
+                order by tickets.created_at asc
                 """,
                 ticketMapper(),
                 gameType
@@ -189,7 +226,12 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     @Override
     public void markTicketMatched(UUID ticketId, String roomCode) {
         jdbcTemplate.update(
-                "update public.matchmaking_tickets set ticket_status = 'MATCHED', room_code = ? where ticket_id = ?",
+                """
+                update public.matchmaking_tickets
+                set status = 'MATCHED',
+                    matched_room_id = (select id from public.rooms where room_code = ?)
+                where id = ?
+                """,
                 roomCode,
                 ticketId
         );
@@ -198,18 +240,23 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     @Override
     public void cancelTicket(UUID ticketId) {
         jdbcTemplate.update(
-                "update public.matchmaking_tickets set ticket_status = 'CANCELLED' where ticket_id = ?",
+                "update public.matchmaking_tickets set status = 'CANCELLED' where id = ?",
                 ticketId
         );
+    }
+
+    @Override
+    public void markRoomAbandoned(String roomCode) {
+        jdbcTemplate.update("update public.rooms set status = 'ABANDONED' where room_code = ?", roomCode);
     }
 
     private StoredRoom mapRoom(ResultSet rs, List<InMemoryRuntimeStore.PlayerSummary> participants) throws SQLException {
         return new StoredRoom(
                 rs.getString("room_code"),
-                rs.getString("host_player_id"),
-                rs.getBoolean("is_private"),
+                rs.getString("host_user_id"),
+                RoomVisibility.valueOf(rs.getString("visibility")),
                 rs.getString("game_type"),
-                InMemoryRuntimeStore.RoomStatus.valueOf(rs.getString("room_status")),
+                InMemoryRuntimeStore.RoomStatus.valueOf(rs.getString("status")),
                 participants
         );
     }
@@ -217,24 +264,25 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     private List<InMemoryRuntimeStore.PlayerSummary> loadParticipants(String roomCode) {
         return jdbcTemplate.query(
                 """
-                select player_id, username
+                select user_id::text as user_id, username_snapshot
                 from public.room_players
-                where room_code = ?
-                order by joined_at asc, player_id asc
+                where room_id = (select id from public.rooms where room_code = ?)
+                  and status in ('JOINED', 'READY', 'DISCONNECTED')
+                order by joined_at asc, user_id asc
                 """,
-                (rs, rowNum) -> new InMemoryRuntimeStore.PlayerSummary(rs.getString("player_id"), rs.getString("username")),
+                (rs, rowNum) -> new InMemoryRuntimeStore.PlayerSummary(rs.getString("user_id"), rs.getString("username_snapshot")),
                 roomCode
         );
     }
 
     private RowMapper<MatchmakingTicket> ticketMapper() {
         return (rs, rowNum) -> new MatchmakingTicket(
-                UUID.fromString(rs.getString("ticket_id")),
+                UUID.fromString(rs.getString("id")),
                 rs.getString("game_type"),
-                rs.getString("player_id"),
-                rs.getString("username"),
-                rs.getString("session_token"),
-                MatchmakingTicketStatus.valueOf(rs.getString("ticket_status")),
+                rs.getString("user_id"),
+                rs.getString("username_snapshot"),
+                rs.getString("client_session_id"),
+                MatchmakingTicketStatus.valueOf(rs.getString("status")),
                 rs.getString("room_code"),
                 rs.getInt("min_players"),
                 rs.getInt("max_players"),

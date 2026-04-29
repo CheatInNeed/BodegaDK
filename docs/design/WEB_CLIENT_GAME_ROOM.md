@@ -33,12 +33,11 @@ Nødvendige query params:
 -   `view=room`
 -   `game=<mode>`
 -   `room=<roomCode>`
--   `token=<player token>`
 
 Eksempel:
 
 ``` text
-/?view=room&game=snyd&room=ABC123&token=p1
+/?view=room&game=snyd&room=ABC123
 ```
 
 Valgfri:
@@ -89,11 +88,11 @@ Valgfri:
 ## Runtime flow
 
 1.  `index.ts` ser `view=room`
-2.  Route valideres (`game`, `room`, `token`)
+2.  Route valideres (`game`, `room`)
 3.  Adapter findes for valgt game mode
 4.  `createGameRoomSession(...)` oprettes
 5.  Session åbner transport
-6.  Ved open sendes `CONNECT`
+6.  Ved open sendes `CONNECT` med Supabase `accessToken`
 7.  Indkommende messages parses og dispatches til store
 8.  Store opdaterer room state
 9.  Adapter laver view model
@@ -239,20 +238,37 @@ Clienten håndterer:
 
 ## Integration contract med backend
 
-Når backend implementeres i `apps/server`, skal den understøtte samme WS contract
-som i `docs/PROTOCOL.md`:
+Backend contracten ligger i `docs/design/PROTOCOL.md`.
 
--   inbound: `CONNECT`, `PLAY_CARDS`, `CALL_SNYD`
--   outbound: `STATE_SNAPSHOT`, `PUBLIC_UPDATE`, `PRIVATE_UPDATE`, `ERROR`, `GAME_FINISHED`
+WebSocket inbound messages include:
 
-Clienten er allerede wired til dette format.
+-   `CONNECT`
+-   `START_GAME`
+-   `SELECT_GAME`
+-   game-specific actions such as `PLAY_CARDS`, `CALL_SNYD`,
+    `CASINO_PLAY_MOVE`, `FLIP_CARD`, and Fem actions
+
+WebSocket outbound messages include:
+
+-   `STATE_SNAPSHOT`
+-   `PUBLIC_UPDATE`
+-   `PRIVATE_UPDATE`
+-   `ERROR`
+-   `GAME_FINISHED`
+
+Room setup, matchmaking, profile history/stats, leaderboard, friends,
+challenges, and notifications use authenticated REST APIs documented in the
+same protocol file.
 
 ------------------------------------------------------------------------
 
 ## Non-goals i denne iteration
 
--   Casino og HighCard har server-authoritative engine integration
--   Ingen persistence/history integration
--   Ingen reconnect replay/resync strategi ud over reconnecting status
+-   Live engine board-state persistence/replay. Room metadata, completed match
+    history, profile stats, leaderboard scores, friends, challenges, and
+    notifications are persisted, but active game snapshots remain runtime
+    memory.
+-   Reconnect replay/resync strategy beyond reconnecting status and the normal
+    snapshot/update flow.
 
 ------------------------------------------------------------------------

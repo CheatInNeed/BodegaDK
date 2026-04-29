@@ -28,5 +28,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedOrigins("http://localhost:5173")
                 .allowedMethods("GET", "DELETE", "OPTIONS")
                 .allowedHeaders("*");
+        registry.addMapping("/me/matches")
+                .allowedOrigins("http://localhost:5173")
+                .allowedMethods("GET", "OPTIONS")
+                .allowedHeaders("*");
+        registry.addMapping("/me/stats")
+                .allowedOrigins("http://localhost:5173")
+                .allowedMethods("GET", "OPTIONS")
+                .allowedHeaders("*");
+        registry.addMapping("/leaderboard")
+                .allowedOrigins("http://localhost:5173")
+                .allowedMethods("GET", "OPTIONS")
+                .allowedHeaders("*");
     }
 }

@@ -124,9 +124,9 @@ export type GameAdapter<TPublic extends Record<string, unknown>, TPrivate extend
 
 export type RoomBootstrap = {
     roomCode: string;
-    token: string;
     game: string;
     useMock: boolean;
+    mockClientId?: string;
 };
 
 export type RoomTransportHandlers = {

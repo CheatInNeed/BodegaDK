@@ -5,7 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.runtime.GameLoopService;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
+import dk.bodegadk.runtime.MatchmakingService;
+import dk.bodegadk.runtime.MatchHistoryStore;
+import dk.bodegadk.runtime.RoomMetadataStore;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -28,14 +34,20 @@ public class GameWsHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final InMemoryRuntimeStore runtimeStore;
     private final GameLoopService gameLoopService;
+    private final RoomMetadataStore roomMetadataStore;
+    private final MatchHistoryStore matchHistoryStore;
+    private final JwtDecoder jwtDecoder;
 
     private final ConcurrentMap<String, WebSocketSession> sessionsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ConnectionBinding> bindingsById = new ConcurrentHashMap<>();
 
-    public GameWsHandler(ObjectMapper objectMapper, InMemoryRuntimeStore runtimeStore, GameLoopService gameLoopService) {
+    public GameWsHandler(ObjectMapper objectMapper, InMemoryRuntimeStore runtimeStore, GameLoopService gameLoopService, RoomMetadataStore roomMetadataStore, MatchHistoryStore matchHistoryStore, JwtDecoder jwtDecoder) {
         this.objectMapper = objectMapper;
         this.runtimeStore = runtimeStore;
         this.gameLoopService = gameLoopService;
+        this.roomMetadataStore = roomMetadataStore;
+        this.matchHistoryStore = matchHistoryStore;
+        this.jwtDecoder = jwtDecoder;
     }
 
     @Override
@@ -121,14 +133,40 @@ public class GameWsHandler extends TextWebSocketHandler {
 
     private void handleConnect(WebSocketSession session, InboundMessage inbound) {
         String roomCode = inbound.payload.path("roomCode").asText("");
-        String token = inbound.payload.path("token").asText("");
+        String accessToken = inbound.payload.path("accessToken").asText("");
         String requestedGame = inbound.payload.path("game").asText("");
 
-        if (roomCode.isBlank() || token.isBlank()) {
+        if (roomCode.isBlank() || accessToken.isBlank()) {
             sendError(session, "BAD_MESSAGE: invalid envelope or type");
             closeQuietly(session);
             return;
         }
+
+        Jwt jwt;
+        try {
+            jwt = jwtDecoder.decode(accessToken);
+        } catch (JwtException exception) {
+            sendError(session, "AUTH_REQUIRED: invalid access token");
+            closeQuietly(session);
+            return;
+        }
+        String userId = jwt.getSubject();
+        if (userId == null || userId.isBlank()) {
+            sendError(session, "AUTH_REQUIRED: invalid access token");
+            closeQuietly(session);
+            return;
+        }
+
+        RoomMetadataStore.StoredRoom storedRoom = roomMetadataStore.room(roomCode).orElse(null);
+        if (storedRoom == null || storedRoom.participants().stream().noneMatch(player -> userId.equals(player.playerId()))) {
+            sendError(session, "SESSION_NOT_READY: session validation unavailable");
+            closeQuietly(session);
+            return;
+        }
+        if (!runtimeStore.roomExists(roomCode)) {
+            hydrateRuntimeRoom(storedRoom);
+        }
+        String token = MatchmakingService.runtimeToken(roomCode, userId);
 
         Optional<String> roomGameType = runtimeStore.roomGameType(roomCode);
         if (roomGameType.isEmpty()) {
@@ -203,11 +241,11 @@ public class GameWsHandler extends TextWebSocketHandler {
 
         runtimeStore.submit(binding.roomCode, () -> {
             GameLoopService.LoopResult result = gameLoopService.handleAction(command);
-            publishResult(actorSession.getId(), binding.roomCode, result);
+            publishResult(actorSession.getId(), binding.roomCode, inbound.type, result);
         });
     }
 
-    private void publishResult(String actorSessionId, String roomCode, GameLoopService.LoopResult result) {
+    private void publishResult(String actorSessionId, String roomCode, String actionType, GameLoopService.LoopResult result) {
         WebSocketSession actor = sessionsById.get(actorSessionId);
 
         if (result == null) {
@@ -230,10 +268,27 @@ public class GameWsHandler extends TextWebSocketHandler {
             }
         }
 
+        if ("START_GAME".equals(actionType)) {
+            roomMetadataStore.updateRoomStatus(roomCode, InMemoryRuntimeStore.RoomStatus.IN_GAME);
+        }
+
         if (result.finished()) {
             ObjectNode payload = objectMapper.createObjectNode();
             payload.put("winnerPlayerId", result.winnerPlayerId());
+            matchHistoryStore.recordCompletedMatch(roomCode, result.winnerPlayerId(), result.publicUpdate());
             broadcastToRoom(roomCode, "GAME_FINISHED", payload);
+        }
+    }
+
+    private void hydrateRuntimeRoom(RoomMetadataStore.StoredRoom room) {
+        runtimeStore.mirrorRoom(room.roomCode(), room.selectedGame(), room.isPrivate(), room.hostPlayerId(), room.status());
+        for (InMemoryRuntimeStore.PlayerSummary participant : room.participants()) {
+            runtimeStore.joinRoom(
+                    room.roomCode(),
+                    participant.playerId(),
+                    participant.username(),
+                    MatchmakingService.runtimeToken(room.roomCode(), participant.playerId())
+            );
         }
     }
 

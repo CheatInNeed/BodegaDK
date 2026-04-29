@@ -9,9 +9,9 @@ This homepage must reflect the locked design:
 -   **Real**
     -   Matchmaking hub
     -   Games card / game discovery
+    -   Leaderboard
 -   **Placeholder**
     -   Continue Game
-    -   Leaderboard
     -   Profile
     -   Invite / Friends
     -   Stats
@@ -59,7 +59,6 @@ where support is already verified.
 -   No new backend endpoints
 -   No new Supabase queries
 -   No session persistence
--   No leaderboard logic
 -   No profile data wiring beyond placeholder
 -   No invite/friends system
 -   No global stats system
@@ -112,9 +111,9 @@ Home view
   top action row
     Continue Game (placeholder)
     Rooms / Create / Join (real matchmaking hub)
-  content grid
+    content grid
     Games (real)
-    Leaderboard (placeholder)
+    Leaderboard (real)
     Profile (placeholder)
     Invite / Friends (placeholder)
     Stats (placeholder)
@@ -138,15 +137,16 @@ The homepage currently renders the following visible cards/sections in
     -   Reuses the existing `playCards()` output with the lobby promo removed
     -   The section itself is real because it exposes the existing game
         discovery and `open-game` interactions
--   Leaderboard card: placeholder
+-   Leaderboard card: real
+    -   Opens the authenticated `?view=leaderboard` screen
 -   Profile card: placeholder
 -   Invite / Friends card: placeholder
 -   Stats card: placeholder
 
 Clarification:
 
--   The homepage now shows two real cards: `Rooms / Create / Join`
-    and `Games`
+-   The homepage now shows three real cards: `Rooms / Create / Join`,
+    `Games`, and `Leaderboard`
 -   Remaining unsupported cards must render as subtle disabled cards with a
     small muted availability label rather than placeholder pills or action
     buttons
@@ -160,7 +160,7 @@ Clarification:
     -   Continue Game placeholder
     -   Rooms / Create / Join matchmaking hub
     -   Games card with real existing game cards
-    -   Leaderboard placeholder
+    -   Leaderboard card with real navigation to the leaderboard screen
     -   Profile placeholder
     -   Invite/Friends placeholder
     -   Stats placeholder

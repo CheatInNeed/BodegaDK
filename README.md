@@ -3,7 +3,13 @@
 Browser-based card game platform with:
 - `apps/web` (TypeScript web client)
 - `apps/server` (Spring Boot backend)
-- `infra` (nginx + postgres + compose)
+- `infra` (nginx + server compose)
+- `supabase/migrations` (canonical app schema migrations)
+
+Current platform capabilities include Supabase auth/profile support, durable
+room and matchmaking metadata, server-authoritative realtime games, match
+history, profile stats, all-time leaderboards, friends, direct challenges, and
+notifications.
 
 ## Quick Start (Fast Local Dev)
 
@@ -15,26 +21,31 @@ npm run local:dev
 ```
 
 This starts:
-- server on `http://localhost:8080` (local profile, no DB required)
+- server on `http://localhost:8080` (local profile)
 - web on `http://localhost:5173`
 - TypeScript watch + rebuild
 
-## Run Server + DB on localhost (Docker)
+The server uses Supabase Postgres for durable storage, so provide
+`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and
+`SPRING_DATASOURCE_PASSWORD` through shell env or `.env.local` before running
+server-backed flows.
 
-If you want postgres-backed stack pieces locally:
+## Run Docker Stack Locally
+
+If you want nginx plus the server container locally:
 
 ```bash
 cd infra
-docker compose up -d db server
+docker compose up -d --build
 ```
 
 Health check:
 
 ```bash
-curl -i http://localhost:8080/health
+curl -i http://localhost/api/health
 ```
 
-## Full Stack (nginx + server + db)
+## Full Stack (nginx + server)
 
 ```bash
 npm run deploy:update
@@ -43,10 +54,14 @@ npm run deploy:update
 Open:
 - `http://localhost`
 
+Docker deploys require Supabase datasource and JWT/public config environment;
+see [docs/instructions/SERVER_GUIDE.md](/Users/alex/WebstormProjects/BodegaDK/docs/instructions/SERVER_GUIDE.md).
+
 ## Useful Commands
 
 ```bash
 npm run web:build
+cd apps/server && mvn test
 npm run server:local
 npm run web:watch
 npm run web:dev

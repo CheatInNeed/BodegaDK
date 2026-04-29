@@ -10,10 +10,12 @@ public class LobbyCoordinator {
 
     private final InMemoryRuntimeStore runtimeStore;
     private final GameCatalogService gameCatalogService;
+    private final RoomMetadataStore roomMetadataStore;
 
-    public LobbyCoordinator(InMemoryRuntimeStore runtimeStore, GameCatalogService gameCatalogService) {
+    public LobbyCoordinator(InMemoryRuntimeStore runtimeStore, GameCatalogService gameCatalogService, RoomMetadataStore roomMetadataStore) {
         this.runtimeStore = runtimeStore;
         this.gameCatalogService = gameCatalogService;
+        this.roomMetadataStore = roomMetadataStore;
     }
 
     public boolean supports(GameLoopService.ActionCommand command) {
@@ -42,6 +44,7 @@ public class LobbyCoordinator {
         try {
             runtimeStore.selectGame(command.roomCode(), command.playerId(), definition.id())
                     .orElseThrow(() -> new IllegalStateException("Room not found"));
+            roomMetadataStore.updateRoomGameType(command.roomCode(), definition.id());
         } catch (IllegalStateException exception) {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + exception.getMessage());
         }

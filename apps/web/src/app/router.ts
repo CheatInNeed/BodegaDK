@@ -1,10 +1,9 @@
-export type View = 'home' | 'play' | 'settings' | 'help' | 'room' | 'lobby-browser' | 'lobby' | 'profile';
+export type View = 'home' | 'play' | 'settings' | 'help' | 'room' | 'lobby-browser' | 'lobby' | 'profile' | 'leaderboard';
 
 export type AppRoute = {
     view: View;
     game: string | null;
     room: string | null;
-    token: string | null;
     mock: boolean;
 };
 
@@ -19,7 +18,6 @@ export function readRoute(): AppRoute {
         view,
         game: params.get('game'),
         room: params.get('room'),
-        token: params.get('token'),
         mock: params.get('mock') === '1',
     };
 }
@@ -36,12 +34,11 @@ export function writeRoute(patch: Partial<AppRoute>) {
         ...patch,
     };
 
-    if (requestedView === 'home' || requestedView === 'play' || requestedView === 'settings' || requestedView === 'help' || requestedView === 'lobby-browser' || requestedView === 'profile') {
+    if (requestedView === 'home' || requestedView === 'play' || requestedView === 'settings' || requestedView === 'help' || requestedView === 'lobby-browser' || requestedView === 'profile' || requestedView === 'leaderboard') {
         next = {
             ...next,
             game: patch.game ?? null,
             room: patch.room ?? null,
-            token: patch.token ?? null,
             mock: patch.mock ?? false,
         };
     }
@@ -51,7 +48,6 @@ export function writeRoute(patch: Partial<AppRoute>) {
             ...next,
             game: patch.game ?? next.game,
             room: patch.room ?? next.room,
-            token: patch.token ?? next.token,
             mock: patch.mock ?? next.mock,
         };
     }
@@ -61,7 +57,7 @@ export function writeRoute(patch: Partial<AppRoute>) {
 
     setNullable(params, 'game', next.game);
     setNullable(params, 'room', next.room);
-    setNullable(params, 'token', next.token);
+    params.delete('token');
 
     if (next.mock) {
         params.set('mock', '1');
@@ -84,6 +80,7 @@ function parseView(value: string | null): View {
         || value === 'lobby-browser'
         || value === 'lobby'
         || value === 'profile'
+        || value === 'leaderboard'
     ) {
         return value;
     }

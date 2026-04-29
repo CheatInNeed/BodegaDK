@@ -68,10 +68,23 @@ function wireCustomEvents() {
             return;
         }
 
-        await supabase.from('avatars').upsert({
+        const avatarKey = selectedShape === 'circle' ? 'default_circle' : 'default_square';
+        const { data: avatarDef, error: avatarDefError } = await supabase
+            .from('avatar_defs')
+            .select('id')
+            .eq('key', avatarKey)
+            .single();
+
+        if (avatarDefError || !avatarDef?.id) {
+            alert("Avatar definition not found");
+            return;
+        }
+
+        await supabase.from('user_avatars').upsert({
             user_id: user.id,
-            avatar_color: selectedColor,
-            avatar_shape: selectedShape
+            avatar_def_id: avatarDef.id,
+            color: selectedColor,
+            options: { shape: selectedShape }
         });
 
         navigate('/');

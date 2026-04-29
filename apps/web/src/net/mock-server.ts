@@ -128,7 +128,7 @@ export function createMockServerTransport(): RoomTransport {
                     return;
                 }
 
-                const registeredPlayer = registerToken(room, message.payload.token);
+                const registeredPlayer = registerToken(room, message.payload.accessToken);
                 if (!registeredPlayer) {
                     handlers.onMessage({
                         type: 'ERROR',

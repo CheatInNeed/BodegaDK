@@ -131,7 +131,7 @@ function saveTweaks() {
 }
 
 function leaveGame() {
-    writeRoute({ view: 'home', game: null, room: null, token: null, mock: false });
+    writeRoute({ view: 'home', game: null, room: null, mock: false });
     window.dispatchEvent(new Event('popstate'));
 }
 

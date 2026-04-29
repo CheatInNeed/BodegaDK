@@ -4,11 +4,18 @@ Supabase is currently used by the web client for:
 
 - email/password auth
 - signup metadata
-- avatar/profile data in `public.avatars`
+- profile/avatar data in `public.profiles`, `public.avatar_defs`, and
+  `public.user_avatars`
 - persisted room metadata in `public.rooms`
 - room participants in `public.room_players`
 - active-room heartbeat and stale-room cleanup
 - quick-play queue tickets in `public.matchmaking_tickets`
+- friend relationships in `public.friendships`, written through the Spring
+  friends API
+- direct game challenges in `public.challenges`, written through the Spring
+  challenges API
+- user-facing notifications in `public.notifications`, written through the
+  Spring notifications/social APIs
 
 It is not the game backend. Gameplay, lobby state, and rules stay in the
 Spring Boot server.
@@ -18,11 +25,9 @@ Spring Boot server.
 Current Supabase files in the repo:
 
 - `supabase/config.toml`
-- `supabase/migrations/202604081410_init.sql`
-- `supabase/migrations/202604191100_room_matchmaking.sql`
-- `supabase/migrations/202604201130_profiles_auth_trigger.sql`
-- `supabase/migrations/202604211200_matchmaking_realtime_cancel.sql`
-- `supabase/migrations/202604221200_room_heartbeat_cleanup.sql`
+- `supabase/migrations/202604281500_v1_schema_reset.sql`
+- `supabase/migrations/202604281510_seed_game_catalog.sql`
+- `supabase/migrations/202604281520_remove_leaderboard_seasons.sql`
 - `.github/workflows/supabase-migrations.yml`
 
 Room/session metadata now lives in Supabase/Postgres, while live
@@ -50,14 +55,32 @@ cancel support:
 - `public.matchmaking_tickets` is added to the Supabase realtime publication
 - the web client listens for changes to active queue tickets and refreshes its
   server ticket snapshot when another player joins or a ticket is matched
-- `public.cancel_matchmaking_ticket(uuid, text)` cancels only the matching
-  waiting ticket for the caller's session token
+- matchmaking cancellation goes through the authenticated Spring API; the
+  compatibility RPC exists for direct maintenance/debug use only
 - the Spring backend remains authoritative for matching players and creating
   rooms
 
+Friends use the existing V1 `public.friendships` table:
+
+- the Spring backend resolves `profiles.username` to user ids for friend
+  requests
+- the table constraints prevent self-friendship and duplicate inverse
+  friendships
+- browser UI calls the authenticated Spring REST API instead of writing
+  friendship rows directly through the Supabase anon client
+
+Challenges and notifications use the existing V1 social tables:
+
+- `public.challenges` stores direct friend-to-friend game invites, status,
+  expiry, and the room created when a challenge is accepted
+- `public.notifications` stores user-scoped social notifications with JSON
+  payloads used by the browser for profile/challenge/room actions
+- the browser reads and mutates these through authenticated Spring REST
+  endpoints; it does not write rows directly through the Supabase anon client
+
 Active room cleanup uses Supabase RPCs:
 
-- `public.touch_room_heartbeat(room_code_input)` updates `public.rooms.last_heartbeat`
+- `public.touch_room_heartbeat(room_code_input)` updates `public.rooms.last_heartbeat_at`
   for active `IN_GAME` rooms
 - `public.finish_stale_rooms(stale_after interval default interval '60 seconds')`
   updates stale `IN_GAME` rooms to `FINISHED`
@@ -107,7 +130,8 @@ It reads from shell env vars first, then local env files:
 - `.env`
 
 For VM deploys, `npm run deploy:update` exports the current public
-Supabase URL and anon key before running the web build.
+Supabase URL, anon key, and default JWT issuer before running the web build
+and Docker Compose.
 
 If these values are missing, the web app still builds, but Supabase
 auth/profile features are disabled.
@@ -123,9 +147,13 @@ room metadata and matchmaking tickets through the Spring datasource:
 - `SPRING_DATASOURCE_URL`
 - `SPRING_DATASOURCE_USERNAME`
 - `SPRING_DATASOURCE_PASSWORD`
+- `SUPABASE_JWT_ISSUER`
 
 In the Docker deploy stack, `infra/docker-compose.yml` requires those values
-from the host environment. If any of them are missing, deployment fails before
+from the host environment. `npm run deploy:update` supplies the non-secret
+default `SUPABASE_JWT_ISSUER` for the current Supabase project, but
+`SPRING_DATASOURCE_*` values must still come from the host shell or
+`.env.deploy`. If any required value is still missing, deployment fails before
 the server container starts. There is no fallback database in the deploy stack.
 
 Typical Supabase JDBC value shape:
@@ -134,6 +162,15 @@ Typical Supabase JDBC value shape:
 
 The exact host, username, and password must come from the Supabase
 project database connection settings. Do not commit them to the repo.
+
+`SUPABASE_JWT_ISSUER` must match the Supabase auth issuer for the project,
+typically `https://<project-ref>.supabase.co/auth/v1`. Spring uses it to
+validate browser Supabase access tokens on REST requests and WebSocket
+`CONNECT`.
+
+The V1 reset migration intentionally leaves `public.games` empty. Apply
+`supabase/migrations/202604281510_seed_game_catalog.sql` with the reset so
+room and matchmaking writes can resolve game slugs.
 
 ## Live deploy note
 
@@ -144,12 +181,14 @@ Hosted Supabase migrations and web runtime config are separate concerns.
   built web app can use Supabase auth/profile features
 - `SPRING_DATASOURCE_*` controls the Spring backend connection to the
   canonical Supabase Postgres database
+- `SUPABASE_JWT_ISSUER` controls backend validation of Supabase access tokens;
+  the deploy script defaults it for the current project unless overridden
 
 For live deploys, the machine or CI job that runs `npm run web:build` or
-`npm run deploy:update` must provide those public values either through:
+`npm run deploy:update` must provide deployment values either through:
 
 - environment variables in the deploy environment, or
-- a deployment-local `.env.local` file that exists on the server but is
+- a deployment-local `.env.local` or `.env.deploy` file that exists on the server but is
   not committed
 
 Pushing migrations alone does not populate `apps/web/public/app-config.js`

@@ -40,7 +40,7 @@ public class MatchmakingService {
         this.objectMapper = objectMapper;
     }
 
-    public MatchmakingSnapshot enqueue(String gameType, String playerId, String username, String token) {
+    public MatchmakingSnapshot enqueue(String gameType, String userId, String username, String clientSessionId) {
         GameCatalogService.GameDefinition definition = gameCatalogService.require(gameType);
         if (!definition.quickPlayEnabled() || !definition.realtimeSupported()) {
             throw new IllegalStateException("Quick play is not available for " + gameType);
@@ -48,9 +48,9 @@ public class MatchmakingService {
 
         UUID ticketId = roomMetadataStore.enqueueTicket(
                 definition.id(),
-                playerId,
+                userId,
                 username,
-                token,
+                clientSessionId,
                 definition.minPlayers(),
                 definition.maxPlayers(),
                 definition.strictCount()
@@ -89,18 +89,22 @@ public class MatchmakingService {
                 return;
             }
             RoomMetadataStore.MatchmakingTicket hostTicket = matchedTickets.getFirst();
-            String roomCode = runtimeStore.createRoom(definition.id(), false, hostTicket.playerId());
-            roomMetadataStore.createRoom(roomCode, hostTicket.playerId(), false, definition.id(), InMemoryRuntimeStore.RoomStatus.LOBBY);
+            String roomCode;
+            do {
+                roomCode = runtimeStore.generateRoomCode();
+            } while (roomMetadataStore.roomExists(roomCode));
+            roomMetadataStore.createRoom(roomCode, hostTicket.userId(), RoomMetadataStore.RoomVisibility.PUBLIC, definition.id(), InMemoryRuntimeStore.RoomStatus.LOBBY);
+            runtimeStore.mirrorRoom(roomCode, definition.id(), false, hostTicket.userId(), InMemoryRuntimeStore.RoomStatus.LOBBY);
 
             for (RoomMetadataStore.MatchmakingTicket ticket : matchedTickets) {
-                runtimeStore.joinRoom(roomCode, ticket.playerId(), ticket.username(), ticket.token());
-                roomMetadataStore.upsertParticipant(roomCode, ticket.playerId(), ticket.username());
+                roomMetadataStore.upsertParticipant(roomCode, ticket.userId(), ticket.username());
+                runtimeStore.joinRoom(roomCode, ticket.userId(), ticket.username(), runtimeToken(roomCode, ticket.userId()));
             }
 
             ObjectNode payload = objectMapper.createObjectNode();
             GameLoopService.LoopResult startResult = gameLoopService.handleAction(new GameLoopService.ActionCommand(
                     roomCode,
-                    hostTicket.playerId(),
+                    hostTicket.userId(),
                     "START_GAME",
                     payload,
                     UUID.randomUUID().toString(),
@@ -114,7 +118,9 @@ public class MatchmakingService {
             }
 
             roomMetadataStore.updateRoomStatus(roomCode, InMemoryRuntimeStore.RoomStatus.IN_GAME);
-            matchedTickets.forEach(ticket -> roomMetadataStore.markTicketMatched(ticket.ticketId(), roomCode));
+            for (RoomMetadataStore.MatchmakingTicket ticket : matchedTickets) {
+                roomMetadataStore.markTicketMatched(ticket.ticketId(), roomCode);
+            }
         }
     }
 
@@ -132,8 +138,7 @@ public class MatchmakingService {
                 ticket.gameType(),
                 ticket.status(),
                 ticket.roomCode(),
-                ticket.playerId(),
-                ticket.token(),
+                ticket.userId(),
                 queuedPlayers,
                 playersNeeded,
                 ticket.minPlayers(),
@@ -151,7 +156,7 @@ public class MatchmakingService {
         List<RoomMetadataStore.MatchmakingTicket> uniqueTickets = new ArrayList<>();
         Set<String> playerIds = new HashSet<>();
         for (RoomMetadataStore.MatchmakingTicket ticket : tickets) {
-            if (!playerIds.add(ticket.playerId())) {
+            if (!playerIds.add(ticket.userId())) {
                 continue;
             }
             uniqueTickets.add(ticket);
@@ -162,13 +167,16 @@ public class MatchmakingService {
         return uniqueTickets;
     }
 
+    public static String runtimeToken(String roomCode, String userId) {
+        return roomCode + ":" + userId;
+    }
+
     public record MatchmakingSnapshot(
             UUID ticketId,
             String gameType,
             RoomMetadataStore.MatchmakingTicketStatus status,
             String roomCode,
             String playerId,
-            String token,
             int queuedPlayers,
             int playersNeeded,
             int minPlayers,

@@ -48,20 +48,20 @@ Opretter et nyt room.
 {
   "gameType": "highcard",
   "isPrivate": false,
-  "playerId": "supabase-user-id-or-guest-id",
-  "username": "Alice",
-  "token": "session-token"
+  "username": "Alice"
 }
 ```
+
+Requires `Authorization: Bearer <supabase access token>`. The backend derives
+`playerId`/`hostPlayerId` from the token subject.
 
 ### Response
 
 ``` json
 {
   "roomCode": "ABC123",
-  "playerId": "supabase-user-id-or-guest-id",
-  "token": "session-token",
-  "hostPlayerId": "supabase-user-id-or-guest-id",
+  "playerId": "auth-user-uuid",
+  "hostPlayerId": "auth-user-uuid",
   "isPrivate": false,
   "selectedGame": "highcard",
   "status": "LOBBY"
@@ -78,9 +78,7 @@ Joiner et eksisterende room.
 
 ``` json
 {
-  "playerId": "supabase-user-id-or-guest-id",
-  "username": "Alice",
-  "token": "session-token"
+  "username": "Alice"
 }
 ```
 
@@ -90,9 +88,8 @@ Joiner et eksisterende room.
 {
   "ok": true,
   "roomCode": "ABC123",
-  "playerId": "supabase-user-id-or-guest-id",
-  "token": "session-token",
-  "hostPlayerId": "supabase-user-id-or-guest-id",
+  "playerId": "auth-user-uuid",
+  "hostPlayerId": "auth-user-uuid",
   "selectedGame": "highcard",
   "status": "LOBBY"
 }
@@ -108,7 +105,6 @@ Host-only endpoint used while the room is still in `LOBBY`.
 
 ``` json
 {
-  "actorToken": "session-token",
   "isPrivate": true
 }
 ```
@@ -135,8 +131,6 @@ player identity to another without giving up the seat.
 
 ``` json
 {
-  "token": "session-token",
-  "playerId": "supabase-user-id-or-guest-id",
   "username": "Alice"
 }
 ```
@@ -168,9 +162,8 @@ gangen.
 ``` json
 {
   "gameType": "casino",
-  "playerId": "supabase-user-id-or-guest-id",
   "username": "Alice",
-  "token": "session-token"
+  "clientSessionId": "browser-generated-queue-id"
 }
 ```
 
@@ -182,8 +175,7 @@ gangen.
   "gameType": "casino",
   "status": "WAITING",
   "roomCode": null,
-  "playerId": "supabase-user-id-or-guest-id",
-  "token": "session-token",
+  "playerId": "auth-user-uuid",
   "queuedPlayers": 1,
   "playersNeeded": 1,
   "minPlayers": 2,
@@ -207,6 +199,478 @@ skal navigere direkte til `view=room`.
 ## DELETE /matchmaking/queue/{ticketId}
 
 Annullerer en quick-play ticket.
+
+------------------------------------------------------------------------
+
+## GET /me/matches
+
+Returns recent completed matches for the authenticated user.
+
+Requires `Authorization: Bearer <supabase access token>`. The backend only
+returns matches where the token subject exists in `match_players`.
+
+### Query params
+
+- `limit`: optional, defaults to `20`, clamped to `1..50`
+- `before`: optional ISO-8601 instant cursor, compared against
+  `coalesce(ended_at, started_at)`
+
+### Response
+
+``` json
+{
+  "items": [
+    {
+      "matchId": "uuid",
+      "game": {
+        "id": "uuid",
+        "slug": "casino",
+        "title": "Casino"
+      },
+      "roomCode": "ABC123",
+      "status": "COMPLETED",
+      "startedAt": "2026-04-28T18:30:00Z",
+      "endedAt": "2026-04-28T18:42:00Z",
+      "resultType": "WIN",
+      "winnerUserId": "auth-user-uuid",
+      "currentUser": {
+        "userId": "auth-user-uuid",
+        "username": "Alice",
+        "result": "WIN",
+        "score": null,
+        "seatIndex": 0
+      },
+      "players": [
+        {
+          "userId": "auth-user-uuid",
+          "username": "Alice",
+          "result": "WIN",
+          "score": null,
+          "seatIndex": 0
+        }
+      ]
+    }
+  ],
+  "limit": 20,
+  "nextCursor": null
+}
+```
+
+`final_state` is intentionally not exposed by this endpoint.
+
+------------------------------------------------------------------------
+
+## GET /friends
+
+Returns accepted friendships for the authenticated user.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Response
+
+``` json
+[
+  {
+    "id": "friendship-uuid",
+    "status": "ACCEPTED",
+    "requester": {
+      "userId": "auth-user-uuid",
+      "username": "Alice",
+      "displayName": null
+    },
+    "addressee": {
+      "userId": "auth-user-uuid",
+      "username": "Bob",
+      "displayName": null
+    },
+    "createdAt": "2026-04-29T12:00:00Z",
+    "updatedAt": "2026-04-29T12:01:00Z"
+  }
+]
+```
+
+------------------------------------------------------------------------
+
+## GET /friends/requests
+
+Returns pending friend requests split by current-user perspective.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Response
+
+``` json
+{
+  "incoming": [],
+  "outgoing": []
+}
+```
+
+`incoming` contains pending rows where the current user is the addressee.
+`outgoing` contains pending rows where the current user is the requester.
+Each item uses the same friendship shape as `GET /friends`.
+
+------------------------------------------------------------------------
+
+## POST /friends/request
+
+Sends a friend request by exact username.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Request
+
+``` json
+{
+  "username": "Bob"
+}
+```
+
+### Response
+
+Returns the created pending friendship.
+
+### Errors
+
+- `400`: blank username or self-friendship
+- `404`: username not found
+- `409`: a pending or accepted friendship already exists in either direction
+
+------------------------------------------------------------------------
+
+## POST /friends/{id}/accept
+
+Accepts a pending friend request.
+
+Only the addressee may accept. Returns the updated accepted friendship.
+
+### Errors
+
+- `400`: invalid friendship id
+- `404`: request not found, not pending, or current user is not the addressee
+
+------------------------------------------------------------------------
+
+## POST /friends/{id}/decline
+
+Declines a pending friend request.
+
+Only the addressee may decline. Returns the updated declined friendship.
+
+### Errors
+
+- `400`: invalid friendship id
+- `404`: request not found, not pending, or current user is not the addressee
+
+------------------------------------------------------------------------
+
+## DELETE /friends/{id}
+
+Removes an accepted friendship or cancels/removes a relationship row involving
+the current user.
+
+Only participants can delete a friendship row.
+
+### Response
+
+`204 No Content`
+
+### Errors
+
+- `400`: invalid friendship id
+- `404`: friendship not found or current user is not a participant
+
+Social side effect: creating a friend request emits a
+`friend.request.received` notification for the addressee. Accepting a friend
+request emits a `friend.request.accepted` notification for the requester.
+
+------------------------------------------------------------------------
+
+## POST /challenges
+
+Creates a direct game challenge for an accepted friend.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+V1 challenge creation uses exact username lookup and requires an accepted
+friendship between the challenger and challenged user.
+
+### Request
+
+``` json
+{
+  "username": "Bob",
+  "gameType": "snyd"
+}
+```
+
+`gameType` defaults through the server game catalog normalization rules. The
+frontend V1 sends `snyd`.
+
+### Response
+
+``` json
+{
+  "id": "challenge-uuid",
+  "status": "PENDING",
+  "challenger": {
+    "userId": "auth-user-uuid",
+    "username": "Alice",
+    "displayName": null
+  },
+  "challenged": {
+    "userId": "auth-user-uuid",
+    "username": "Bob",
+    "displayName": null
+  },
+  "game": {
+    "id": "game-uuid",
+    "slug": "snyd",
+    "title": "Snyd"
+  },
+  "roomCode": null,
+  "createdAt": "2026-04-29T12:00:00Z",
+  "expiresAt": "2026-04-30T12:00:00Z",
+  "respondedAt": null
+}
+```
+
+### Errors
+
+- `400`: blank username, self-challenge, non-friend target, or inactive/non-challengeable game
+- `404`: username not found
+
+Social side effect: emits `challenge.received` for the challenged user.
+
+------------------------------------------------------------------------
+
+## POST /challenges/{id}/accept
+
+Accepts a pending challenge as the challenged user.
+
+The backend expires old pending challenges first. Expired, cancelled,
+declined, or already accepted challenges cannot be accepted.
+
+On success the backend creates a private `LOBBY` room, adds both users as room
+participants, marks the challenge `ACCEPTED`, and returns the challenge plus
+room navigation data.
+
+### Response
+
+``` json
+{
+  "challenge": {
+    "id": "challenge-uuid",
+    "status": "ACCEPTED",
+    "roomCode": "ABC123"
+  },
+  "room": {
+    "roomCode": "ABC123",
+    "playerId": "challenged-user-uuid",
+    "hostPlayerId": "challenger-user-uuid",
+    "isPrivate": true,
+    "selectedGame": "snyd",
+    "status": "LOBBY"
+  }
+}
+```
+
+The example omits unchanged challenge fields; actual responses use the full
+challenge shape from `POST /challenges`.
+
+### Errors
+
+- `400`: invalid challenge id
+- `404`: challenge not found or current user is not the challenged user
+- `409`: challenge is no longer pending
+
+Social side effect: emits `challenge.accepted` for the challenger with
+`roomCode` in the notification payload.
+
+------------------------------------------------------------------------
+
+## POST /challenges/{id}/decline
+
+Declines a pending challenge as the challenged user.
+
+### Errors
+
+- `400`: invalid challenge id
+- `404`: challenge not found or current user is not the challenged user
+- `409`: challenge is no longer pending
+
+Social side effect: emits `challenge.declined` for the challenger.
+
+------------------------------------------------------------------------
+
+## POST /challenges/{id}/cancel
+
+Cancels a pending challenge as the challenger.
+
+### Errors
+
+- `400`: invalid challenge id
+- `404`: challenge not found or current user is not the challenger
+- `409`: challenge is no longer pending
+
+------------------------------------------------------------------------
+
+## GET /notifications
+
+Returns recent notifications scoped to the authenticated user.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Query params
+
+- `limit`: optional, defaults to `20`, clamped to `1..50`
+
+### Response
+
+``` json
+{
+  "items": [
+    {
+      "id": "notification-uuid",
+      "type": "challenge.received",
+      "actor": {
+        "userId": "auth-user-uuid",
+        "username": "Alice",
+        "displayName": null
+      },
+      "payload": {
+        "entityKey": "challenge-uuid",
+        "challengeId": "challenge-uuid",
+        "gameType": "snyd",
+        "action": "challenge"
+      },
+      "readAt": null,
+      "createdAt": "2026-04-29T12:00:00Z"
+    }
+  ],
+  "unreadCount": 1,
+  "limit": 20
+}
+```
+
+Notification reads are always scoped to the token subject.
+
+------------------------------------------------------------------------
+
+## POST /notifications/{id}/read
+
+Marks one current-user notification as read and returns the updated
+notification.
+
+### Errors
+
+- `400`: invalid notification id
+- `404`: notification not found for current user
+
+------------------------------------------------------------------------
+
+## POST /notifications/read-all
+
+Marks all current-user notifications as read.
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+------------------------------------------------------------------------
+
+## GET /me/stats
+
+Returns per-game cached stats for the authenticated user.
+
+Requires `Authorization: Bearer <supabase access token>`. The backend only
+returns stats for the token subject.
+
+### Query params
+
+- `game`: optional game slug, for example `snyd`
+
+### Response
+
+``` json
+{
+  "items": [
+    {
+      "game": {
+        "id": "uuid",
+        "slug": "snyd",
+        "title": "Snyd"
+      },
+      "gamesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "draws": 0,
+      "highScore": 0,
+      "currentStreak": 0,
+      "bestStreak": 0,
+      "totalPlayTimeSeconds": 0,
+      "lastPlayedAt": null
+    }
+  ]
+}
+```
+
+Stats are returned for active games, with zero/default values when the user has
+not played that game yet. `currentStreak` and `bestStreak` are win streaks;
+losses and draws reset `currentStreak` to `0`.
+
+------------------------------------------------------------------------
+
+## GET /leaderboard
+
+Returns all-time leaderboard rows for one game.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Query params
+
+- `game`: required game slug, for example `snyd`
+- `mode`: optional, defaults to `standard`
+- `limit`: optional, defaults to `20`, clamped to `1..100`
+
+### Response
+
+``` json
+{
+  "game": {
+    "id": "uuid",
+    "slug": "snyd",
+    "title": "Snyd"
+  },
+  "mode": "standard",
+  "items": [
+    {
+      "rank": 1,
+      "userId": "auth-user-uuid",
+      "username": "Alice",
+      "displayName": "Alice",
+      "avatar": {
+        "color": "#ffb300",
+        "shape": "circle",
+        "assetUrl": null
+      },
+      "score": 12,
+      "matchId": "uuid-or-null"
+    }
+  ],
+  "currentUser": {
+    "rank": 4,
+    "score": 3
+  },
+  "limit": 20
+}
+```
+
+Leaderboard score is all-time wins. There are no seasons in V1.
 
 ------------------------------------------------------------------------
 
@@ -236,7 +700,7 @@ Alle WebSocket messages har format:
   "type": "CONNECT",
   "payload": {
     "roomCode": "ABC123",
-    "token": "jwt-or-session-token",
+    "accessToken": "supabase-access-token",
     "game": "casino",
     "setup": {
       "casinoRules": {

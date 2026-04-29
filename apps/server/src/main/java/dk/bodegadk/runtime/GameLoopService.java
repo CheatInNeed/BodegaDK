@@ -30,7 +30,7 @@ public class GameLoopService {
     }
 
     public GameLoopService(InMemoryRuntimeStore runtimeStore, @Autowired(required = false) List<EnginePort> enginePorts) {
-        this(runtimeStore, new LobbyCoordinator(runtimeStore, new GameCatalogService()), enginePorts);
+        this(runtimeStore, new LobbyCoordinator(runtimeStore, new GameCatalogService(), new InMemoryRoomMetadataStore()), enginePorts);
     }
 
     public LoopResult handleAction(ActionCommand command) {

@@ -1,16 +1,17 @@
 # BodegaDK Server Guide (Debian)
 
-Last updated: 2026-03-11
+Last updated: 2026-04-29
 
-This guide deploys BodegaDK on a Debian host with Docker, nginx, server, and postgres.
+This guide deploys BodegaDK on a Debian host with Docker, nginx, the Spring
+server, and the canonical Supabase Postgres database.
 
-## 1) Connect to server
+## 1. Connect To Server
 
 ```bash
 ssh <user>@<server-ip>
 ```
 
-## 2) Install prerequisites
+## 2. Install Prerequisites
 
 ```bash
 sudo apt update
@@ -19,9 +20,9 @@ sudo systemctl enable --now docker
 sudo usermod -aG docker "$USER"
 ```
 
-Log out/in again (or run `newgrp docker`) so Docker group membership applies.
+Log out/in again, or run `newgrp docker`, so Docker group membership applies.
 
-## 3) Verify tooling
+## 3. Verify Tooling
 
 ```bash
 git --version
@@ -30,7 +31,7 @@ docker --version
 docker compose version
 ```
 
-## 4) Clone repository
+## 4. Clone Repository
 
 ```bash
 git clone https://github.com/CheatInNeed/BodegaDK.git
@@ -38,9 +39,7 @@ cd BodegaDK
 git fetch --all --prune
 ```
 
-## 5) Choose branch to deploy
-
-Do this before deploying. HighCard availability depends on branch content.
+## 5. Choose Branch To Deploy
 
 ```bash
 git checkout <branch>
@@ -49,9 +48,38 @@ git rev-parse --abbrev-ref HEAD
 git rev-parse HEAD
 ```
 
-If you need HighCard from current integration work, deploy the branch that contains it (for example `server-v0.1` if that is where it lives), not automatically `main` or `dev`.
+Deploy from the branch that contains the compatible Supabase migrations,
+backend, and frontend for the target environment.
 
-## 6) Deploy full stack
+## 6. Configure Environment
+
+Create `.env.deploy` in the repo root, or export these values in the shell
+before deploying:
+
+```bash
+SPRING_DATASOURCE_URL="jdbc:postgresql://..."
+SPRING_DATASOURCE_USERNAME="..."
+SPRING_DATASOURCE_PASSWORD="..."
+PUBLIC_SUPABASE_URL="https://<project-ref>.supabase.co"
+PUBLIC_SUPABASE_ANON_KEY="..."
+```
+
+`SUPABASE_JWT_ISSUER` is optional for the default BodegaDK Supabase project
+because `npm run deploy:update` supplies
+`https://awdhzmyieafhfpjmzwsh.supabase.co/auth/v1`. Set it explicitly when
+deploying against a different Supabase project.
+
+Important:
+
+- `SPRING_DATASOURCE_*` must point at the canonical Supabase Postgres database.
+- `SUPABASE_JWT_ISSUER` must match the Supabase project that issues browser
+  access tokens.
+- The Spring backend does not apply app schema migrations.
+- App schema migrations live in `supabase/migrations/`.
+- There is no deploy fallback database; missing datasource settings should stop
+  deployment instead of silently switching persistence models.
+
+## 7. Deploy Full Stack
 
 From repo root:
 
@@ -60,11 +88,12 @@ npm run deploy:update
 ```
 
 `deploy:update` performs:
-1. `npm install`
-2. `npm run web:build`
-3. `cd infra && (docker compose up -d --build || docker-compose up -d --build)`
 
-## 7) Verify deployment
+- `npm install`
+- `npm run web:build`
+- `cd infra && (docker compose up -d --build || docker-compose up -d --build)`
+
+## 8. Verify Deployment
 
 ```bash
 cd infra
@@ -73,52 +102,34 @@ curl -i http://localhost/api/health
 ```
 
 Expected health response:
+
 - HTTP `200`
-- body includes `{"status":"ok"}`.
+- body includes `{"status":"ok"}`
 
-## 8) Verify HighCard API readiness
-
-Create a room:
+Authenticated APIs require a Supabase access token:
 
 ```bash
-curl -sS -X POST http://localhost/api/rooms \
-  -H 'Content-Type: application/json' \
-  -d '{"gameType":"highcard"}'
+curl -i http://localhost/api/rooms \
+  -H 'Authorization: Bearer <supabase-access-token>'
 ```
 
-Expected:
-
-```json
-{"roomCode":"ABC123"}
-```
-
-Join a room:
-
-```bash
-curl -sS -X POST http://localhost/api/rooms/<ROOM_CODE>/join \
-  -H 'Content-Type: application/json' \
-  -d '{"playerId":"p1","token":"p1-token"}'
-```
-
-Expected:
-
-```json
-{"ok":true}
-```
-
-## 9) Open browser and test gameplay
+## 9. Browser Smoke Test
 
 Open:
+
 - `http://<server-ip>`
 
-Then:
-1. Go to Play.
-2. Open `Single Card Highest Wins`.
-3. Verify room starts and gameplay proceeds (score + higher/lower feedback updates).
+Recommended smoke paths:
 
-## Update flows
+- Sign in or sign up.
+- Open Play and verify quick play/lobby navigation still works.
+- Open Profile and verify profile, friends, and challenge surfaces load.
+- Open the notification dropdown and verify read state updates.
+- Open Leaderboard and verify it loads authenticated server data.
 
-### Deploy current checked-out branch
+## Update Flows
+
+### Deploy Current Checked-Out Branch
 
 ```bash
 git fetch --all --prune
@@ -127,7 +138,7 @@ git pull --ff-only
 npm run deploy:update
 ```
 
-### Deploy main or dev using scripts
+### Deploy Main Or Dev Using Scripts
 
 ```bash
 npm run deploy:main
@@ -135,13 +146,14 @@ npm run deploy:main
 npm run deploy:dev
 ```
 
-Note: these scripts switch branches before deploy, so they can deploy code that differs from your current integration branch.
+These scripts switch branches before deploy, so they can deploy code that
+differs from your current integration branch.
 
 ## Troubleshooting
 
 ### `docker: command not found`
 
-Install Docker (`docker.io`) and relogin.
+Install Docker and relogin.
 
 ### `docker compose` not found
 
@@ -155,18 +167,25 @@ newgrp docker
 docker ps
 ```
 
-### HighCard not available after deploy
+### Server Fails With Datasource Configuration Error
 
-Check deployed branch and commit:
+Confirm `.env.deploy` or shell environment contains:
 
 ```bash
-git rev-parse --abbrev-ref HEAD
-git rev-parse HEAD
+SPRING_DATASOURCE_URL
+SPRING_DATASOURCE_USERNAME
+SPRING_DATASOURCE_PASSWORD
 ```
 
-Then redeploy from the branch that contains HighCard integration.
+### Authenticated Requests Return `401`
 
-### Build error during server image build
+Check:
+
+- The browser public Supabase config points at the same project as the backend.
+- `SUPABASE_JWT_ISSUER` matches the Supabase project issuer.
+- The request includes `Authorization: Bearer <supabase-access-token>`.
+
+### Build Error During Server Image Build
 
 Rebuild without cache:
 
