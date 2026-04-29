@@ -260,6 +260,97 @@ returns matches where the token subject exists in `match_players`.
 
 ------------------------------------------------------------------------
 
+## GET /me/stats
+
+Returns per-game cached stats for the authenticated user.
+
+Requires `Authorization: Bearer <supabase access token>`. The backend only
+returns stats for the token subject.
+
+### Query params
+
+- `game`: optional game slug, for example `snyd`
+
+### Response
+
+``` json
+{
+  "items": [
+    {
+      "game": {
+        "id": "uuid",
+        "slug": "snyd",
+        "title": "Snyd"
+      },
+      "gamesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "draws": 0,
+      "highScore": 0,
+      "currentStreak": 0,
+      "bestStreak": 0,
+      "totalPlayTimeSeconds": 0,
+      "lastPlayedAt": null
+    }
+  ]
+}
+```
+
+Stats are returned for active games, with zero/default values when the user has
+not played that game yet. `currentStreak` and `bestStreak` are win streaks;
+losses and draws reset `currentStreak` to `0`.
+
+------------------------------------------------------------------------
+
+## GET /leaderboard
+
+Returns all-time leaderboard rows for one game.
+
+Requires `Authorization: Bearer <supabase access token>`.
+
+### Query params
+
+- `game`: required game slug, for example `snyd`
+- `mode`: optional, defaults to `standard`
+- `limit`: optional, defaults to `20`, clamped to `1..100`
+
+### Response
+
+``` json
+{
+  "game": {
+    "id": "uuid",
+    "slug": "snyd",
+    "title": "Snyd"
+  },
+  "mode": "standard",
+  "items": [
+    {
+      "rank": 1,
+      "userId": "auth-user-uuid",
+      "username": "Alice",
+      "displayName": "Alice",
+      "avatar": {
+        "color": "#ffb300",
+        "shape": "circle",
+        "assetUrl": null
+      },
+      "score": 12,
+      "matchId": "uuid-or-null"
+    }
+  ],
+  "currentUser": {
+    "rank": 4,
+    "score": 3
+  },
+  "limit": 20
+}
+```
+
+Leaderboard score is all-time wins. There are no seasons in V1.
+
+------------------------------------------------------------------------
+
 # WebSocket
 
 Endpoint:

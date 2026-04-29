@@ -19,6 +19,7 @@ import { renderFemRoom, type FemViewModel } from './games/fem-hundrede/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
+import { renderLeaderboardPage, type LeaderboardViewState } from './leaderboard.js';
 import { loadProfileData, renderProfilePage } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
@@ -26,6 +27,7 @@ import {
     claimRoomIdentity,
     createRoom,
     enqueueMatchmaking,
+    getLeaderboard,
     getMatchmakingTicket,
     joinRoom,
     kickPlayer,
@@ -102,6 +104,13 @@ const lobbyRoomUiState = {
 
 const activeLobbyState = {
     route: null as AppRoute | null,
+};
+
+const leaderboardState: LeaderboardViewState = {
+    loading: false,
+    errorMessage: null,
+    data: null,
+    game: 'snyd',
 };
 
 type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, unknown>>;
@@ -389,6 +398,10 @@ function renderView() {
     } else if (state.view === 'profile') {
         cleanupRoomSession();
         main.innerHTML = renderProfileView();
+    } else if (state.view === 'leaderboard') {
+        cleanupRoomSessionIfUnneeded();
+        ensureLeaderboardLoaded();
+        main.innerHTML = renderLeaderboardPage(state.lang, leaderboardState);
     } else if (state.view === 'room') {
         main.innerHTML = renderRoomContent();
     }
@@ -839,8 +852,10 @@ function renderHomepage() {
           ${playCards()}
         </article>
 
-        ${renderHomepagePlaceholderCard({
+        ${renderHomepageActionCard({
             titleKey: 'home.section.leaderboard.title',
+            descKey: 'home.section.leaderboard.desc',
+            action: 'open-leaderboard',
             className: 'home-card-narrow',
         })}
         ${renderHomepagePlaceholderCard({
@@ -877,6 +892,38 @@ function renderProfileView(): string {
   `;
 }
 
+function ensureLeaderboardLoaded() {
+    if (leaderboardState.loading || leaderboardState.data) {
+        return;
+    }
+
+    leaderboardState.loading = true;
+    leaderboardState.errorMessage = null;
+    void getLeaderboard({ game: leaderboardState.game, mode: 'standard', limit: 20 })
+        .then((data) => {
+            leaderboardState.data = data;
+        })
+        .catch((error) => {
+            leaderboardState.errorMessage = error instanceof Error
+                ? error.message
+                : t(state.lang, 'leaderboard.error');
+        })
+        .finally(() => {
+            leaderboardState.loading = false;
+            if (state.view === 'leaderboard') {
+                renderView();
+            }
+        });
+}
+
+function refreshLeaderboard(game: string) {
+    leaderboardState.game = game;
+    leaderboardState.data = null;
+    leaderboardState.errorMessage = null;
+    ensureLeaderboardLoaded();
+    renderView();
+}
+
 function renderHomepagePlaceholderCard(input: {
     titleKey: string;
     className?: string;
@@ -889,6 +936,25 @@ function renderHomepagePlaceholderCard(input: {
         </div>
         <span class="home-placeholder-tag" data-i18n="home.action.comingSoon"></span>
       </div>
+    </article>
+  `;
+}
+
+function renderHomepageActionCard(input: {
+    titleKey: string;
+    descKey: string;
+    action: string;
+    className?: string;
+}): string {
+    return `
+    <article class="card home-card ${input.className ?? ''}">
+      <div class="home-card-header">
+        <div>
+          <div class="card-title home-card-title" data-i18n="${input.titleKey}"></div>
+        </div>
+      </div>
+      <p class="card-desc" data-i18n="${input.descKey}"></p>
+      <button class="btn full-width" type="button" data-action="${input.action}" data-i18n="action.open"></button>
     </article>
   `;
 }
@@ -953,6 +1019,15 @@ function wireViewEvents() {
         button.addEventListener('click', () => {
             navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         });
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="open-leaderboard"]')?.addEventListener('click', () => {
+        navigate({ view: 'leaderboard', room: null, game: null, mock: false });
+    });
+
+    document.querySelector<HTMLSelectElement>('#leaderboardGameSelect')?.addEventListener('change', (event) => {
+        const select = event.currentTarget as HTMLSelectElement;
+        refreshLeaderboard(select.value || 'snyd');
     });
 
     const homeJoinCodeInput = document.getElementById('homeJoinCodeInput') as HTMLInputElement | null;

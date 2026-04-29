@@ -3,6 +3,7 @@ package dk.bodegadk.rest;
 import dk.bodegadk.auth.AuthSupport;
 import dk.bodegadk.auth.AuthenticatedUser;
 import dk.bodegadk.runtime.MatchHistoryQueryStore;
+import dk.bodegadk.runtime.UserGameStatsQueryStore;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,9 +21,11 @@ public class MeController {
     private static final int DEFAULT_MATCH_LIMIT = 20;
 
     private final MatchHistoryQueryStore matchHistoryQueryStore;
+    private final UserGameStatsQueryStore userGameStatsQueryStore;
 
-    public MeController(MatchHistoryQueryStore matchHistoryQueryStore) {
+    public MeController(MatchHistoryQueryStore matchHistoryQueryStore, UserGameStatsQueryStore userGameStatsQueryStore) {
         this.matchHistoryQueryStore = matchHistoryQueryStore;
+        this.userGameStatsQueryStore = userGameStatsQueryStore;
     }
 
     @GetMapping("/matches")
@@ -39,6 +42,15 @@ public class MeController {
         );
     }
 
+    @GetMapping("/stats")
+    public UserGameStatsQueryStore.UserGameStatsPage userGameStats(
+            Authentication authentication,
+            @RequestParam(required = false) String game
+    ) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
+        return userGameStatsQueryStore.statsForUser(user.userId(), normalizeGameSlug(game));
+    }
+
     private Instant parseBefore(String before) {
         if (before == null || before.isBlank()) {
             return null;
@@ -48,5 +60,12 @@ public class MeController {
         } catch (DateTimeParseException exception) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "before must be an ISO-8601 instant");
         }
+    }
+
+    private String normalizeGameSlug(String game) {
+        if (game == null || game.isBlank()) {
+            return null;
+        }
+        return game.trim();
     }
 }

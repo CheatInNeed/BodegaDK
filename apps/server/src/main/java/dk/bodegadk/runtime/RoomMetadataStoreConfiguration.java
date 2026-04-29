@@ -22,4 +22,14 @@ public class RoomMetadataStoreConfiguration {
     MatchHistoryQueryStore matchHistoryQueryStore(JdbcTemplate jdbcTemplate) {
         return new JdbcMatchHistoryQueryStore(jdbcTemplate);
     }
+
+    @Bean
+    UserGameStatsQueryStore userGameStatsQueryStore(JdbcTemplate jdbcTemplate) {
+        return new JdbcUserGameStatsQueryStore(jdbcTemplate);
+    }
+
+    @Bean
+    LeaderboardQueryStore leaderboardQueryStore(JdbcTemplate jdbcTemplate) {
+        return new JdbcLeaderboardQueryStore(jdbcTemplate);
+    }
 }

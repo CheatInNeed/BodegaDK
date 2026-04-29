@@ -6,6 +6,7 @@ Migration files:
 
 - `supabase/migrations/202604281500_v1_schema_reset.sql`
 - `supabase/migrations/202604281510_seed_game_catalog.sql`
+- `supabase/migrations/202604281520_remove_leaderboard_seasons.sql`
 
 ## Decisions
 
@@ -26,8 +27,9 @@ Migration files:
 - `games`: canonical game catalog with stable `slug` and UUID primary key.
 - `rooms` and `room_players`: live lobby state persisted by user UUID.
 - `matchmaking_tickets`: authenticated queue tickets linked to `games`, `rooms`, and `auth.users`.
-- `matches` and `match_players`: permanent game history.
-- `user_game_stats` and `leaderboard_scores`: cached/derived game summaries.
+- `matches` and `match_players`: permanent game history and the source of truth for completed results.
+- `user_game_stats`: maintained cached per-user/per-game summary derived from completed matches.
+- `leaderboard_scores`: all-time per-game/per-mode leaderboard rows reserved for a later write/read feature pass.
 - `friendships`, `challenges`, and `notifications`: first-pass social graph and invite surface.
 
 ## Compatibility Included In The Migration
@@ -51,7 +53,10 @@ Migration files:
 - `LobbyCoordinator` updates durable selected game state through `rooms.game_id`.
 - Matchmaking creates the durable room first, then mirrors room/player state into runtime memory.
 - Engine adapters can keep user IDs as strings internally, but those strings must become auth UUID strings for persisted players.
-- Game completion writes `matches` and `match_players`; `GET /me/matches` and the profile Recent Games UI now read them. Derived `user_game_stats` and `leaderboard_scores` are still future work.
+- Game completion writes `matches` and `match_players`, updates `user_game_stats` in the same backend completion flow, and leaves `leaderboard_scores` for future work.
+- `user_game_stats` is rebuildable from completed `matches` plus `match_players`; it is a cached projection, not the source of truth.
+- `GET /me/matches` and the profile Recent Games UI read match history. `GET /me/stats` reads `user_game_stats` joined with active `games`.
+- V1 leaderboard scoring has no seasons: `leaderboard_scores.score` means all-time wins, with one current row per `(game_id, user_id, mode)`.
 - Backend tests still need a full compile/run pass on a machine with Maven.
 
 ### Frontend
@@ -63,7 +68,7 @@ Migration files:
 - `touch_room_heartbeat(text)` can keep the same RPC signature, but it now requires the signed-in user to be a persisted room participant.
 - Profile code uses `profiles.user_id`.
 - Avatar code uses `user_avatars` plus `avatar_defs`.
-- Profile match history is live through the authenticated backend API. Stats, friends, invite, and leaderboard UI remain placeholder/disabled until their matching backend/RLS-safe query paths are complete.
+- Profile match history and profile stats are live through authenticated backend APIs. Friends, invite, and leaderboard UI remain placeholder/disabled until their matching backend/RLS-safe query paths are complete.
 
 ### Supabase And Data
 

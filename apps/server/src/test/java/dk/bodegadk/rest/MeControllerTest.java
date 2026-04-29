@@ -1,6 +1,7 @@
 package dk.bodegadk.rest;
 
 import dk.bodegadk.runtime.MatchHistoryQueryStore;
+import dk.bodegadk.runtime.UserGameStatsQueryStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -19,7 +20,8 @@ class MeControllerTest {
     @Test
     void recentMatchesUsesAuthenticatedUserAndDefaultLimit() {
         CapturingStore store = new CapturingStore();
-        MeController controller = new MeController(store);
+        CapturingStatsStore statsStore = new CapturingStatsStore();
+        MeController controller = new MeController(store, statsStore);
 
         MatchHistoryQueryStore.MatchHistoryPage response = controller.recentMatches(authentication("user-1"), null, null);
 
@@ -32,7 +34,7 @@ class MeControllerTest {
     @Test
     void recentMatchesPassesBeforeCursor() {
         CapturingStore store = new CapturingStore();
-        MeController controller = new MeController(store);
+        MeController controller = new MeController(store, new CapturingStatsStore());
 
         controller.recentMatches(authentication("user-1"), 10, "2026-04-28T18:30:00Z");
 
@@ -43,12 +45,34 @@ class MeControllerTest {
     @Test
     void recentMatchesRejectsInvalidBeforeCursor() {
         CapturingStore store = new CapturingStore();
-        MeController controller = new MeController(store);
+        MeController controller = new MeController(store, new CapturingStatsStore());
 
         assertThrows(
                 ResponseStatusException.class,
                 () -> controller.recentMatches(authentication("user-1"), 10, "not-a-date")
         );
+    }
+
+    @Test
+    void userGameStatsUsesAuthenticatedUserAndGameFilter() {
+        CapturingStatsStore statsStore = new CapturingStatsStore();
+        MeController controller = new MeController(new CapturingStore(), statsStore);
+
+        UserGameStatsQueryStore.UserGameStatsPage response = controller.userGameStats(authentication("user-1"), "snyd");
+
+        assertEquals("user-1", statsStore.userId);
+        assertEquals("snyd", statsStore.gameSlug);
+        assertEquals(0, response.items().size());
+    }
+
+    @Test
+    void userGameStatsNormalizesBlankGameFilter() {
+        CapturingStatsStore statsStore = new CapturingStatsStore();
+        MeController controller = new MeController(new CapturingStore(), statsStore);
+
+        controller.userGameStats(authentication("user-1"), " ");
+
+        assertNull(statsStore.gameSlug);
     }
 
     private JwtAuthenticationToken authentication(String userId) {
@@ -73,6 +97,18 @@ class MeControllerTest {
             this.limit = limit;
             this.before = before;
             return new MatchHistoryPage(List.of(), limit, null);
+        }
+    }
+
+    private static class CapturingStatsStore implements UserGameStatsQueryStore {
+        private String userId;
+        private String gameSlug;
+
+        @Override
+        public UserGameStatsPage statsForUser(String userId, String gameSlug) {
+            this.userId = userId;
+            this.gameSlug = gameSlug;
+            return new UserGameStatsPage(List.of());
         }
     }
 }

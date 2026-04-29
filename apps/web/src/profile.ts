@@ -1,6 +1,6 @@
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import { t, type Lang } from './i18n.js';
-import { getMyMatches, type MyMatchSummary } from './net/api.js';
+import { getMyMatches, getMyStats, type MyGameStatsSummary, type MyMatchSummary } from './net/api.js';
 
 interface ProfileData {
     username: string;
@@ -9,6 +9,8 @@ interface ProfileData {
     avatarColor: string;
     avatarShape: string;
     isLive: boolean;
+    gameStats: MyGameStatsSummary[];
+    statsError: boolean;
     recentMatches: MyMatchSummary[];
     historyError: boolean;
 }
@@ -20,6 +22,8 @@ const placeholderProfile: ProfileData = {
     avatarColor: '#ffb300',
     avatarShape: 'circle',
     isLive: false,
+    gameStats: [],
+    statsError: false,
     recentMatches: [],
     historyError: false,
 };
@@ -48,6 +52,15 @@ export async function loadProfileData(): Promise<ProfileData> {
         .eq('user_id', user.id)
         .single();
 
+    let gameStats: MyGameStatsSummary[] = [];
+    let statsError = false;
+    try {
+        gameStats = (await getMyStats()).items;
+    } catch (error) {
+        statsError = true;
+        console.warn('[profile] failed to load game stats', error);
+    }
+
     let recentMatches: MyMatchSummary[] = [];
     let historyError = false;
     try {
@@ -64,6 +77,8 @@ export async function loadProfileData(): Promise<ProfileData> {
         avatarColor: avatar?.color ?? '',
         avatarShape: avatar?.avatar_defs?.shape ?? 'square',
         isLive: true,
+        gameStats,
+        statsError,
         recentMatches,
         historyError,
     };
@@ -115,14 +130,13 @@ export function renderProfilePage(lang: Lang, data: ProfileData): string {
           </div>
         </article>
 
-        <article class="card profile-section-card profile-placeholder-card" aria-disabled="true">
+        <article class="card profile-section-card">
           <div class="profile-section-header">
             <div>
               <div class="card-title" data-i18n="profile.section.statsTitle"></div>
             </div>
-            <span class="home-placeholder-tag" data-i18n="home.action.comingSoon"></span>
           </div>
-          <p class="card-desc" data-i18n="profile.section.statsDesc"></p>
+          ${renderGameStats(lang, data)}
         </article>
 
         <article class="card profile-section-card">
@@ -144,6 +158,53 @@ export function renderProfilePage(lang: Lang, data: ProfileData): string {
           <p class="card-desc" data-i18n="profile.section.achievementsDesc"></p>
         </article>
       </section>
+    </section>
+  `;
+}
+
+function renderGameStats(lang: Lang, data: ProfileData): string {
+    if (data.statsError) {
+        return `<p class="card-desc" data-i18n="profile.section.statsError"></p>`;
+    }
+
+    const playedStats = data.gameStats.filter((stats) => stats.gamesPlayed > 0);
+    if (playedStats.length === 0) {
+        return `<p class="card-desc" data-i18n="profile.section.statsEmpty"></p>`;
+    }
+
+    return `
+    <div class="profile-stats-list">
+      ${playedStats.map((stats) => renderStatsRow(lang, stats)).join('')}
+    </div>
+  `;
+}
+
+function renderStatsRow(lang: Lang, stats: MyGameStatsSummary): string {
+    const winRate = stats.gamesPlayed > 0
+        ? Math.round((stats.wins / stats.gamesPlayed) * 100)
+        : 0;
+    const values = [
+        [t(lang, 'profile.stats.played'), stats.gamesPlayed],
+        [t(lang, 'profile.stats.wins'), stats.wins],
+        [t(lang, 'profile.stats.losses'), stats.losses],
+        ...(stats.draws > 0 ? [[t(lang, 'profile.stats.draws'), stats.draws] as [string, number]] : []),
+        [t(lang, 'profile.stats.winRate'), `${winRate}%`],
+        [t(lang, 'profile.stats.currentStreak'), stats.currentStreak],
+        [t(lang, 'profile.stats.bestStreak'), stats.bestStreak],
+        [t(lang, 'profile.stats.highScore'), stats.highScore],
+    ];
+
+    return `
+    <section class="profile-stats-game">
+      <div class="profile-stats-game-title">${escapeHtml(stats.game.title || stats.game.slug)}</div>
+      <div class="profile-stats-grid">
+        ${values.map(([label, value]) => `
+          <div class="profile-stat-cell">
+            <span class="profile-stat-label">${escapeHtml(String(label))}</span>
+            <span class="profile-stat-value">${escapeHtml(String(value))}</span>
+          </div>
+        `).join('')}
+      </div>
     </section>
   `;
 }

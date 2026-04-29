@@ -275,7 +275,6 @@ public class GameWsHandler extends TextWebSocketHandler {
         if (result.finished()) {
             ObjectNode payload = objectMapper.createObjectNode();
             payload.put("winnerPlayerId", result.winnerPlayerId());
-            roomMetadataStore.updateRoomStatus(roomCode, InMemoryRuntimeStore.RoomStatus.FINISHED);
             matchHistoryStore.recordCompletedMatch(roomCode, result.winnerPlayerId(), result.publicUpdate());
             broadcastToRoom(roomCode, "GAME_FINISHED", payload);
         }

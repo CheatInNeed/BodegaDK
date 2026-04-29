@@ -81,6 +81,56 @@ export type MyMatchesResponse = {
     nextCursor: string | null;
 };
 
+export type MyGameStatsSummary = {
+    game: {
+        id: string;
+        slug: string;
+        title: string;
+    };
+    gamesPlayed: number;
+    wins: number;
+    losses: number;
+    draws: number;
+    highScore: number;
+    currentStreak: number;
+    bestStreak: number;
+    totalPlayTimeSeconds: number;
+    lastPlayedAt: string | null;
+};
+
+export type MyStatsResponse = {
+    items: MyGameStatsSummary[];
+};
+
+export type LeaderboardEntry = {
+    rank: number;
+    userId: string;
+    username: string;
+    displayName: string;
+    avatar: {
+        color: string | null;
+        shape: string | null;
+        assetUrl: string | null;
+    };
+    score: number;
+    matchId: string | null;
+};
+
+export type LeaderboardResponse = {
+    game: {
+        id: string;
+        slug: string;
+        title: string;
+    };
+    mode: string;
+    items: LeaderboardEntry[];
+    currentUser: {
+        rank: number;
+        score: number;
+    } | null;
+    limit: number;
+};
+
 export async function listRooms(): Promise<LobbyRoomSummary[]> {
     const response = await authenticatedFetch(`${resolveApiBaseUrl()}/rooms`);
     return parseJsonResponse<LobbyRoomSummary[]>(response, 'Failed to load public rooms');
@@ -226,6 +276,32 @@ export async function getMyMatches(input: { limit?: number; before?: string } = 
     const url = `${resolveApiBaseUrl()}/me/matches${query ? `?${query}` : ''}`;
     const response = await authenticatedFetch(url);
     return parseJsonResponse<MyMatchesResponse>(response, 'Failed to load match history');
+}
+
+export async function getMyStats(input: { game?: string } = {}): Promise<MyStatsResponse> {
+    const params = new URLSearchParams();
+    if (input.game) {
+        params.set('game', input.game);
+    }
+
+    const query = params.toString();
+    const url = `${resolveApiBaseUrl()}/me/stats${query ? `?${query}` : ''}`;
+    const response = await authenticatedFetch(url);
+    return parseJsonResponse<MyStatsResponse>(response, 'Failed to load game stats');
+}
+
+export async function getLeaderboard(input: { game: string; mode?: string; limit?: number }): Promise<LeaderboardResponse> {
+    const params = new URLSearchParams();
+    params.set('game', input.game);
+    if (input.mode) {
+        params.set('mode', input.mode);
+    }
+    if (input.limit !== undefined) {
+        params.set('limit', String(input.limit));
+    }
+
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/leaderboard?${params.toString()}`);
+    return parseJsonResponse<LeaderboardResponse>(response, 'Failed to load leaderboard');
 }
 
 export async function getAccessTokenOrRedirect(): Promise<string> {

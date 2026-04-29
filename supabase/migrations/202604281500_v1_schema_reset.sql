@@ -331,7 +331,7 @@ execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------------
 -- Leaderboard scores
--- Per-game/per-season/per-mode leaderboard entries.
+-- Per-game/per-mode all-time leaderboard entries.
 -- ---------------------------------------------------------------------
 
 create table public.leaderboard_scores (
@@ -340,8 +340,7 @@ create table public.leaderboard_scores (
   user_id uuid not null references auth.users(id) on delete cascade,
   match_id uuid references public.matches(id) on delete set null,
   score int not null default 0,
-  season int not null default 1,
-  mode text,
+  mode text not null default 'standard',
   username_snapshot text,
   created_at timestamptz not null default now()
 );
@@ -476,10 +475,10 @@ create index user_game_stats_game_idx
 on public.user_game_stats(game_id);
 
 create index leaderboard_game_score_idx
-on public.leaderboard_scores(game_id, score desc);
+on public.leaderboard_scores(game_id, mode, score desc);
 
-create index leaderboard_game_season_score_idx
-on public.leaderboard_scores(game_id, season, score desc);
+create unique index leaderboard_unique_user_game_mode_idx
+on public.leaderboard_scores(game_id, user_id, mode);
 
 create index leaderboard_user_idx
 on public.leaderboard_scores(user_id);
