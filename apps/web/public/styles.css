@@ -4538,8 +4538,60 @@ button.lobby-game-card {
     text-transform: uppercase;
 }
 
-/* ── game over overlay ── */
+/* ── generic win overlay (shared across games) ── */
 @keyframes fade-in { from{opacity:0} to{opacity:1} }
+.win-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.8);
+    z-index: 50; gap: 14px;
+    animation: fade-in 0.5s ease;
+}
+.win-overlay-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(42px, 7vw, 78px);
+    font-weight: 900;
+    color: #d4af6a;
+    text-shadow: 0 0 28px rgba(212,175,106,0.45);
+}
+.win-overlay-sub {
+    font-family: 'Playfair Display SC', serif;
+    font-size: 13px;
+    color: rgba(212,175,106,0.55);
+    letter-spacing: 0.14em;
+}
+.win-overlay-quip {
+    font-family: 'Playfair Display SC', serif;
+    font-size: 12px;
+    color: rgba(212,175,106,0.35);
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+}
+.win-overlay-btn {
+    background: linear-gradient(135deg, #c4902a, #9a6e1e);
+    border: none; border-radius: 50px;
+    color: #1a0e00; font-family: 'Playfair Display', serif;
+    font-size: 14px; font-weight: 900; letter-spacing: 0.07em;
+    padding: 10px 30px; cursor: pointer; text-transform: uppercase;
+    margin-top: 10px; box-shadow: 0 4px 20px rgba(196,144,42,0.35);
+    transition: transform 0.12s;
+}
+.win-overlay-btn:hover { transform: translateY(-2px); }
+.win-overlay-scores {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 6px; margin: 4px 0;
+}
+.win-overlay-score-row {
+    font-family: 'Playfair Display SC', serif;
+    font-size: 13px; letter-spacing: 0.06em;
+    color: rgba(212,175,106,0.7);
+}
+.win-overlay-score-row.is-winner {
+    color: #d4af6a; font-weight: 700;
+}
+
+/* ── game over overlay (krig legacy — kept for compatibility) ── */
 #krig-root .overlay {
     position: absolute; inset: 0;
     display: flex; flex-direction: column;

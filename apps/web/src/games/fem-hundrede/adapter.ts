@@ -29,7 +29,7 @@
 import { resolvePlayerName } from '../../game-room/player-display.js';
 import type { GameAdapter, RoomSessionState, UiIntent } from '../../game-room/types.js';
 import type { ClientToServerMessage } from '../../net/protocol.js';
-import type { FemMeld, FemPlayerInfo, FemViewModel } from './view.js';
+import type { FemMeld, FemPlayerInfo, FemPostGame, FemViewModel } from './view.js';
 
 type FemPublicState = {
     players?: Array<{ playerId: string; username?: string | null } | string>;
@@ -55,6 +55,7 @@ type FemPrivateState = {
     playerId?: string;
     hand?: string[];
     projectedRoundScore?: number;
+    hasDrawnThisTurn?: boolean;
     [key: string]: unknown;
 };
 
@@ -108,6 +109,18 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
         const isPlaying = phase === 'PLAYING';
         const canAct    = isMyTurn && isPlaying;
         const selCount  = selectedCards.length;
+        const firstRound = publicState?.firstRound === true;
+        const hasDrawn = privateState?.hasDrawnThisTurn === true;
+
+        const postGame: FemPostGame | null = (phase === 'FINISHED' && winnerPlayerId)
+            ? {
+                winnerLabel: resolvePlayerName(playerNames, winnerPlayerId),
+                scores: players
+                    .slice()
+                    .sort((a, b) => b.score - a.score)
+                    .map((p) => ({ name: p.displayName, score: p.score, isWinner: p.playerId === winnerPlayerId })),
+            }
+            : null;
 
         return {
             selfPlayerId,
@@ -123,13 +136,14 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             selectedCards,
             projectedRoundScore,
             winnerPlayerId,
-            canDraw: canAct && stockPileCount > 0,
-            canDrawDiscard: canAct && discardPileTop !== null,
-            canTakePile: canAct && discardPileTop !== null,
-            canLayMeld: canAct && selCount >= 3,
-            canExtendMeld: canAct && selCount === 1 && melds.length > 0,
-            canDiscard: canAct && selCount === 1,
-            canClose: canAct && hand.length === 1,
+            postGame,
+            canDraw: canAct && !hasDrawn && stockPileCount > 0,
+            canDrawDiscard: canAct && !hasDrawn && discardPileTop !== null,
+            canTakePile: canAct && !hasDrawn && !firstRound && discardPileTop !== null,
+            canLayMeld: canAct && hasDrawn && selCount >= 3,
+            canExtendMeld: canAct && hasDrawn && selCount === 1 && melds.length > 0,
+            canDiscard: canAct && hasDrawn && selCount === 1,
+            canClose: canAct && hasDrawn && !firstRound && hand.length === 1,
         };
     },
 
@@ -154,6 +168,8 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
                 return { type: 'DISCARD', payload: { card: selected[0] } };
             case 'FEM_CLOSE_ROUND':
                 return { type: 'DISCARD', payload: { card: intent.card } };
+            case 'REQUEST_REMATCH':
+                return { type: 'REQUEST_REMATCH', payload: {} };
             default:
                 return null;
         }

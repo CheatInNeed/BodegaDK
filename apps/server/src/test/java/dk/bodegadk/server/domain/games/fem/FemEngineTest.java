@@ -274,6 +274,99 @@ class FemEngineTest {
                 engine.apply(new FemAction.ExtendMeld("alice", "m1", "D7"), state));
     }
 
+    @Test
+    void extendingAnotherPlayersMeldTransfersOwnership() {
+        // Alice owns H3H4H5; move H6 to Bob so Bob can extend
+        FemState state = buildStateWithMeld();
+        state.hands().get("alice").remove(new Card("H", "6"));
+        state.hands().get("bob").add(new Card("H", "6"));
+        state.advanceTurn(); // Bob's turn
+        state.setHasDrawnThisTurn(true);
+
+        FemState afterBob = engine.apply(new FemAction.ExtendMeld("bob", "m1", "H6"), state);
+
+        assertEquals("bob", afterBob.melds().getFirst().ownerPlayerId());
+        assertEquals(4, afterBob.melds().getFirst().cards().size());
+        assertTrue(afterBob.melds().getFirst().contributedBy().containsKey("bob"));
+    }
+
+    @Test
+    void anyPlayerCanFurtherExtendMeldAfterOwnershipTransfer() {
+        // Alice owns H3H4H5; Bob extends with H6 (becomes owner); Alice then extends with H7
+        FemState state = buildStateWithMeld();
+        state.hands().get("alice").remove(new Card("H", "6"));
+        state.hands().get("bob").add(new Card("H", "6"));
+        state.advanceTurn(); // Bob's turn
+        state.setHasDrawnThisTurn(true);
+
+        FemState afterBob = engine.apply(new FemAction.ExtendMeld("bob", "m1", "H6"), state);
+
+        // Alice's turn — give her H7 and let her extend Bob's meld
+        afterBob.advanceTurn(); // Alice's turn
+        afterBob.setHasDrawnThisTurn(true);
+        afterBob.hands().get("alice").add(new Card("H", "7"));
+
+        FemState afterAlice = engine.apply(new FemAction.ExtendMeld("alice", "m1", "H7"), afterBob);
+
+        assertEquals(5, afterAlice.melds().getFirst().cards().size());
+        assertEquals("alice", afterAlice.melds().getFirst().ownerPlayerId());
+        assertFalse(afterAlice.hands().get("alice").contains(new Card("H", "7")));
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       TAKE DISCARD PILE TESTS
+       ══════════════════════════════════════════════════════════════ */
+
+    @Test
+    void takingDiscardPileWithoutLayingMeldCostsFiftyPoints() {
+        FemState state = buildBasicState();
+        state.setFirstRound(false);
+        state.scores().put("alice", 100);
+
+        FemState afterTake = engine.apply(new FemAction.TakeDiscardPile("alice"), state);
+        assertTrue(afterTake.tookDiscardPileThisTurn());
+
+        // Alice discards without laying a meld — penalty applies
+        String discard = afterTake.hands().get("alice").getLast().toString();
+        FemState afterDiscard = engine.apply(new FemAction.Discard("alice", discard), afterTake);
+
+        assertEquals(50, afterDiscard.scores().get("alice")); // 100 - 50
+        assertFalse(afterDiscard.tookDiscardPileThisTurn()); // flag reset
+    }
+
+    @Test
+    void takingDiscardPileAndLayingMeldIncursNoPenalty() {
+        FemState state = buildBasicState();
+        state.setFirstRound(false);
+        state.scores().put("alice", 100);
+        // Give alice a hand that has a valid meld plus extras
+        state.hands().put("alice", new ArrayList<>(List.of(
+                new Card("H", "3"), new Card("H", "4"), new Card("H", "5"),
+                new Card("D", "7"), new Card("D", "8"))));
+
+        FemState afterTake = engine.apply(new FemAction.TakeDiscardPile("alice"), state);
+
+        FemState afterMeld = engine.apply(
+                new FemAction.LayMeld("alice", List.of("H3", "H4", "H5")), afterTake);
+
+        String discard = afterMeld.hands().get("alice").getLast().toString();
+        FemState afterDiscard = engine.apply(new FemAction.Discard("alice", discard), afterMeld);
+
+        assertEquals(100, afterDiscard.scores().get("alice")); // no penalty
+    }
+
+    @Test
+    void normalDrawAndDiscardIncursNoPenalty() {
+        FemState state = buildBasicState();
+        state.scores().put("alice", 100);
+
+        FemState afterDraw = engine.apply(new FemAction.DrawFromStock("alice"), state);
+        String discard = afterDraw.hands().get("alice").getLast().toString();
+        FemState afterDiscard = engine.apply(new FemAction.Discard("alice", discard), afterDraw);
+
+        assertEquals(100, afterDiscard.scores().get("alice")); // no penalty
+    }
+
     /* ══════════════════════════════════════════════════════════════
        DISCARD AND TURN FLOW TESTS
        ══════════════════════════════════════════════════════════════ */

@@ -47,6 +47,7 @@ public class FemViewProjector implements ViewProjector<FemState> {
         view.put("melds", meldViews);
         view.put("playerCardCounts", state.cardCounts());
         view.put("phase", state.phase().name());
+        view.put("firstRound", state.firstRound());
 
         if (state.winnerPlayerId() != null) {
             view.put("winnerPlayerId", state.winnerPlayerId());
@@ -63,6 +64,7 @@ public class FemViewProjector implements ViewProjector<FemState> {
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("playerId", playerId);
         view.put("hand", handCodes);
+        view.put("hasDrawnThisTurn", state.hasDrawnThisTurn());
 
         int meldPoints = 0;
         for (FemState.Meld meld : state.melds()) {
