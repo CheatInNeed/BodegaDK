@@ -24,6 +24,7 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
 ) {
     let krigRevealTimer: ReturnType<typeof setTimeout> | null = null;
     let krigResultTimer: ReturnType<typeof setTimeout> | null = null;
+    let krigWarTimer: ReturnType<typeof setTimeout> | null = null;
     const initialState: RoomSessionState = {
         connection: 'idle',
         roomCode: options.bootstrap.roomCode,
@@ -157,6 +158,10 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
             clearTimeout(krigResultTimer);
             krigResultTimer = null;
         }
+        if (krigWarTimer !== null) {
+            clearTimeout(krigWarTimer);
+            krigWarTimer = null;
+        }
     }
 
     function syncKrigPresentation(nextState: RoomSessionState, dispatch: ReturnType<typeof createRoomStore>['dispatch']) {
@@ -189,40 +194,83 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         }
 
         clearKrigTimers();
-        dispatch({
-            type: 'SET_KRIG_PRESENTATION',
-            presentation: {
-                phase: 'suspense',
-                activeBattleRound: battleRound,
-                completedBattleRound: presentation.completedBattleRound,
-            },
-        });
 
-        krigRevealTimer = setTimeout(() => {
-            const current = store.getState();
-            if (current.krigPresentation.activeBattleRound !== battleRound) return;
+        const isWar = typeof lastTrick?.warDepth === 'number' && lastTrick.warDepth > 0;
+
+        if (isWar) {
+            // War sequence: krig-reveal (see matching cards, no KRIG text) →
+            //               suspense (KRIG! animation) → idle (flip war cards)
             dispatch({
                 type: 'SET_KRIG_PRESENTATION',
                 presentation: {
-                    phase: 'result',
+                    phase: 'krig-reveal',
                     activeBattleRound: battleRound,
-                    completedBattleRound: current.krigPresentation.completedBattleRound,
+                    completedBattleRound: presentation.completedBattleRound,
                 },
             });
 
-            krigResultTimer = setTimeout(() => {
-                const latest = store.getState();
-                if (latest.krigPresentation.activeBattleRound !== battleRound) return;
+            krigRevealTimer = setTimeout(() => {
+                const current = store.getState();
+                if (current.krigPresentation.activeBattleRound !== battleRound) return;
                 dispatch({
                     type: 'SET_KRIG_PRESENTATION',
                     presentation: {
-                        phase: 'idle',
-                        activeBattleRound: null,
-                        completedBattleRound: battleRound,
+                        phase: 'suspense',
+                        activeBattleRound: battleRound,
+                        completedBattleRound: current.krigPresentation.completedBattleRound,
                     },
                 });
-            }, 2000);
-        }, 1200);
+
+                krigWarTimer = setTimeout(() => {
+                    const latest = store.getState();
+                    if (latest.krigPresentation.activeBattleRound !== battleRound) return;
+                    dispatch({
+                        type: 'SET_KRIG_PRESENTATION',
+                        presentation: {
+                            phase: 'idle',
+                            activeBattleRound: null,
+                            completedBattleRound: battleRound,
+                        },
+                    });
+                }, 2500);
+            }, 1500);
+        } else {
+            // Normal sequence: suspense → result → idle
+            dispatch({
+                type: 'SET_KRIG_PRESENTATION',
+                presentation: {
+                    phase: 'suspense',
+                    activeBattleRound: battleRound,
+                    completedBattleRound: presentation.completedBattleRound,
+                },
+            });
+
+            krigRevealTimer = setTimeout(() => {
+                const current = store.getState();
+                if (current.krigPresentation.activeBattleRound !== battleRound) return;
+                dispatch({
+                    type: 'SET_KRIG_PRESENTATION',
+                    presentation: {
+                        phase: 'result',
+                        activeBattleRound: battleRound,
+                        completedBattleRound: current.krigPresentation.completedBattleRound,
+                    },
+                });
+
+                krigResultTimer = setTimeout(() => {
+                    const latest = store.getState();
+                    if (latest.krigPresentation.activeBattleRound !== battleRound) return;
+                    dispatch({
+                        type: 'SET_KRIG_PRESENTATION',
+                        presentation: {
+                            phase: 'idle',
+                            activeBattleRound: null,
+                            completedBattleRound: battleRound,
+                        },
+                    });
+                }, 2000);
+            }, 1200);
+        }
     }
 }
 

@@ -41,7 +41,7 @@ export type SeatViewModel = {
     positionClass?: SeatPositionClass;
 };
 
-export type KrigPresentationPhase = 'idle' | 'suspense' | 'result';
+export type KrigPresentationPhase = 'idle' | 'krig-reveal' | 'suspense' | 'result';
 
 export type KrigPresentationState = {
     phase: KrigPresentationPhase;
