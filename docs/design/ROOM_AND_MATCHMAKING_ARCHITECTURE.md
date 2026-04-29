@@ -91,7 +91,7 @@ Important columns:
 - `visibility`
 - `max_players`
 - `selected_game_slug`
-- `last_heartbeat_at`
+- `last_heartbeat`
 - `created_at`
 - `updated_at`
 

@@ -28,6 +28,7 @@ Current Supabase files in the repo:
 - `supabase/migrations/202604281500_v1_schema_reset.sql`
 - `supabase/migrations/202604281510_seed_game_catalog.sql`
 - `supabase/migrations/202604281520_remove_leaderboard_seasons.sql`
+- `supabase/migrations/202604291123_grant_browser_profile_avatar_access.sql`
 - `.github/workflows/supabase-migrations.yml`
 
 Room/session metadata now lives in Supabase/Postgres, while live
@@ -43,11 +44,20 @@ Architecture decision:
 
 - `docs/decisions/0001-canonical-database-and-migrations.md`
 
+RLS/grants audit:
+
+- `docs/security/RLS_AUDIT.md`
+
 Profile creation is now database-driven:
 
 - a trigger on `auth.users` creates or updates the matching row in `public.profiles`
 - signup metadata (`username`, `country`) is copied from `raw_user_meta_data`
 - `public.profiles` uses RLS policies so authenticated users can read and update only their own row
+- authenticated browser access to profile/avatar tables also requires explicit
+  grants; those live in the browser profile/avatar access grant migration
+- direct browser grants are intentionally limited to profile/avatar/catalog
+  and own-ticket/heartbeat needs; friends, challenges, notifications, stats,
+  history, and authoritative room mutations go through Spring APIs
 
 Matchmaking queue UI uses Supabase in the browser for live status and
 cancel support:
@@ -80,7 +90,7 @@ Challenges and notifications use the existing V1 social tables:
 
 Active room cleanup uses Supabase RPCs:
 
-- `public.touch_room_heartbeat(room_code_input)` updates `public.rooms.last_heartbeat_at`
+- `public.touch_room_heartbeat(room_code_input)` updates `public.rooms.last_heartbeat`
   for active `IN_GAME` rooms
 - `public.finish_stale_rooms(stale_after interval default interval '60 seconds')`
   updates stale `IN_GAME` rooms to `FINISHED`
