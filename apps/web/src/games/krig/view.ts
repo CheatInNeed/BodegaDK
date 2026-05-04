@@ -9,6 +9,7 @@ export type KrigViewModel = {
     canFlip: boolean;
     warActive: boolean;
     warJustDeclared: boolean;
+    isWarReveal: boolean;
     warDepth: number;
     warPileSize: number;
     centerPileSize: number;
@@ -61,7 +62,7 @@ export function renderKrigRoom(vm: KrigViewModel): string {
 
     <div class="battle-zone">
       <div class="krig-seat-anchor krig-seat-anchor-top ${topPlayer?.isReady ? 'krig-seat-anchor-ready' : ''}">
-        ${tableCard(topPlayer, TABLE_THEME, true)}
+        ${tableCard(topPlayer, TABLE_THEME, true, vm.isWarReveal)}
       </div>
 
       <div style="display:flex;flex-direction:column;align-items:center;gap:14px;z-index:10;pointer-events:auto">
@@ -84,11 +85,10 @@ export function renderKrigRoom(vm: KrigViewModel): string {
         <button class="flip-btn" data-action="flip-card" ${vm.canFlip ? '' : 'disabled'}>Vend!</button>
 
         ${vm.centerPileSize > 0 ? `<div class="pot-label">${vm.centerPileSize} kort i potten</div>` : ''}
-        <div class="status-msg">${escapeHtml(vm.statusText)}</div>
       </div>
 
       <div class="krig-seat-anchor krig-seat-anchor-bottom ${bottomPlayer?.isReady ? 'krig-seat-anchor-ready' : ''}">
-        ${tableCard(bottomPlayer, TABLE_THEME, false)}
+        ${tableCard(bottomPlayer, TABLE_THEME, false, vm.isWarReveal)}
       </div>
     </div>
 
@@ -119,17 +119,18 @@ function tableCard(
     player: KrigViewModel['players'][number] | null,
     theme: CardTheme,
     fromTop: boolean,
+    isWarReveal: boolean,
 ): string {
     if (!player) {
         return emptyCardSlot();
     }
 
     if (player.stakeCount > 0) {
-        return warHand(player.stakeCount, player.tableCard.kind === 'face' ? player.tableCard.cardCode ?? null : null, theme, player.isRoundWinner, player.isRoundLoser, fromTop);
+        return warHand(player.stakeCount, player.tableCard.kind === 'face' ? player.tableCard.cardCode ?? null : null, theme, player.isRoundWinner, player.isRoundLoser, fromTop, isWarReveal);
     }
 
     if (player.tableCard.kind === 'face' && player.tableCard.cardCode) {
-        return battleCard(player.tableCard.cardCode, theme, player.isRoundWinner, player.isRoundLoser, player.isSelf ? 'self-card' : 'opponent-card');
+        return battleCard(player.tableCard.cardCode, theme, player.isRoundWinner, player.isRoundLoser, player.isSelf ? 'self-card' : 'opponent-card', isWarReveal);
     }
 
     if (player.tableCard.kind === 'back') {
@@ -157,13 +158,14 @@ function cardStack(count: number, theme: CardTheme, uid: string, ready: boolean)
     return `<div class="krig-stack-shell ${ready ? 'krig-stack-shell-ready' : ''}" style="width:${STACK_WIDTH + 8}px;height:${STACK_HEIGHT + 8}px;position:relative;flex-shrink:0">${cards}</div>`;
 }
 
-function battleCard(cardCode: string, theme: CardTheme, win: boolean, lose: boolean, role: string): string {
+function battleCard(cardCode: string, theme: CardTheme, win: boolean, lose: boolean, role: string, warReveal = false): string {
     const card = parseCardCode(cardCode);
     if (!card) {
         return emptyCardSlot();
     }
 
-    const classes = ['card-flip', win ? 'card-win' : '', lose ? 'card-lose' : ''].filter(Boolean).join(' ');
+    const flipClass = warReveal ? 'card-war-reveal' : 'card-flip';
+    const classes = [flipClass, win ? 'card-win' : '', lose ? 'card-lose' : ''].filter(Boolean).join(' ');
     return `<div class="${classes}" data-role="${role}">${renderGPlayingCard(card, theme, CARD_WIDTH, CARD_HEIGHT)}</div>`;
 }
 
@@ -174,12 +176,13 @@ function warHand(
     win: boolean,
     lose: boolean,
     fromTop: boolean,
+    warReveal = false,
 ): string {
     const animation = fromTop ? 'slide-down' : 'slide-up';
     const downCards = Array.from({ length: stakeCount }, (_, index) =>
         `<div style="margin-left:${index > 0 ? -16 : 0}px;animation:${animation} ${0.18 + index * 0.09}s ease both">${renderGCardBack(50, 70, theme, `war-${fromTop ? 'top' : 'bottom'}-${index}`)}</div>`
     ).join('');
-    const faceUpCard = faceUpCardCode ? battleCard(faceUpCardCode, theme, win, lose, fromTop ? 'top-war-card' : 'bottom-war-card') : '';
+    const faceUpCard = faceUpCardCode ? battleCard(faceUpCardCode, theme, win, lose, fromTop ? 'top-war-card' : 'bottom-war-card', warReveal) : '';
     const divider = downCards && faceUpCard ? `<div style="width:1px;height:55px;background:rgba(212,175,106,0.18);flex-shrink:0"></div>` : '';
 
     return `<div style="display:flex;align-items:center;gap:8px"><div style="display:flex">${downCards}</div>${divider}${faceUpCard}</div>`;

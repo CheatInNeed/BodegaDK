@@ -4453,6 +4453,18 @@ button.lobby-game-card {
 }
 #krig-root .card-flip { animation: flip-in 0.42s cubic-bezier(0.22,1,0.36,1) forwards; }
 
+@keyframes war-flip-reveal {
+    0%   { transform: rotateY(90deg) scale(0.8); opacity: 0; }
+    55%  { transform: rotateY(-14deg) scale(1.18); opacity: 1; }
+    78%  { transform: rotateY(4deg) scale(0.97); }
+    100% { transform: rotateY(0deg) scale(1); }
+}
+#krig-root .card-war-reveal { animation: war-flip-reveal 0.8s cubic-bezier(0.22,1,0.36,1) forwards; }
+#krig-root .card-war-reveal.card-win {
+    animation: war-flip-reveal 0.8s cubic-bezier(0.22,1,0.36,1) forwards, win-pulse 1s ease-in-out 0.8s infinite;
+    border-radius: 6px;
+}
+
 /* ── krig card slide ── */
 @keyframes slide-down { from { transform: translateY(-18px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes slide-up   { from { transform: translateY(18px);  opacity: 0; } to { transform: translateY(0); opacity: 1; } }

@@ -125,6 +125,7 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
             canFlip: !isRoundLocked && !sessionState.winnerPlayerId && !opponentLeft,
             warActive: warPresentationActive,
             warJustDeclared,
+            isWarReveal: revealVisible && warDepth > 0,
             warDepth,
             warPileSize,
             centerPileSize: cardsInCenter,
