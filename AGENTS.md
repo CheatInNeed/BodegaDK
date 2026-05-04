@@ -1,4 +1,4 @@
-# AGENTS.md
+2# AGENTS.md
 
 ## Scope
 This file defines working rules for coding agents in this repository.

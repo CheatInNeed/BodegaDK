@@ -165,9 +165,12 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         const publicState = nextState.publicState;
         const faceUpCards = readStringRecord(publicState?.currentFaceUpCards);
         const lastTrick = readRecord(publicState?.lastTrick);
-        const battleRound = typeof lastTrick?.trickNumber === 'number' ? lastTrick.trickNumber : null;
+        // Each server presentation event gets its own id — use it as the animation trigger key.
+        const battleRound = typeof publicState?.presentationEventId === 'number' ? publicState.presentationEventId : null;
         const hasVisibleReveal = Object.values(faceUpCards).some((card) => typeof card === 'string' && card.length > 0);
         const presentation = nextState.krigPresentation;
+        // outcome === 'TIE' means war was just declared and players must flip their war card.
+        const isTieDeclared = lastTrick?.outcome === 'TIE';
 
         if (!hasVisibleReveal || battleRound === null) {
             if (presentation.phase !== 'idle' || presentation.activeBattleRound !== null) {
@@ -190,8 +193,6 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
 
         clearKrigTimers();
 
-        const isWar = typeof lastTrick?.warDepth === 'number' && lastTrick.warDepth > 0;
-
         dispatch({
             type: 'SET_KRIG_PRESENTATION',
             presentation: {
@@ -205,18 +206,19 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
             const current = store.getState();
             if (current.krigPresentation.activeBattleRound !== battleRound) return;
 
-            if (isWar) {
-                // War: skip the result phase — go straight to idle so players can flip again
+            if (isTieDeclared) {
+                // War declared: show tied cards face-up with flip button available.
+                // Stays in krig-reveal until war flip resolves (new presentationEventId).
                 dispatch({
                     type: 'SET_KRIG_PRESENTATION',
                     presentation: {
-                        phase: 'idle',
-                        activeBattleRound: null,
-                        completedBattleRound: battleRound,
+                        phase: 'krig-reveal',
+                        activeBattleRound: battleRound,
+                        completedBattleRound: current.krigPresentation.completedBattleRound,
                     },
                 });
             } else {
-                // Normal: show result, then idle
+                // Normal battle or war flip resolved: show result, then idle.
                 dispatch({
                     type: 'SET_KRIG_PRESENTATION',
                     presentation: {

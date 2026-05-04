@@ -20,6 +20,7 @@ type KrigPublicState = {
     roomCode?: string;
     gamePhase?: 'PLAYING' | 'GAME_OVER' | string;
     trickNumber?: number;
+    presentationEventId?: number;
     players?: PlayerRef[];
     drawPileCounts?: Record<string, number>;
     drawPileCountsBeforeTrick?: Record<string, number>;
@@ -30,6 +31,7 @@ type KrigPublicState = {
     currentFaceUpCards?: Record<string, string | null>;
     warActive?: boolean;
     warDepth?: number;
+    warPhase?: string;
     warPileSize?: number;
     centerPileSize?: number;
     statusText?: string;
@@ -70,12 +72,16 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
         const presentation = sessionState.krigPresentation;
         const trick = readTrick(publicState?.lastTrick);
         const gamePhase = publicState?.gamePhase === 'GAME_OVER' ? 'GAME_OVER' : 'PLAYING';
+        const eventId = typeof publicState?.presentationEventId === 'number' ? publicState.presentationEventId : null;
         const revealVisible = !!trick
-            && trick.trickNumber === presentation.activeBattleRound
+            && eventId === presentation.activeBattleRound
             && presentation.phase === 'result';
         const suspenseVisible = !!trick
-            && trick.trickNumber === presentation.activeBattleRound
+            && eventId === presentation.activeBattleRound
             && presentation.phase === 'suspense';
+        const krigRevealVisible = !!trick
+            && eventId === presentation.activeBattleRound
+            && presentation.phase === 'krig-reveal';
         const selfIsReady = readyPlayerSet.has(selfPlayerId ?? '');
         const isRoundLocked = gamePhase === 'GAME_OVER' || selfIsReady || suspenseVisible || revealVisible;
         const opponentLeft = playerIds.length < 2;
@@ -86,9 +92,10 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
         const warDepth = typeof publicState?.warDepth === 'number' ? publicState.warDepth : trick?.warDepth ?? 0;
         const cardsInCenter = typeof publicState?.centerPileSize === 'number' ? publicState.centerPileSize : trick?.cardsWon ?? 0;
         const warPileSize = typeof publicState?.warPileSize === 'number' ? publicState.warPileSize : Math.max(0, cardsInCenter - 2);
+        // Show KRIG! banner during any active war animation phase.
         const warPresentationActive = !!trick
             && warDepth > 0
-            && trick.trickNumber !== presentation.completedBattleRound
+            && presentation.phase !== 'idle'
             && !postGameVisible;
         const drawPileCounts = suspenseVisible && publicState?.drawPileCountsBeforeTrick
             ? publicState.drawPileCountsBeforeTrick
@@ -105,6 +112,7 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
                 trick,
                 suspenseVisible,
                 revealVisible,
+                krigRevealVisible,
                 gamePhase,
                 opponentLeft,
                 playerNames,
@@ -123,15 +131,21 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
                     currentFaceUpCards,
                     suspenseVisible,
                     revealVisible,
+                    krigRevealVisible,
                     postGameVisible,
                     isReady: readyPlayerSet.has(playerId),
                 });
 
+                // Only show stake cards during krig-reveal and war result — never during suspense or idle.
+                const stakeCount = (krigRevealVisible || (revealVisible && warDepth > 0))
+                    && typeof publicState?.stakeCardCounts?.[playerId] === 'number'
+                    ? publicState.stakeCardCounts[playerId]
+                    : 0;
                 return {
                     playerId,
                     displayName: resolvePlayerName(playerNames, playerId),
                     pileCount: typeof drawPileCounts?.[playerId] === 'number' ? drawPileCounts[playerId] : 0,
-                    stakeCount: typeof publicState?.stakeCardCounts?.[playerId] === 'number' ? publicState.stakeCardCounts[playerId] : 0,
+                    stakeCount,
                     tableCard,
                     isSelf: selfPlayerId === playerId,
                     isReady: readyPlayerSet.has(playerId),
@@ -191,7 +205,8 @@ function buildKrigAction(intent: UiIntent, state: RoomSessionState): ClientToSer
 
     const readyPlayerIds = readStringArray(publicState?.readyPlayerIds);
     const selfAlreadyReady = !!state.playerId && readyPlayerIds.includes(state.playerId);
-    const roundLocked = gamePhase === 'GAME_OVER' || selfAlreadyReady || state.krigPresentation.phase !== 'idle';
+    const phase = state.krigPresentation.phase;
+    const roundLocked = gamePhase === 'GAME_OVER' || selfAlreadyReady || (phase !== 'idle' && phase !== 'krig-reveal');
     if (roundLocked) return null;
 
     return {
@@ -205,6 +220,7 @@ function buildTableCard(input: {
     currentFaceUpCards: Record<string, string | null>;
     suspenseVisible: boolean;
     revealVisible: boolean;
+    krigRevealVisible: boolean;
     postGameVisible: boolean;
     isReady: boolean;
 }): CardDisplayModel {
@@ -212,7 +228,10 @@ function buildTableCard(input: {
         return { kind: 'empty', label: '', size: 'sm' };
     }
 
-    if (input.revealVisible) {
+    if (input.revealVisible || input.krigRevealVisible) {
+        // Both result and krig-reveal show currentFaceUpCards:
+        // - result: decisive war cards (or normal battle cards)
+        // - krig-reveal: initial tied cards (still in currentFaceUpCards before war flip)
         const card = input.currentFaceUpCards[input.playerId];
         if (typeof card === 'string') {
             return { kind: 'face', cardCode: card, size: 'sm' };
@@ -232,6 +251,7 @@ function describeStatus(input: {
     trick: KrigTrick | null;
     suspenseVisible: boolean;
     revealVisible: boolean;
+    krigRevealVisible: boolean;
     gamePhase: 'PLAYING' | 'GAME_OVER';
     opponentLeft: boolean;
     playerNames: Record<string, string>;
@@ -249,6 +269,13 @@ function describeStatus(input: {
 
     if (input.suspenseVisible) {
         return input.trick?.warDepth && input.trick.warDepth > 0 ? 'Krig!' : 'Cards are flipping...';
+    }
+
+    if (input.krigRevealVisible) {
+        if (input.selfPlayerId && input.readyPlayerSet.has(input.selfPlayerId)) {
+            return 'War card locked in. Waiting for opponent...';
+        }
+        return 'Krig! Flip your war card.';
     }
 
     if (input.revealVisible && input.trick) {

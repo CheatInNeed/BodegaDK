@@ -11,6 +11,9 @@ import java.util.Map;
 import java.util.Set;
 
 public class KrigState extends GameState {
+
+    public enum WarPhase { NONE, AWAITING_WAR_FLIP }
+
     private final Map<String, List<Card>> drawPiles;
     private final Set<String> readyPlayerIds;
     private final Set<String> rematchPlayerIds;
@@ -20,6 +23,8 @@ public class KrigState extends GameState {
     private TrickResult lastTrick;
     private int trickNumber;
     private int warDepth;
+    private WarPhase warPhase;
+    private int presentationEventId;
     private String statusText;
 
     public KrigState(List<String> playerIds) {
@@ -33,6 +38,8 @@ public class KrigState extends GameState {
         this.lastTrick = null;
         this.trickNumber = 1;
         this.warDepth = 0;
+        this.warPhase = WarPhase.NONE;
+        this.presentationEventId = 0;
         this.statusText = "Ready to flip.";
     }
 
@@ -50,6 +57,8 @@ public class KrigState extends GameState {
         this.lastTrick = other.lastTrick;
         this.trickNumber = other.trickNumber;
         this.warDepth = other.warDepth;
+        this.warPhase = other.warPhase;
+        this.presentationEventId = other.presentationEventId;
         this.statusText = other.statusText;
     }
 
@@ -104,6 +113,22 @@ public class KrigState extends GameState {
 
     public void setWarDepth(int warDepth) {
         this.warDepth = warDepth;
+    }
+
+    public WarPhase warPhase() {
+        return warPhase;
+    }
+
+    public void setWarPhase(WarPhase warPhase) {
+        this.warPhase = warPhase;
+    }
+
+    public int presentationEventId() {
+        return presentationEventId;
+    }
+
+    public void setPresentationEventId(int presentationEventId) {
+        this.presentationEventId = presentationEventId;
     }
 
     public String statusText() {

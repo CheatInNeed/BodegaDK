@@ -291,6 +291,64 @@ class FemEngineTest {
     }
 
     @Test
+    void extendAceHighMeldWithJackOnLowEnd() {
+        FemState state = buildStateWithDrawn();
+        state.melds().add(new FemState.Meld("m1", "S", new ArrayList<>(List.of(
+                new Card("S", "Q"), new Card("S", "K"), new Card("S", "A"))),
+                new LinkedHashMap<>(Map.of("alice", new ArrayList<>(List.of(
+                        new Card("S", "Q"), new Card("S", "K"), new Card("S", "A"))))),
+                "alice"));
+        state.hands().get("alice").clear();
+        state.hands().get("alice").addAll(List.of(
+                new Card("S", "J"), new Card("D", "7"), new Card("D", "8"),
+                new Card("D", "9"), new Card("C", "2")));
+
+        FemState next = engine.apply(new FemAction.ExtendMeld("alice", "m1", "SJ"), state);
+
+        assertEquals(4, next.melds().getFirst().cards().size());
+        assertEquals("SJ", next.melds().getFirst().cards().getFirst().toString());
+    }
+
+    @Test
+    void extendAceHighMeldWithTwoWrapsToHighEnd() {
+        FemState state = buildStateWithDrawn();
+        state.melds().add(new FemState.Meld("m1", "S", new ArrayList<>(List.of(
+                new Card("S", "Q"), new Card("S", "K"), new Card("S", "A"))),
+                new LinkedHashMap<>(Map.of("alice", new ArrayList<>(List.of(
+                        new Card("S", "Q"), new Card("S", "K"), new Card("S", "A"))))),
+                "alice"));
+        state.hands().get("alice").clear();
+        state.hands().get("alice").addAll(List.of(
+                new Card("S", "2"), new Card("D", "7"), new Card("D", "8"),
+                new Card("D", "9"), new Card("C", "2")));
+
+        FemState next = engine.apply(new FemAction.ExtendMeld("alice", "m1", "S2"), state);
+
+        assertEquals(4, next.melds().getFirst().cards().size());
+        assertEquals("S2", next.melds().getFirst().cards().getLast().toString());
+    }
+
+    @Test
+    void extendWrappedMeldFurtherWithThree() {
+        FemState state = buildStateWithDrawn();
+        // Meld already wrapped: QS KS AS 2S
+        state.melds().add(new FemState.Meld("m1", "S", new ArrayList<>(List.of(
+                new Card("S", "Q"), new Card("S", "K"), new Card("S", "A"), new Card("S", "2"))),
+                new LinkedHashMap<>(Map.of("alice", new ArrayList<>(List.of(
+                        new Card("S", "Q"), new Card("S", "K"), new Card("S", "A"), new Card("S", "2"))))),
+                "alice"));
+        state.hands().get("alice").clear();
+        state.hands().get("alice").addAll(List.of(
+                new Card("S", "3"), new Card("D", "7"), new Card("D", "8"),
+                new Card("D", "9"), new Card("C", "2")));
+
+        FemState next = engine.apply(new FemAction.ExtendMeld("alice", "m1", "S3"), state);
+
+        assertEquals(5, next.melds().getFirst().cards().size());
+        assertEquals("S3", next.melds().getFirst().cards().getLast().toString());
+    }
+
+    @Test
     void anyPlayerCanFurtherExtendMeldAfterOwnershipTransfer() {
         // Alice owns H3H4H5; Bob extends with H6 (becomes owner); Alice then extends with H7
         FemState state = buildStateWithMeld();
@@ -597,6 +655,7 @@ class FemEngineTest {
 
     private FemState buildStateWithDrawn() {
         FemState state = buildBasicState();
+        state.setFirstRound(false);
         state.setHasDrawnThisTurn(true);
         return state;
     }
