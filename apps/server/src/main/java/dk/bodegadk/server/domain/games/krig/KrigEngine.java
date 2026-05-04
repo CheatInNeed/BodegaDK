@@ -54,7 +54,10 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         if (state.readyPlayerIds().contains(action.playerId())) {
             throw new GameRuleException("You are already ready for this flip.");
         }
-        if (state.drawPiles().getOrDefault(action.playerId(), List.of()).isEmpty()) {
+        // During a war flip the decisive card may be the last card — allow it through;
+        // resolveWarFlip handles the empty-pile case via drawFaceUpIfAvailable.
+        if (state.warPhase() != KrigState.WarPhase.AWAITING_WAR_FLIP
+                && state.drawPiles().getOrDefault(action.playerId(), List.of()).isEmpty()) {
             throw new GameRuleException("You have no cards left to flip.");
         }
     }
@@ -63,6 +66,20 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
     public KrigState apply(KrigAction action, KrigState state) {
         validate(action, state);
         KrigState next = state.copy();
+
+        // War flip path — must be checked before the normal readyPlayerIds.isEmpty() guard
+        if (next.warPhase() == KrigState.WarPhase.AWAITING_WAR_FLIP) {
+            next.readyPlayerIds().add(action.playerId());
+            next.setStatusText("Waiting for both players to flip their war card.");
+            if (next.readyPlayerIds().size() < PLAYER_COUNT) {
+                return next;
+            }
+            next.readyPlayerIds().clear();
+            resolveWarFlip(next);
+            return next;
+        }
+
+        // Normal flip path
         if (next.readyPlayerIds().isEmpty()) {
             prepareNextFlip(next);
         }
@@ -113,26 +130,90 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         String secondPlayerId = state.playerIds().get(1);
         Resolution resolution = flipBattleCards(state, firstPlayerId, secondPlayerId);
 
-        while (resolution.winnerPlayerId == null && resolution.tie) {
+        if (resolution.tie) {
             state.setWarDepth(state.warDepth() + 1);
-            resolution = continueWar(state, firstPlayerId, secondPlayerId);
+            placeWarStakes(state, firstPlayerId);
+            placeWarStakes(state, secondPlayerId);
+            state.setWarPhase(KrigState.WarPhase.AWAITING_WAR_FLIP);
+            state.setPresentationEventId(state.presentationEventId() + 1);
+            state.setLastTrick(new KrigState.TrickResult(
+                    state.trickNumber(),
+                    firstPlayerId, resolution.firstCard.toString(),
+                    secondPlayerId, resolution.secondCard.toString(),
+                    null, "TIE",
+                    state.centerPile().size(),
+                    state.warDepth()
+            ));
+            state.setStatusText("KRIG! Flip your war card!");
+            return;
         }
 
-        if (resolution.winnerPlayerId == null) {
+        finalizeResolution(state, firstPlayerId, resolution.firstCard, secondPlayerId, resolution.secondCard,
+                resolution.winnerPlayerId, resolution.outcome);
+    }
+
+    private void resolveWarFlip(KrigState state) {
+        String firstPlayerId = state.playerIds().get(0);
+        String secondPlayerId = state.playerIds().get(1);
+
+        Card firstCard = drawFaceUpIfAvailable(state, firstPlayerId);
+        Card secondCard = drawFaceUpIfAvailable(state, secondPlayerId);
+
+        if (firstCard == null && secondCard == null) {
+            state.setWarPhase(KrigState.WarPhase.NONE);
             finishGame(state, null, "War cannot continue.");
             return;
         }
 
-        awardCenterPile(state, resolution.winnerPlayerId);
+        String winnerId;
+        String outcome;
+
+        if (firstCard == null) {
+            winnerId = secondPlayerId;
+            outcome = "SECOND";
+        } else if (secondCard == null) {
+            winnerId = firstPlayerId;
+            outcome = "FIRST";
+        } else if (firstCard.value() > secondCard.value()) {
+            winnerId = firstPlayerId;
+            outcome = "FIRST";
+        } else if (secondCard.value() > firstCard.value()) {
+            winnerId = secondPlayerId;
+            outcome = "SECOND";
+        } else {
+            // Cascading war
+            state.setWarDepth(state.warDepth() + 1);
+            placeWarStakes(state, firstPlayerId);
+            placeWarStakes(state, secondPlayerId);
+            state.setWarPhase(KrigState.WarPhase.AWAITING_WAR_FLIP);
+            state.setPresentationEventId(state.presentationEventId() + 1);
+            state.setLastTrick(new KrigState.TrickResult(
+                    state.trickNumber(),
+                    firstPlayerId, firstCard.toString(),
+                    secondPlayerId, secondCard.toString(),
+                    null, "TIE",
+                    state.centerPile().size(),
+                    state.warDepth()
+            ));
+            state.setStatusText("KRIG igen! Flip your war card again!");
+            return;
+        }
+
+        state.setWarPhase(KrigState.WarPhase.NONE);
+        finalizeResolution(state, firstPlayerId, firstCard, secondPlayerId, secondCard, winnerId, outcome);
+    }
+
+    private void finalizeResolution(KrigState state, String firstPlayerId, Card firstCard,
+                                    String secondPlayerId, Card secondCard, String winnerId, String outcome) {
+        int cardsWon = state.centerPile().size();
+        awardCenterPile(state, winnerId);
+        state.setPresentationEventId(state.presentationEventId() + 1);
         state.setLastTrick(new KrigState.TrickResult(
                 state.trickNumber(),
-                firstPlayerId,
-                resolution.firstCard == null ? null : resolution.firstCard.toString(),
-                secondPlayerId,
-                resolution.secondCard == null ? null : resolution.secondCard.toString(),
-                resolution.winnerPlayerId,
-                resolution.outcome,
-                resolution.cardsWon,
+                firstPlayerId, firstCard == null ? null : firstCard.toString(),
+                secondPlayerId, secondCard == null ? null : secondCard.toString(),
+                winnerId, outcome,
+                cardsWon,
                 state.warDepth()
         ));
 
@@ -155,6 +236,7 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         state.drawPileCountsBeforeTrick().clear();
         state.setLastTrick(null);
         state.setWarDepth(0);
+        state.setWarPhase(KrigState.WarPhase.NONE);
     }
 
     private void snapshotDrawPileCounts(KrigState state) {
@@ -167,26 +249,6 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
     private Resolution flipBattleCards(KrigState state, String firstPlayerId, String secondPlayerId) {
         Card firstCard = drawFaceUp(state, firstPlayerId);
         Card secondCard = drawFaceUp(state, secondPlayerId);
-        return compareFaceUpCards(firstPlayerId, firstCard, secondPlayerId, secondCard, state.centerPile().size());
-    }
-
-    private Resolution continueWar(KrigState state, String firstPlayerId, String secondPlayerId) {
-        placeWarStakes(state, firstPlayerId);
-        placeWarStakes(state, secondPlayerId);
-
-        Card firstCard = drawFaceUpIfAvailable(state, firstPlayerId);
-        Card secondCard = drawFaceUpIfAvailable(state, secondPlayerId);
-
-        if (firstCard == null && secondCard == null) {
-            return new Resolution(null, null, null, "TIE", true, state.centerPile().size());
-        }
-        if (firstCard == null) {
-            return new Resolution(secondPlayerId, null, secondCard, "SECOND", false, state.centerPile().size());
-        }
-        if (secondCard == null) {
-            return new Resolution(firstPlayerId, firstCard, null, "FIRST", false, state.centerPile().size());
-        }
-
         return compareFaceUpCards(firstPlayerId, firstCard, secondPlayerId, secondCard, state.centerPile().size());
     }
 

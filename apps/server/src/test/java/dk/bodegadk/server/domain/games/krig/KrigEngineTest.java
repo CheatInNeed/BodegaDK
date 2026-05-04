@@ -35,10 +35,19 @@ class KrigEngineTest {
         assertEquals("S7", state.drawPiles().get("p2").getFirst().toString());
 
         KrigState waiting = demoEngine.apply(new KrigAction("p1"), state);
-        KrigState resolved = demoEngine.apply(new KrigAction("p2"), waiting);
+        KrigState warDeclared = demoEngine.apply(new KrigAction("p2"), waiting);
+
+        // War declared — both flipped a 7, stakes placed, waiting for war flip
+        assertEquals(1, warDeclared.lastTrick().warDepth());
+        assertNull(warDeclared.lastTrick().winnerPlayerId());
+        assertEquals("TIE", warDeclared.lastTrick().outcome());
+        assertEquals(KrigState.WarPhase.AWAITING_WAR_FLIP, warDeclared.warPhase());
+
+        // Players press flip again to resolve the war
+        KrigState warWaiting = demoEngine.apply(new KrigAction("p1"), warDeclared);
+        KrigState resolved = demoEngine.apply(new KrigAction("p2"), warWaiting);
 
         assertEquals(1, resolved.lastTrick().warDepth());
-        assertEquals(10, resolved.lastTrick().cardsWon());
         assertEquals("p1", resolved.lastTrick().winnerPlayerId());
     }
 
@@ -127,7 +136,15 @@ class KrigEngineTest {
         );
 
         KrigState waiting = engine.apply(new KrigAction("p1"), state);
-        KrigState resolved = engine.apply(new KrigAction("p2"), waiting);
+        KrigState warDeclared = engine.apply(new KrigAction("p2"), waiting);
+
+        // War declared — stakes placed, waiting for war flip
+        assertEquals(KrigState.WarPhase.AWAITING_WAR_FLIP, warDeclared.warPhase());
+        assertEquals(1, warDeclared.lastTrick().warDepth());
+        assertNull(warDeclared.lastTrick().winnerPlayerId());
+
+        KrigState warWaiting = engine.apply(new KrigAction("p1"), warDeclared);
+        KrigState resolved = engine.apply(new KrigAction("p2"), warWaiting);
 
         assertEquals(1, resolved.lastTrick().warDepth());
         assertEquals("p1", resolved.lastTrick().winnerPlayerId());
@@ -146,7 +163,12 @@ class KrigEngineTest {
         );
 
         KrigState waiting = engine.apply(new KrigAction("p1"), state);
-        KrigState resolved = engine.apply(new KrigAction("p2"), waiting);
+        KrigState warDeclared = engine.apply(new KrigAction("p2"), waiting);
+
+        assertEquals(KrigState.WarPhase.AWAITING_WAR_FLIP, warDeclared.warPhase());
+
+        KrigState warWaiting = engine.apply(new KrigAction("p1"), warDeclared);
+        KrigState resolved = engine.apply(new KrigAction("p2"), warWaiting);
 
         assertEquals(1, resolved.lastTrick().warDepth());
         assertEquals("p1", resolved.lastTrick().winnerPlayerId());

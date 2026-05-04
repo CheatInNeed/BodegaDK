@@ -195,6 +195,9 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
     }
 
     private void validateLayMeld(FemAction.LayMeld lay, FemState state) {
+        if (state.firstRound()) {
+            throw new GameRuleException("Cannot lay melds on the first round");
+        }
         List<Card> hand = state.hands().get(lay.playerId());
         List<Card> cards = parseAndValidateOwnership(lay.cardCodes(), hand);
 
@@ -327,6 +330,9 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
         applyTurnEnd(state.currentPlayerId(), state);
         state.advanceTurn();
         state.setHasDrawnThisTurn(false);
+        if (state.firstRound() && state.currentTurnIndex() == 0) {
+            state.setFirstRound(false);
+        }
     }
 
     /* ── Round end ── */
@@ -364,7 +370,6 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
             state.setPhase(GameState.Phase.FINISHED);
         } else {
             state.setRoundNumber(state.roundNumber() + 1);
-            state.setFirstRound(false);
             dealRound(state);
             state.setCurrentTurnIndex(0);
         }
@@ -491,6 +496,8 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
 
         // Ace can extend after K (as index 13)
         if ("A".equals(card.rank()) && highEnd == 13) return;
+        // 2 wraps after Ace-high (A sits at index 13, so 2 follows it)
+        if ("2".equals(card.rank()) && meldIndices.getLast() == 13) return;
         if (cardIdx == lowEnd || cardIdx == highEnd) return;
 
         throw new GameRuleException("Card does not extend the meld");
@@ -500,13 +507,20 @@ public class FemEngine implements GameEngine<FemState, FemAction> {
         List<Integer> indices = getMeldRankIndices(meld);
         int cardIdx = rankIndex(card.rank());
 
-        // Ace-high: if meld ends near K, treat ace as 13
+        // Ace-high: meld ends near K, ace goes at the end
         if ("A".equals(card.rank()) && !indices.isEmpty() && indices.getLast() >= 11) {
             meld.cards().add(card);
             return;
         }
 
-        if (cardIdx < indices.getFirst()) {
+        // 2 wraps after Ace-high (A sits at index 13)
+        if ("2".equals(card.rank()) && !indices.isEmpty() && indices.getLast() == 13) {
+            meld.cards().add(card);
+            return;
+        }
+
+        // Card goes at the low end if it is exactly one step below the first card
+        if (cardIdx == indices.getFirst() - 1) {
             meld.cards().addFirst(card);
         } else {
             meld.cards().add(card);

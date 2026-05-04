@@ -140,7 +140,7 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             canDraw: canAct && !hasDrawn && stockPileCount > 0,
             canDrawDiscard: canAct && !hasDrawn && discardPileTop !== null,
             canTakePile: canAct && !hasDrawn && !firstRound && discardPileTop !== null,
-            canLayMeld: canAct && hasDrawn && selCount >= 3,
+            canLayMeld: canAct && hasDrawn && !firstRound && selCount >= 3,
             canExtendMeld: canAct && hasDrawn && selCount === 1 && melds.length > 0,
             canDiscard: canAct && hasDrawn && selCount === 1,
             canClose: canAct && hasDrawn && !firstRound && hand.length === 1,
