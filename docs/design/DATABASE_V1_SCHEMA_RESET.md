@@ -9,6 +9,7 @@ Migration files:
 - `supabase/migrations/202604281500_v1_schema_reset.sql`
 - `supabase/migrations/202604281510_seed_game_catalog.sql`
 - `supabase/migrations/202604281520_remove_leaderboard_seasons.sql`
+- `supabase/migrations/202605041200_room_presence_cleanup.sql`
 
 ## Decisions
 
@@ -40,6 +41,11 @@ Migration files:
 - Backfills profiles for existing `auth.users` rows after the reset.
 - Recreates `cancel_matchmaking_ticket(uuid, text)` against `matchmaking_tickets.id`, `client_session_id`, and `auth.uid()`.
 - Recreates `touch_room_heartbeat(text)` against `rooms.room_code`, `rooms.status`, and authenticated room participation.
+- Adds `touch_room_presence(text)` so lobby and game views refresh the current
+  participant's `room_players.updated_at`.
+- Adds `cleanup_stale_room_presence(...)` for stale participant disconnects,
+  vacant lobby abandonment, stale active-room finishing, and stale queue ticket
+  expiry.
 - Recreates `finish_stale_rooms(interval)` against the new `rooms.status`.
 - Restores realtime publication for `matchmaking_tickets`.
 - Enables an initial RLS baseline for authenticated users. Backend writes should still use privileged server credentials.
@@ -68,7 +74,9 @@ Migration files:
 - API protocol types no longer expose room/session tokens. `playerId` fields remain as UI-compatible auth UUIDs.
 - Quick play realtime watches tickets by V1 `id`.
 - Matchmaking cancellation goes through the authenticated server API; direct browser RPC cancellation is no longer used by the app.
-- `touch_room_heartbeat(text)` can keep the same RPC signature, but it now requires the signed-in user to be a persisted room participant.
+- Room presence uses `touch_room_presence(text)` while the user is in a lobby
+  or active game room. `touch_room_heartbeat(text)` remains as a compatibility
+  wrapper.
 - Profile code uses `profiles.user_id`.
 - Avatar code uses `user_avatars` plus `avatar_defs`.
 - Profile match history, profile stats, leaderboard, friends, challenges, and notifications are live through authenticated backend APIs.

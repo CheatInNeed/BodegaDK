@@ -68,6 +68,13 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
                 from public.rooms
                 join public.games on games.id = rooms.game_id
                 where rooms.visibility = 'PUBLIC' and rooms.status = 'LOBBY'
+                  and exists (
+                      select 1
+                      from public.room_players
+                      where room_players.room_id = rooms.id
+                        and room_players.status in ('JOINED', 'READY')
+                        and room_players.updated_at >= now() - interval '2 minutes'
+                  )
                 order by rooms.created_at asc, rooms.room_code asc
                 """,
                 (rs, rowNum) -> {
@@ -267,7 +274,7 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
                 select user_id::text as user_id, username_snapshot
                 from public.room_players
                 where room_id = (select id from public.rooms where room_code = ?)
-                  and status in ('JOINED', 'READY', 'DISCONNECTED')
+                  and status in ('JOINED', 'READY')
                 order by joined_at asc, user_id asc
                 """,
                 (rs, rowNum) -> new InMemoryRuntimeStore.PlayerSummary(rs.getString("user_id"), rs.getString("username_snapshot")),

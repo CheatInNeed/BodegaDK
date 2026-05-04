@@ -133,6 +133,8 @@ Current persistence boundaries:
 
 - Room metadata is persisted in SQL.
 - Room participants are persisted in SQL.
+- Room participant presence is tracked with `room_players.updated_at`, refreshed
+  by the browser while a signed-in user is in a lobby or active game room.
 - Matchmaking tickets are persisted in SQL.
 - Completed matches, match players, profile stats, and leaderboard scores are
   persisted in SQL.
@@ -142,6 +144,12 @@ Current persistence boundaries:
 
 This means room recovery is stronger than before, while active match engine
 snapshots still behave like transient runtime state.
+
+Scheduled cleanup marks stale participants as `DISCONNECTED`, marks vacant
+stale `LOBBY` rooms as `ABANDONED`, marks stale `IN_GAME` rooms as `FINISHED`,
+and expires stale waiting matchmaking tickets. Public lobby listing also
+requires at least one fresh `JOINED` or `READY` participant so ghost lobbies do
+not stay visible while waiting for cleanup.
 
 ## Backend Components
 
