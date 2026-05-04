@@ -4489,6 +4489,9 @@ button.lobby-game-card {
     color: #ff4444;
     letter-spacing: 0.1em;
     line-height: 1;
+    animation: krig-flicker 1.3s ease-in-out 0.5s infinite;
+}
+#krig-root .krig-word--new {
     animation: krig-slam 0.5s cubic-bezier(0.22,1,0.36,1) forwards, krig-flicker 1.3s ease-in-out 0.5s infinite;
 }
 #krig-root .krig-sub {

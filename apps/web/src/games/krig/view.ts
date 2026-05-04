@@ -8,6 +8,7 @@ export type KrigViewModel = {
     statusText: string;
     canFlip: boolean;
     warActive: boolean;
+    warJustDeclared: boolean;
     warDepth: number;
     warPileSize: number;
     centerPileSize: number;
@@ -66,7 +67,7 @@ export function renderKrigRoom(vm: KrigViewModel): string {
       <div style="display:flex;flex-direction:column;align-items:center;gap:14px;z-index:10;pointer-events:auto">
         ${vm.warActive ? `
         <div style="text-align:center;margin-bottom:4px">
-          <div class="krig-word">KRIG!</div>
+          <div class="krig-word${vm.warJustDeclared ? ' krig-word--new' : ''}">KRIG!</div>
           <div class="krig-sub">Krig er erklæret</div>
         </div>` : `
         <div style="text-align:center">

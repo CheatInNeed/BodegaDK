@@ -97,6 +97,10 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
             && warDepth > 0
             && presentation.phase !== 'idle'
             && !postGameVisible;
+        // Only slam-animate on the very first render of a fresh KRIG declaration.
+        const warJustDeclared = warPresentationActive
+            && presentation.phase === 'suspense'
+            && trick?.outcome === 'TIE';
         const drawPileCounts = suspenseVisible && publicState?.drawPileCountsBeforeTrick
             ? publicState.drawPileCountsBeforeTrick
             : publicState?.drawPileCounts;
@@ -120,6 +124,7 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
             }),
             canFlip: !isRoundLocked && !sessionState.winnerPlayerId && !opponentLeft,
             warActive: warPresentationActive,
+            warJustDeclared,
             warDepth,
             warPileSize,
             centerPileSize: cardsInCenter,
