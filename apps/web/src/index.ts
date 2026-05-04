@@ -61,7 +61,7 @@ const adapters: GenericAdapter[] = [
 type ThemeId = 'bodega' | 'harbor' | 'parlor';
 
 const THEME_STORAGE_KEY = 'ui-theme';
-const ROOM_HEARTBEAT_INTERVAL_MS = 20_000;
+const ROOM_PRESENCE_INTERVAL_MS = 20_000;
 
 const THEMES: Array<{ id: ThemeId; labelKey: string; toneKey: string }> = [
     { id: 'bodega', labelKey: 'theme.bodega.label', toneKey: 'theme.bodega.tone' },
@@ -158,9 +158,9 @@ let quickPlayRealtimeRefreshTimer: number | null = null;
 let activeQueueClockTimer: number | null = null;
 let matchedCountdownTimer: number | null = null;
 let quickPlayGeneration = 0;
-let roomHeartbeatTimer: number | null = null;
-let roomHeartbeatKey: string | null = null;
-let roomHeartbeatInFlight = false;
+let roomPresenceTimer: number | null = null;
+let roomPresenceKey: string | null = null;
+let roomPresenceInFlight = false;
 let lobbyCopyFeedbackTimer: number | null = null;
 let profileDataCache: Awaited<ReturnType<typeof loadProfileData>> | null = null;
 
@@ -579,7 +579,6 @@ function renderView() {
 }
 
 function renderLobbyContent(): string {
-    stopRoomHeartbeat();
     const route = state.route;
     if (!route.room) {
         cleanupRoomSession();
@@ -600,6 +599,7 @@ function renderLobbyContent(): string {
     }
 
     const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.mock);
+    startRoomPresence(route.room, route.mock);
     const roomState = session?.getState();
     const publicState = toRecord(roomState?.publicState);
     const hostPlayerId = typeof publicState.hostPlayerId === 'string' ? publicState.hostPlayerId : null;
@@ -663,7 +663,7 @@ function renderRoomContent(): string {
     const viewModel = session?.toViewModel({ selfUsername });
 
     if (!roomState || !viewModel) {
-        stopRoomHeartbeat();
+        stopRoomPresence();
         return renderRoomError('Unable to initialize room session');
     }
 
@@ -679,9 +679,9 @@ function renderRoomContent(): string {
     const hasFinished = !!roomState.winnerPlayerId || status === 'FINISHED' || roomPublicState.gamePhase === 'GAME_OVER';
 
     if (status === 'IN_GAME' && !hasFinished) {
-        startRoomHeartbeat(route.room, route.mock);
+        startRoomPresence(route.room, route.mock);
     } else {
-        stopRoomHeartbeat();
+        stopRoomPresence();
     }
 
     if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room) {
@@ -806,7 +806,7 @@ function ensureRoomSession(
 }
 
 function cleanupRoomSession() {
-    stopRoomHeartbeat();
+    stopRoomPresence();
     clearLobbyCopyFeedback();
     unsubscribeRoomSession?.();
     unsubscribeRoomSession = null;
@@ -827,49 +827,49 @@ function cleanupRoomSessionIfUnneeded() {
     cleanupRoomSession();
 }
 
-function startRoomHeartbeat(roomCode: string, useMock: boolean) {
+function startRoomPresence(roomCode: string, useMock: boolean) {
     if (useMock || !supabase) {
-        stopRoomHeartbeat();
+        stopRoomPresence();
         return;
     }
 
     const key = roomCode;
-    if (roomHeartbeatTimer !== null && roomHeartbeatKey === key) {
+    if (roomPresenceTimer !== null && roomPresenceKey === key) {
         return;
     }
 
-    stopRoomHeartbeat();
-    roomHeartbeatKey = key;
-    void sendRoomHeartbeat(roomCode);
-    roomHeartbeatTimer = window.setInterval(() => {
-        void sendRoomHeartbeat(roomCode);
-    }, ROOM_HEARTBEAT_INTERVAL_MS);
+    stopRoomPresence();
+    roomPresenceKey = key;
+    void sendRoomPresence(roomCode);
+    roomPresenceTimer = window.setInterval(() => {
+        void sendRoomPresence(roomCode);
+    }, ROOM_PRESENCE_INTERVAL_MS);
 }
 
-function stopRoomHeartbeat() {
-    if (roomHeartbeatTimer !== null) {
-        window.clearInterval(roomHeartbeatTimer);
-        roomHeartbeatTimer = null;
+function stopRoomPresence() {
+    if (roomPresenceTimer !== null) {
+        window.clearInterval(roomPresenceTimer);
+        roomPresenceTimer = null;
     }
-    roomHeartbeatKey = null;
-    roomHeartbeatInFlight = false;
+    roomPresenceKey = null;
+    roomPresenceInFlight = false;
 }
 
-async function sendRoomHeartbeat(roomCode: string) {
-    if (!supabase || roomHeartbeatInFlight) return;
-    roomHeartbeatInFlight = true;
+async function sendRoomPresence(roomCode: string) {
+    if (!supabase || roomPresenceInFlight) return;
+    roomPresenceInFlight = true;
 
     try {
-        const { error } = await supabase.rpc('touch_room_heartbeat', {
+        const { error } = await supabase.rpc('touch_room_presence', {
             room_code_input: roomCode,
         });
         if (error) {
-            console.warn('[room-heartbeat] failed to update room heartbeat', error);
+            console.warn('[room-presence] failed to update room presence', error);
         }
     } catch (error) {
-        console.warn('[room-heartbeat] failed to update room heartbeat', error);
+        console.warn('[room-presence] failed to update room presence', error);
     } finally {
-        roomHeartbeatInFlight = false;
+        roomPresenceInFlight = false;
     }
 }
 

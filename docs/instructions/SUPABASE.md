@@ -29,6 +29,7 @@ Current Supabase files in the repo:
 - `supabase/migrations/202604281510_seed_game_catalog.sql`
 - `supabase/migrations/202604281520_remove_leaderboard_seasons.sql`
 - `supabase/migrations/202604291123_grant_browser_profile_avatar_access.sql`
+- `supabase/migrations/202605041200_room_presence_cleanup.sql`
 - `.github/workflows/supabase-migrations.yml`
 
 Room/session metadata now lives in Supabase/Postgres, while live
@@ -88,15 +89,25 @@ Challenges and notifications use the existing V1 social tables:
 - the browser reads and mutates these through authenticated Spring REST
   endpoints; it does not write rows directly through the Supabase anon client
 
-Active room cleanup uses Supabase RPCs:
+Room presence and cleanup uses Supabase RPCs:
 
-- `public.touch_room_heartbeat(room_code_input)` updates `public.rooms.last_heartbeat`
-  for active `IN_GAME` rooms
+- `public.touch_room_presence(room_code_input)` updates the authenticated user's
+  `public.room_players.updated_at` while they are in a `LOBBY` or `IN_GAME`
+  room, and also updates `public.rooms.last_heartbeat` for active `IN_GAME`
+  rooms
+- `public.touch_room_heartbeat(room_code_input)` remains as a compatibility
+  wrapper around `touch_room_presence`
 - `public.finish_stale_rooms(stale_after interval default interval '60 seconds')`
   updates stale `IN_GAME` rooms to `FINISHED`
-- the migration schedules `finish_stale_rooms` once per minute when `pg_cron` is
-  available; otherwise an external cron or Edge Function can call the RPC
-- cleanup only updates `public.rooms`; `public.room_players` rows remain intact
+- `public.cleanup_stale_room_presence(...)` marks stale room players as
+  `DISCONNECTED`, abandons vacant stale `LOBBY` rooms, finishes stale
+  `IN_GAME` rooms, and expires stale `WAITING` matchmaking tickets
+- the room presence cleanup migration schedules `cleanup_stale_room_presence`
+  once per minute when `pg_cron` is available; otherwise an external cron or
+  Edge Function can call the RPC
+- public lobby listing also requires a fresh `JOINED` or `READY`
+  `room_players.updated_at`, so ghost lobbies are hidden even if scheduled
+  cleanup is delayed
 
 GitHub Actions applies migrations on:
 

@@ -1,6 +1,6 @@
 # RLS Audit
 
-Last updated: 2026-04-29
+Last updated: 2026-05-04
 
 This document records the intended Supabase browser access model for the V1
 schema. Spring remains the trusted backend for game rules, room lifecycle,
@@ -28,7 +28,8 @@ matchmaking decisions, social mutations, notifications, and result writes.
 | `public.games` | `select` for `authenticated` | active rows only | Client catalog reads where needed |
 | `public.matchmaking_tickets` | `select` for `authenticated` | own rows only | Quick-play ticket polling/realtime refresh |
 | `public.cancel_matchmaking_ticket(uuid, text)` | `execute` for `authenticated` | checks `auth.uid()` and session token | Compatibility/maintenance cancellation path |
-| `public.touch_room_heartbeat(text)` | `execute` for `authenticated` | checks room participation | Active room heartbeat |
+| `public.touch_room_presence(text)` | `execute` for `authenticated` | checks active room participation | Lobby/game room participant presence |
+| `public.touch_room_heartbeat(text)` | `execute` for `authenticated` | wrapper around room presence | Backward-compatible active room heartbeat |
 
 ## Spring-Only Tables
 
@@ -52,6 +53,7 @@ traffic should use Spring REST/JDBC instead of direct browser table access.
 The browser roles should not execute these helper/backend functions directly:
 
 - `public.finish_stale_rooms(interval)`: service role only
+- `public.cleanup_stale_room_presence(interval, interval, interval, interval)`: service role only
 - `public.resolve_profile_username(text, uuid)`: internal trigger/helper only
 - `public.handle_new_user_profile()`: trigger only
 - `public.resolve_game_id(text)`: backend/database helper only
@@ -62,6 +64,7 @@ The hardening migration revokes default function execution from `public`,
 ## Current Hardening Migration
 
 - `supabase/migrations/202604291123_grant_browser_profile_avatar_access.sql`
+- `supabase/migrations/202605041200_room_presence_cleanup.sql`
 
 The migration intentionally:
 
@@ -70,6 +73,7 @@ The migration intentionally:
 - grants back only intentional browser tables
 - revokes broad RPC/function execution defaults
 - grants back only the intended authenticated RPCs
+- grants stale room/player/ticket cleanup only to `service_role`
 
 ## Deployment Checks
 
