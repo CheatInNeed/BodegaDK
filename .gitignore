@@ -22,6 +22,7 @@ project_dump.txt
 .env.deploy
 apps/web/.env
 apps/web/.env.local
+tests/load/results/*
 
 # Local IDE state
 .ai/*
