@@ -125,6 +125,7 @@ class FemEnginePortAdapterTest {
         knownState.discardPile().add(new Card("C", "10"));
         knownState.setHasDrawnThisTurn(true);
         knownState.setPhase(GameState.Phase.PLAYING);
+        knownState.setFirstRound(false);
         store.saveGameState(roomCode, knownState);
 
         // Lay a meld of H3, H4, H5

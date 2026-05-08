@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "build": "npm run web:build",
+    "test": "npm run web:build && npm run server:test",
     "watch": "npm run web:watch",
     "serve": "npm run web:serve",
     "dev": "npm run web:dev",
@@ -18,6 +19,7 @@
     "web:watch": "npm run web:config && npm run watch -w apps/web",
     "web:build": "npm run web:config && npm run build -w apps/web",
     "server:local": "node scripts/run-local-env.mjs -- npm run server:local:raw",
+    "server:test": "cd apps/server && mvn test",
     "server:local:raw": "cd apps/server && mvn spring-boot:run -Dspring-boot.run.profiles=local",
     "local:dev": "node scripts/run-local-env.mjs -- npm run local:dev:raw",
     "local:dev:raw": "node scripts/run-local-dev.mjs",
