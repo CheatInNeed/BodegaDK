@@ -210,6 +210,106 @@ Annullerer en quick-play ticket.
 
 ------------------------------------------------------------------------
 
+# REST API (PWA / Push)
+
+## GET /push/config
+
+Returns whether the backend is configured for Web Push.
+
+### Response
+
+``` json
+{
+  "enabled": true,
+  "publicKey": "base64url-vapid-public-key"
+}
+```
+
+If VAPID keys are not configured, `enabled` is `false` and `publicKey` is
+`null`.
+
+------------------------------------------------------------------------
+
+## POST /push/subscriptions
+
+Stores or refreshes the current browser/device push subscription.
+
+### Request
+
+``` json
+{
+  "subscription": {
+    "endpoint": "https://push-service.example/subscription-id",
+    "expirationTime": null,
+    "keys": {
+      "p256dh": "base64url-key",
+      "auth": "base64url-auth-secret"
+    }
+  },
+  "userId": "supabase-user-id-or-null",
+  "username": "Alice",
+  "deviceId": "client-generated-device-id",
+  "deviceLabel": "Desktop browser",
+  "userAgent": "browser user agent"
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+------------------------------------------------------------------------
+
+## POST /push/subscriptions/unsubscribe
+
+Marks a push subscription inactive.
+
+### Request
+
+``` json
+{
+  "endpoint": "https://push-service.example/subscription-id",
+  "deviceId": "client-generated-device-id"
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+------------------------------------------------------------------------
+
+## POST /push/test
+
+Sends a test notification to an existing active subscription. Requires VAPID
+server configuration.
+
+### Request
+
+``` json
+{
+  "endpoint": "https://push-service.example/subscription-id"
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+------------------------------------------------------------------------
+
 # WebSocket
 
 Endpoint:

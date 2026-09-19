@@ -22,6 +22,14 @@ import { renderCustom } from './custom.js';
 import { loadProfileData, renderProfilePage } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
+    disablePushNotifications,
+    enablePushNotifications,
+    readPushStatus,
+    registerPwaServiceWorker,
+    sendTestPush,
+    type PushStatus,
+} from './pwa.js';
+import {
     cancelMatchmakingTicket,
     claimRoomIdentity,
     createRoom,
@@ -373,6 +381,29 @@ function renderView() {
               </button>
             `).join('')}
           </div>
+        </article>
+        <article class="card settings-card">
+          <div class="settings-card-header">
+            <div>
+              <p class="home-eyebrow" data-i18n="settings.push.kicker"></p>
+              <div class="card-title" data-i18n="settings.push.title"></div>
+            </div>
+            <span class="pill" id="pushDeviceLabel" data-i18n="settings.push.deviceChecking"></span>
+          </div>
+          <p class="card-desc" data-i18n="settings.push.desc"></p>
+          <div class="push-status-panel">
+            <div class="push-status-copy">
+              <strong id="pushStatusTitle" data-i18n="settings.push.status.checking"></strong>
+              <span id="pushStatusBody" data-i18n="settings.push.status.checkingBody"></span>
+            </div>
+            <div class="push-actions">
+              <button class="btn primary" type="button" id="pushEnableBtn" data-i18n="settings.push.enable" disabled></button>
+              <button class="btn" type="button" id="pushTestBtn" data-i18n="settings.push.test" disabled></button>
+              <button class="btn" type="button" id="pushDisableBtn" data-i18n="settings.push.disable" disabled></button>
+            </div>
+          </div>
+          <p class="card-desc push-install-hint" id="pushInstallHint" data-i18n="settings.push.installHint" hidden></p>
+          <p class="card-desc push-feedback" id="pushFeedback" aria-live="polite"></p>
         </article>
       </section>
     `;
@@ -908,6 +939,8 @@ function imageGameCard(titleKey: string, imageClass: string) {
 }
 
 function wireViewEvents() {
+    void refreshPushSettingsCard();
+
     const themeSelect = document.getElementById('themeSelect') as HTMLSelectElement | null;
     if (themeSelect) {
         themeSelect.value = state.theme;
@@ -930,6 +963,30 @@ function wireViewEvents() {
             }
             setTheme(nextTheme as ThemeId);
             renderApp();
+        });
+    });
+
+    document.querySelector<HTMLButtonElement>('#pushEnableBtn')?.addEventListener('click', async () => {
+        await runPushSettingsAction(async () => {
+            await enablePushNotifications({
+                userId: authUiState.user?.id ?? null,
+                username: authUiState.user?.username ?? null,
+            });
+            setPushFeedback(t(state.lang, 'settings.push.feedback.enabled'));
+        });
+    });
+
+    document.querySelector<HTMLButtonElement>('#pushDisableBtn')?.addEventListener('click', async () => {
+        await runPushSettingsAction(async () => {
+            await disablePushNotifications();
+            setPushFeedback(t(state.lang, 'settings.push.feedback.disabled'));
+        });
+    });
+
+    document.querySelector<HTMLButtonElement>('#pushTestBtn')?.addEventListener('click', async () => {
+        await runPushSettingsAction(async () => {
+            await sendTestPush();
+            setPushFeedback(t(state.lang, 'settings.push.feedback.testSent'));
         });
     });
 
@@ -992,6 +1049,75 @@ function wireViewEvents() {
         profileDataCache = null;
         navigate({ view: 'home' });
     });
+}
+
+async function runPushSettingsAction(action: () => Promise<void>) {
+    setPushButtonsBusy(true);
+    try {
+        await action();
+    } catch (error) {
+        setPushFeedback(error instanceof Error ? error.message : t(state.lang, 'settings.push.feedback.failed'));
+    } finally {
+        setPushButtonsBusy(false);
+        await refreshPushSettingsCard();
+    }
+}
+
+async function refreshPushSettingsCard() {
+    const titleEl = document.getElementById('pushStatusTitle');
+    const bodyEl = document.getElementById('pushStatusBody');
+    const deviceEl = document.getElementById('pushDeviceLabel');
+    const hintEl = document.getElementById('pushInstallHint') as HTMLParagraphElement | null;
+    const enableBtn = document.getElementById('pushEnableBtn') as HTMLButtonElement | null;
+    const disableBtn = document.getElementById('pushDisableBtn') as HTMLButtonElement | null;
+    const testBtn = document.getElementById('pushTestBtn') as HTMLButtonElement | null;
+    if (!titleEl || !bodyEl || !deviceEl || !enableBtn || !disableBtn || !testBtn) {
+        return;
+    }
+
+    const status = await readPushStatus();
+    const message = resolvePushStatusMessage(status);
+    titleEl.textContent = t(state.lang, message.titleKey);
+    bodyEl.textContent = t(state.lang, message.bodyKey);
+    deviceEl.textContent = status.platformLabel;
+    enableBtn.disabled = !status.supported || !status.configured || status.subscribed || status.permission === 'denied';
+    disableBtn.disabled = !status.subscribed;
+    testBtn.disabled = !status.subscribed;
+    if (hintEl) {
+        hintEl.hidden = !(status.coarsePointer && !status.standalone);
+    }
+}
+
+function resolvePushStatusMessage(status: PushStatus): { titleKey: string; bodyKey: string } {
+    if (!status.secureContext) {
+        return { titleKey: 'settings.push.status.insecure', bodyKey: 'settings.push.status.insecureBody' };
+    }
+    if (!status.supported) {
+        return { titleKey: 'settings.push.status.unsupported', bodyKey: 'settings.push.status.unsupportedBody' };
+    }
+    if (!status.configured) {
+        return { titleKey: 'settings.push.status.notConfigured', bodyKey: 'settings.push.status.notConfiguredBody' };
+    }
+    if (status.permission === 'denied') {
+        return { titleKey: 'settings.push.status.denied', bodyKey: 'settings.push.status.deniedBody' };
+    }
+    if (status.subscribed) {
+        return { titleKey: 'settings.push.status.enabled', bodyKey: 'settings.push.status.enabledBody' };
+    }
+    return { titleKey: 'settings.push.status.ready', bodyKey: 'settings.push.status.readyBody' };
+}
+
+function setPushButtonsBusy(busy: boolean) {
+    document.querySelectorAll<HTMLButtonElement>('#pushEnableBtn, #pushDisableBtn, #pushTestBtn').forEach((button) => {
+        button.disabled = busy;
+    });
+}
+
+function setPushFeedback(message: string) {
+    const feedback = document.getElementById('pushFeedback');
+    if (feedback) {
+        feedback.textContent = message;
+    }
 }
 
 function wireEvents() {
@@ -2314,4 +2440,5 @@ if (isSupabaseConfigured && supabase) {
 void syncAuthState();
 
 syncStateFromRoute();
+void registerPwaServiceWorker();
 renderApp();

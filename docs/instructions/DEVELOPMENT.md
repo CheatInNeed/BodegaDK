@@ -179,6 +179,25 @@ Hvis auth/profile skal virke i denne mode, så sørg for at
 `PUBLIC_SUPABASE_URL` og `PUBLIC_SUPABASE_ANON_KEY` findes enten i shell
 env eller i `.env.local` før du starter `npm run local:dev`.
 
+### PWA og push lokalt
+
+PWA service workers virker på `localhost`, så install/status-flow kan testes
+fra `http://localhost:5173`.
+
+For at oprette rigtige push subscriptions og sende testnotifikationer skal
+serveren have VAPID-nøgler:
+
+``` bash
+export BODEGADK_VAPID_PUBLIC_KEY="base64url-public-key"
+export BODEGADK_VAPID_PRIVATE_KEY="base64url-private-key"
+export BODEGADK_VAPID_SUBJECT="mailto:admin@example.com"
+```
+
+Uden disse nøgler returnerer `GET /push/config` `enabled: false`, og Settings
+viser at serveren mangler nøgler. `npm run server:local` bruger in-memory
+subscription storage; full-stack/Docker bruger Flyway-tabellen
+`public.push_subscriptions`.
+
 ------------------------------------------------------------------------
 
 ## 3) Kør Full Stack (prod-like via Docker)

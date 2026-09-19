@@ -210,7 +210,7 @@ async function parseJsonResponse<T>(response: Response, fallbackMessage: string)
     throw new Error(`${fallbackMessage} (${response.status})${suffix}`);
 }
 
-function resolveApiBaseUrl(): string {
+export function resolveApiBaseUrl(): string {
     if (window.location.port === '5173') {
         return 'http://localhost:8080';
     }
