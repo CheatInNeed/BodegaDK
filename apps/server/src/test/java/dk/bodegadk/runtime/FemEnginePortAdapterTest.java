@@ -124,6 +124,8 @@ class FemEnginePortAdapterTest {
         knownState.stockPile().add(new Card("D", "2"));
         knownState.discardPile().add(new Card("C", "10"));
         knownState.setHasDrawnThisTurn(true);
+        // Melds are only legal from round two onwards.
+        knownState.setFirstRound(false);
         knownState.setPhase(GameState.Phase.PLAYING);
         store.saveGameState(roomCode, knownState);
 
