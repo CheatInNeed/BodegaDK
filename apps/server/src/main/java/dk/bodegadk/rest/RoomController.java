@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -48,6 +49,7 @@ public class RoomController {
     }
 
     @PostMapping
+    @Transactional
     public CreateRoomResponse createRoom(Authentication authentication, @RequestBody(required = false) CreateRoomRequest request) {
         AuthenticatedUser user = AuthSupport.requireUser(authentication);
         String playerId = user.userId();
@@ -78,6 +80,7 @@ public class RoomController {
 
     @PostMapping("/{roomCode}/join")
     @ResponseStatus(HttpStatus.OK)
+    @Transactional
     public JoinRoomResponse joinRoom(Authentication authentication, @PathVariable String roomCode, @RequestBody(required = false) JoinRoomRequest request) {
         AuthenticatedUser user = AuthSupport.requireUser(authentication);
         RoomMetadataStore.StoredRoom stored = roomMetadataStore.room(roomCode)

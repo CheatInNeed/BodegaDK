@@ -3,6 +3,7 @@ package dk.bodegadk.runtime;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -64,6 +65,7 @@ public class JdbcFriendsStore implements FriendsStore {
     }
 
     @Override
+    @Transactional
     public FriendshipSummary sendRequest(String currentUserId, String username) {
         String normalizedUsername = normalizeUsername(username);
         String targetUserId = userIdForUsername(normalizedUsername);
@@ -100,6 +102,7 @@ public class JdbcFriendsStore implements FriendsStore {
     }
 
     @Override
+    @Transactional
     public FriendshipSummary acceptRequest(String currentUserId, String friendshipId) {
         int updated = jdbcTemplate.update(
                 """
