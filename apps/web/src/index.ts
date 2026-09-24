@@ -1320,24 +1320,24 @@ function wireViewEvents() {
     document.querySelector<HTMLButtonElement>('#pushEnableBtn')?.addEventListener('click', async () => {
         await runPushSettingsAction(async () => {
             await enablePushNotifications({
-                userId: authUiState.user?.id ?? null,
-                username: authUiState.user?.username ?? null,
+                userId: store.getState().auth.user?.id ?? null,
+                username: store.getState().auth.user?.username ?? null,
             });
-            setPushFeedback(t(state.lang, 'settings.push.feedback.enabled'));
+            setPushFeedback(t(store.getState().lang, 'settings.push.feedback.enabled'));
         });
     });
 
     document.querySelector<HTMLButtonElement>('#pushDisableBtn')?.addEventListener('click', async () => {
         await runPushSettingsAction(async () => {
             await disablePushNotifications();
-            setPushFeedback(t(state.lang, 'settings.push.feedback.disabled'));
+            setPushFeedback(t(store.getState().lang, 'settings.push.feedback.disabled'));
         });
     });
 
     document.querySelector<HTMLButtonElement>('#pushTestBtn')?.addEventListener('click', async () => {
         await runPushSettingsAction(async () => {
             await sendTestPush();
-            setPushFeedback(t(state.lang, 'settings.push.feedback.testSent'));
+            setPushFeedback(t(store.getState().lang, 'settings.push.feedback.testSent'));
         });
     });
 
@@ -1451,7 +1451,7 @@ async function runPushSettingsAction(action: () => Promise<void>) {
     try {
         await action();
     } catch (error) {
-        setPushFeedback(error instanceof Error ? error.message : t(state.lang, 'settings.push.feedback.failed'));
+        setPushFeedback(error instanceof Error ? error.message : t(store.getState().lang, 'settings.push.feedback.failed'));
     } finally {
         setPushButtonsBusy(false);
         await refreshPushSettingsCard();
@@ -1472,18 +1472,19 @@ async function refreshPushSettingsCard() {
     }
 
     const status = await readPushStatus();
-    const authLoading = !authUiState.initialized && isSupabaseConfigured;
-    const loginRequired = authUiState.initialized && !authUiState.user && status.supported && status.configured && status.permission !== 'denied';
+    const auth = store.getState().auth;
+    const authLoading = !auth.initialized && isSupabaseConfigured;
+    const loginRequired = auth.initialized && !auth.user && status.supported && status.configured && status.permission !== 'denied';
     const message = authLoading
         ? { titleKey: 'settings.push.status.authLoading', bodyKey: 'settings.push.status.authLoadingBody' }
         : loginRequired
             ? { titleKey: 'settings.push.status.authRequired', bodyKey: 'settings.push.status.authRequiredBody' }
             : resolvePushStatusMessage(status);
-    titleEl.textContent = t(state.lang, message.titleKey);
-    bodyEl.textContent = t(state.lang, message.bodyKey);
+    titleEl.textContent = t(store.getState().lang, message.titleKey);
+    bodyEl.textContent = t(store.getState().lang, message.bodyKey);
     deviceEl.textContent = status.platformLabel;
     if (recipientEl) {
-        recipientEl.textContent = resolvePushRecipientUserId(authUiState.user?.id ?? null);
+        recipientEl.textContent = resolvePushRecipientUserId(auth.user?.id ?? null);
     }
     enableBtn.disabled = authLoading || loginRequired || !status.supported || !status.configured || status.subscribed || status.permission === 'denied';
     disableBtn.disabled = !status.subscribed;
@@ -1493,8 +1494,8 @@ async function refreshPushSettingsCard() {
     }
     if (status.subscribed) {
         await syncPushSubscriptionIdentity({
-            userId: authUiState.user?.id ?? null,
-            username: authUiState.user?.username ?? null,
+            userId: auth.user?.id ?? null,
+            username: auth.user?.username ?? null,
         }).catch(() => undefined);
     }
 }
