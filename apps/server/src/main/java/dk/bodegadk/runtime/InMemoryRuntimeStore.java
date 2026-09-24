@@ -47,7 +47,7 @@ public class InMemoryRuntimeStore {
         String normalizedGameType = normalizeGameType(gameType);
         String roomCode;
         do {
-            roomCode = randomCode();
+            roomCode = generateRoomCode();
         } while (rooms.putIfAbsent(roomCode, new RoomRecord(
                 roomCode,
                 hostPlayerId,
@@ -56,6 +56,25 @@ public class InMemoryRuntimeStore {
                 RoomStatus.LOBBY
         )) != null);
         return roomCode;
+    }
+
+    public String generateRoomCode() {
+        return randomCode();
+    }
+
+    public void mirrorRoom(String roomCode, String gameType, boolean isPrivate, String hostPlayerId, RoomStatus status) {
+        rooms.compute(roomCode, (key, existing) -> {
+            if (existing != null) {
+                synchronized (existing) {
+                    existing.selectedGame = normalizeGameType(gameType);
+                    existing.isPrivate = isPrivate;
+                    existing.hostPlayerId = hostPlayerId;
+                    existing.status = status;
+                }
+                return existing;
+            }
+            return new RoomRecord(roomCode, hostPlayerId, isPrivate, normalizeGameType(gameType), status);
+        });
     }
 
     public boolean roomExists(String roomCode) {
@@ -642,7 +661,8 @@ public class InMemoryRuntimeStore {
     public enum RoomStatus {
         LOBBY,
         IN_GAME,
-        FINISHED
+        FINISHED,
+        ABANDONED
     }
 
     public record PlayerSession(String roomCode, String playerId, String token) {

@@ -1,7 +1,35 @@
- import { resolvePlayerName } from '../../game-room/player-display.js';
+/**
+ * 500-game adapter — bridges the Java server's WebSocket state to the UI.
+ *
+ * SERVER STATE SHAPE (what the backend must send):
+ *
+ * publicState  (visible to all players):
+ *   players            string[]               — player IDs in turn order
+ *   turnPlayerId       string | null          — whose turn it is
+ *   roundNumber        number
+ *   scores             Record<id, number>     — cumulative round scores (target: 500)
+ *   stockPileCount     number                 — cards remaining in draw pile
+ *   discardPileTop     string | null          — top card code e.g. "HQ", or null
+ *   melds              Meld[]                 — face-up sets on the table
+ *   playerCardCounts   Record<id, number>     — how many cards each player holds
+ *   phase              "PLAYING" | "FINISHED"
+ *   winnerPlayerId     string | null          — set when game ends
+ *
+ * privateState (per-player, sent only to that player):
+ *   playerId           string
+ *   hand               string[]               — card codes e.g. ["H5","CK","DA"]
+ *   projectedRoundScore number
+ *
+ * CLIENT → SERVER intents (see buildAction below):
+ *   DRAW_FROM_STOCK, DRAW_FROM_DISCARD, TAKE_DISCARD_PILE,
+ *   LAY_MELD, EXTEND_MELD, DISCARD
+ *
+ * PLAYER COUNT: 2–4 players supported. UI layout adapts automatically.
+ */
+import { resolvePlayerName } from '../../game-room/player-display.js';
 import type { GameAdapter, RoomSessionState, UiIntent } from '../../game-room/types.js';
 import type { ClientToServerMessage } from '../../net/protocol.js';
-import type { FemMeld, FemPlayerInfo, FemViewModel } from './view.js';
+import type { FemMeld, FemPlayerInfo, FemPostGame, FemViewModel } from './view.js';
 
 type FemPublicState = {
     players?: Array<{ playerId: string; username?: string | null } | string>;
@@ -15,11 +43,10 @@ type FemPublicState = {
         suit: string;
         cards: string[];
         pointsPerPlayer: Record<string, number>;
+        ownerId: string;
     }>;
     playerCardCounts?: Record<string, number>;
     phase?: string;
-    discardGrabPhase?: boolean;
-    grabPriorityPlayerId?: string | null;
     winnerPlayerId?: string | null;
     [key: string]: unknown;
 };
@@ -28,6 +55,7 @@ type FemPrivateState = {
     playerId?: string;
     hand?: string[];
     projectedRoundScore?: number;
+    hasDrawnThisTurn?: boolean;
     [key: string]: unknown;
 };
 
@@ -38,7 +66,7 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
         return game.toLowerCase() === 'fem';
     },
 
-    toViewModel({ sessionState, publicState, privateState, selectedCards, selfPlayerId, playerNames }) {
+    toViewModel({ publicState, privateState, selectedCards, selfPlayerId, playerNames }) {
         const rawPlayers = Array.isArray(publicState?.players) ? publicState.players : [];
         const playerIds: string[] = rawPlayers.map((p) =>
             typeof p === 'string' ? p : (typeof p === 'object' && p !== null ? (p as { playerId: string }).playerId : '')
@@ -53,9 +81,6 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
         const turnPlayerId = typeof publicState?.turnPlayerId === 'string' ? publicState.turnPlayerId : null;
         const isMyTurn = !!selfPlayerId && selfPlayerId === turnPlayerId;
         const phase = typeof publicState?.phase === 'string' ? publicState.phase : 'PLAYING';
-        const discardGrabPhase = publicState?.discardGrabPhase === true;
-        const grabPriorityPlayerId = typeof publicState?.grabPriorityPlayerId === 'string' ? publicState.grabPriorityPlayerId : null;
-        const isGrabPriority = !!selfPlayerId && selfPlayerId === grabPriorityPlayerId;
         const winnerPlayerId = typeof publicState?.winnerPlayerId === 'string' ? publicState.winnerPlayerId : null;
         const stockPileCount = typeof publicState?.stockPileCount === 'number' ? publicState.stockPileCount : 0;
         const discardPileTop = typeof publicState?.discardPileTop === 'string' ? publicState.discardPileTop : null;
@@ -69,6 +94,7 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             pointsPerPlayer: (typeof m.pointsPerPlayer === 'object' && m.pointsPerPlayer !== null)
                 ? m.pointsPerPlayer as Record<string, number>
                 : {},
+            ownerId: String(m.ownerId ?? ''),
         }));
 
         const players: FemPlayerInfo[] = playerIds.map((playerId) => ({
@@ -81,8 +107,20 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
         }));
 
         const isPlaying = phase === 'PLAYING';
-        const canAct    = isMyTurn && isPlaying && !discardGrabPhase;
+        const canAct    = isMyTurn && isPlaying;
         const selCount  = selectedCards.length;
+        const firstRound = publicState?.firstRound === true;
+        const hasDrawn = privateState?.hasDrawnThisTurn === true;
+
+        const postGame: FemPostGame | null = (phase === 'FINISHED' && winnerPlayerId)
+            ? {
+                winnerLabel: resolvePlayerName(playerNames, winnerPlayerId),
+                scores: players
+                    .slice()
+                    .sort((a, b) => b.score - a.score)
+                    .map((p) => ({ name: p.displayName, score: p.score, isWinner: p.playerId === winnerPlayerId })),
+            }
+            : null;
 
         return {
             selfPlayerId,
@@ -97,18 +135,15 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             hand,
             selectedCards,
             projectedRoundScore,
-            discardGrabPhase,
-            grabPriorityPlayerId,
-            isGrabPriority,
             winnerPlayerId,
-            canDraw: canAct && stockPileCount > 0,
-            canDrawDiscard: canAct && discardPileTop !== null,
-            canTakePile: canAct && discardPileTop !== null,
-            canLayMeld: canAct && selCount >= 3,
-            canExtendMeld: canAct && selCount === 1 && melds.length > 0,
-            canDiscard: canAct && selCount === 1,
-            canClaimDiscard: discardGrabPhase && isGrabPriority && melds.length > 0,
-            canPassGrab: discardGrabPhase && isGrabPriority,
+            postGame,
+            canDraw: canAct && !hasDrawn && stockPileCount > 0,
+            canDrawDiscard: canAct && !hasDrawn && discardPileTop !== null,
+            canTakePile: canAct && !hasDrawn && !firstRound && discardPileTop !== null,
+            canLayMeld: canAct && hasDrawn && !firstRound && selCount >= 3,
+            canExtendMeld: canAct && hasDrawn && selCount === 1 && melds.length > 0,
+            canDiscard: canAct && hasDrawn && selCount === 1,
+            canClose: canAct && hasDrawn && !firstRound && hand.length === 1,
         };
     },
 
@@ -128,15 +163,13 @@ export const femAdapter: GameAdapter<FemPublicState, FemPrivateState, FemViewMod
             case 'FEM_EXTEND_MELD':
                 if (selected.length !== 1) return null;
                 return { type: 'EXTEND_MELD', payload: { meldId: intent.meldId, card: selected[0] } };
-            case 'FEM_SWAP_JOKER':
-                return { type: 'SWAP_JOKER', payload: { meldId: intent.meldId, jokerCode: intent.jokerCode, realCardCode: intent.realCardCode } };
             case 'FEM_DISCARD':
                 if (selected.length !== 1) return null;
                 return { type: 'DISCARD', payload: { card: selected[0] } };
-            case 'FEM_CLAIM_DISCARD':
-                return { type: 'CLAIM_DISCARD', payload: { meldId: intent.meldId } };
-            case 'FEM_PASS_GRAB':
-                return { type: 'PASS_GRAB', payload: {} };
+            case 'FEM_CLOSE_ROUND':
+                return { type: 'DISCARD', payload: { card: intent.card } };
+            case 'REQUEST_REMATCH':
+                return { type: 'REQUEST_REMATCH', payload: {} };
             default:
                 return null;
         }

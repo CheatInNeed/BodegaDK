@@ -1,4 +1,5 @@
-import { renderCardBack, renderCardFront } from '../shared/cards.js';
+import { CARD_THEMES, renderGCardBack, renderGPlayingCard, type CardTheme } from '../shared/game-cards.js';
+import { renderWinOverlay } from '../shared/win-overlay.js';
 
 export type KrigViewModel = {
     roomCode: string;
@@ -7,6 +8,8 @@ export type KrigViewModel = {
     statusText: string;
     canFlip: boolean;
     warActive: boolean;
+    warJustDeclared: boolean;
+    isWarReveal: boolean;
     warDepth: number;
     warPileSize: number;
     centerPileSize: number;
@@ -33,142 +36,217 @@ export type KrigViewModel = {
     } | null;
 };
 
-const CW = 72;
-const CH = 100;
+const TABLE_THEME = CARD_THEMES.nordisk;
+const CARD_WIDTH = 80;
+const CARD_HEIGHT = 112;
+const STACK_WIDTH = 58;
+const STACK_HEIGHT = 81;
+const TOTAL_CARDS = 52;
 
 export function renderKrigRoom(vm: KrigViewModel): string {
-    const self = vm.players.find((p) => p.isSelf) ?? null;
-    const opponent = vm.players.find((p) => !p.isSelf) ?? null;
+    const { topPlayer, bottomPlayer } = resolveSeatPlayers(vm);
+    const topPilePercent = topPlayer ? (topPlayer.pileCount / TOTAL_CARDS) * 100 : 0;
+    const bottomPilePercent = bottomPlayer ? (bottomPlayer.pileCount / TOTAL_CARDS) * 100 : 0;
+    const winnerName = vm.postGame?.winnerLabel ?? 'Ingen';
 
-    return `<section class="krig-shell">
-  ${topBar(vm)}
-  <div style="position:relative;flex:1;display:flex;flex-direction:column;min-height:0;">
-    ${vm.isGameOver && vm.postGame ? postGameOverlay(vm.postGame) : ''}
-    ${playerZone(opponent, vm, false)}
-    ${battleStrip(vm)}
-    ${playerZone(self, vm, true)}
+    return `<div id="krig-root">
+  <div class="kg-table">
+    <div class="player-zone ${topPlayer?.isReady ? 'player-zone-ready' : ''}">
+      <div class="krig-player-meta">
+        ${readyPips(topPlayer?.isReady ?? false)}
+        <div class="player-name">${escapeHtml(topPlayer?.displayName ?? 'Guest')}</div>
+        <div class="player-count">${topPlayer?.pileCount ?? 0} kort</div>
+      </div>
+      ${cardStack(topPlayer?.pileCount ?? 0, TABLE_THEME, 'top', topPlayer?.isReady ?? false)}
+    </div>
+
+    <div class="battle-zone">
+      <div class="krig-seat-anchor krig-seat-anchor-top ${topPlayer?.isReady ? 'krig-seat-anchor-ready' : ''}">
+        ${tableCard(topPlayer, TABLE_THEME, true, vm.isWarReveal)}
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;z-index:10;pointer-events:auto">
+        ${vm.warActive ? `
+        <div style="text-align:center;margin-bottom:4px">
+          <div class="krig-word${vm.warJustDeclared ? ' krig-word--new' : ''}">KRIG!</div>
+          <div class="krig-sub">Krig er erklæret</div>
+        </div>` : `
+        <div style="text-align:center">
+          <div class="score-bar">
+            <div class="score-fill p2" style="width:${topPilePercent}%"></div>
+            <div class="score-fill p1" style="width:${bottomPilePercent}%"></div>
+          </div>
+          <div class="score-labels">
+            <span>${escapeHtml(bottomPlayer?.displayName ?? 'Guest')}</span>: ${bottomPlayer?.pileCount ?? 0} &nbsp;
+            <span>${escapeHtml(topPlayer?.displayName ?? 'Guest')}</span>: ${topPlayer?.pileCount ?? 0}
+          </div>
+        </div>`}
+
+        <button class="flip-btn" data-action="flip-card" ${vm.canFlip ? '' : 'disabled'}>Vend!</button>
+
+        ${vm.centerPileSize > 0 ? `<div class="pot-label">${vm.centerPileSize} kort i potten</div>` : ''}
+      </div>
+
+      <div class="krig-seat-anchor krig-seat-anchor-bottom ${bottomPlayer?.isReady ? 'krig-seat-anchor-ready' : ''}">
+        ${tableCard(bottomPlayer, TABLE_THEME, false, vm.isWarReveal)}
+      </div>
+    </div>
+
+    <div class="player-zone ${bottomPlayer?.isReady ? 'player-zone-ready' : ''}">
+      ${cardStack(bottomPlayer?.pileCount ?? 0, TABLE_THEME, 'bottom', bottomPlayer?.isReady ?? false)}
+      <div class="krig-player-meta">
+        ${readyPips(bottomPlayer?.isReady ?? false)}
+        <div class="player-name">${escapeHtml(bottomPlayer?.displayName ?? 'Guest')}</div>
+        <div class="player-count">${bottomPlayer?.pileCount ?? 0} kort</div>
+      </div>
+    </div>
+
+    ${vm.postGame ? renderWinOverlay({
+        winnerLabel: winnerName,
+        subtitle: vm.postGame.isTie ? 'Uafgjort' : 'Vinder af krig!',
+        quip: vm.postGame.rematchStatusText,
+        buttonLabel: vm.postGame.rematchButtonLabel,
+        buttonAction: 'request-rematch',
+        buttonDisabled: vm.postGame.rematchDisabled,
+    }) : ''}
+
+    <button class="game-room-leave-btn kg-leave-btn" data-action="leave-table">← Forlad</button>
   </div>
-</section>`;
-}
-
-function topBar(vm: KrigViewModel): string {
-    return `<div class="krig-topbar">
-  <span class="krig-brand">Krig</span>
-  <span>Trick ${vm.trickNumber}</span>
-  <span>Room: ${vm.roomCode}</span>
 </div>`;
 }
 
-function playerZone(
+function tableCard(
     player: KrigViewModel['players'][number] | null,
-    vm: KrigViewModel,
-    isSelf: boolean,
+    theme: CardTheme,
+    fromTop: boolean,
+    isWarReveal: boolean,
 ): string {
     if (!player) {
-        return `<div class="krig-player-zone${isSelf ? ' is-self' : ''}">
-  <span style="color:rgba(255,255,255,0.25);font-size:12px;">Waiting for opponent…</span>
-</div>`;
+        return emptyCardSlot();
     }
 
-    const card = flipZoneCard(player);
-    const pile = drawPile(player.pileCount);
-    const badge = playerBadge(player);
-    const callout = player.callout
-        ? `<div style="position:absolute;top:8px;right:12px;font-size:13px;font-weight:700;color:#ffd040;letter-spacing:0.5px;">${player.callout}</div>`
-        : '';
+    if (player.stakeCount > 0) {
+        return warHand(player.stakeCount, player.tableCard.kind === 'face' ? player.tableCard.cardCode ?? null : null, theme, player.isRoundWinner, player.isRoundLoser, fromTop, isWarReveal);
+    }
 
-    const winClass = player.isRoundWinner ? ' is-winner' : player.isRoundLoser ? ' is-loser' : '';
+    if (player.tableCard.kind === 'face' && player.tableCard.cardCode) {
+        return battleCard(player.tableCard.cardCode, theme, player.isRoundWinner, player.isRoundLoser, player.isSelf ? 'self-card' : 'opponent-card', isWarReveal);
+    }
 
-    return `<div class="krig-player-zone${isSelf ? ' is-self' : ''}${player.isReady && !vm.warActive ? ' is-active' : ''}">
-  ${callout}
-  <div class="krig-flip-zone${winClass}">${card}</div>
-  <div style="display:flex;align-items:center;gap:14px;">
-    ${isSelf ? `${pile}${badge}` : `${badge}${pile}`}
-  </div>
-</div>`;
+    if (player.tableCard.kind === 'back') {
+        return renderGCardBack(CARD_WIDTH, CARD_HEIGHT, theme, `${player.playerId}-${fromTop ? 'top' : 'bottom'}`);
+    }
+
+    return emptyCardSlot();
 }
 
-function flipZoneCard(player: KrigViewModel['players'][number]): string {
-    const { tableCard } = player;
-    if (tableCard.kind === 'face' && tableCard.cardCode) {
-        return renderCardFront(tableCard.cardCode, CW, CH);
-    }
-    if (tableCard.kind === 'empty') {
-        return `<div style="width:${CW}px;height:${CH}px;border-radius:6px;border:1px dashed rgba(255,255,255,0.12);"></div>`;
-    }
-    return renderCardBack(`krig-${player.playerId}`, CW, CH);
+function emptyCardSlot(): string {
+    return `<div style="width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;border-radius:6px;border:1.5px dashed rgba(212,175,106,0.1)"></div>`;
 }
 
-function drawPile(count: number): string {
-    if (count === 0) {
-        return `<div style="width:50px;height:70px;border-radius:5px;border:1px dashed rgba(255,255,255,0.1);"></div>`;
-    }
+function cardStack(count: number, theme: CardTheme, uid: string, ready: boolean): string {
     const layers = Math.min(count, 4);
-    const shadows = Array.from({ length: layers - 1 }, (_, i) => {
-        const o = (i + 1) * 2;
-        return `<div class="krig-pile-card" style="width:50px;height:70px;bottom:${o}px;right:${-o}px;opacity:${0.5 - i * 0.1};"></div>`;
+    if (layers === 0) {
+        return `<div class="krig-stack-shell ${ready ? 'krig-stack-shell-ready' : ''}" style="width:${STACK_WIDTH}px;height:${STACK_HEIGHT}px;border-radius:${theme.cardRadius}px;border:2px dashed rgba(212,175,106,0.12);display:flex;align-items:center;justify-content:center"><span style="color:rgba(212,175,106,0.18);font-size:18px">∅</span></div>`;
+    }
+
+    const cards = Array.from({ length: layers }, (_, index) => {
+        const offset = (layers - 1 - index) * 2;
+        return `<div style="position:absolute;top:${offset}px;left:${offset}px;opacity:${index === layers - 1 ? 1 : 0.65}">${renderGCardBack(STACK_WIDTH, STACK_HEIGHT, theme, `${uid}-${index}`)}</div>`;
     }).join('');
-    return `<div class="krig-pile" style="width:50px;height:${70 + (layers - 1) * 2}px;">
-  ${shadows}
-  <div style="position:relative;width:50px;height:70px;border-radius:5px;background:#0C3A18;border:1px solid rgba(212,175,106,0.3);box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
-    <span style="font-size:11px;color:rgba(212,175,106,0.6);letter-spacing:0.5px;">${count}</span>
-  </div>
-</div>`;
+
+    return `<div class="krig-stack-shell ${ready ? 'krig-stack-shell-ready' : ''}" style="width:${STACK_WIDTH + 8}px;height:${STACK_HEIGHT + 8}px;position:relative;flex-shrink:0">${cards}</div>`;
 }
 
-function playerBadge(player: KrigViewModel['players'][number]): string {
-    const label = player.isSelf ? 'You' : player.displayName;
-    const readyDot = player.isReady
-        ? `<span style="width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;"></span>`
-        : '';
-    return `<div class="krig-player-badge">
-  ${readyDot}
-  <span>${label}</span>
-  <span class="krig-pile-count">${player.pileCount} kort</span>
-</div>`;
+function battleCard(cardCode: string, theme: CardTheme, win: boolean, lose: boolean, role: string, warReveal = false): string {
+    const card = parseCardCode(cardCode);
+    if (!card) {
+        return emptyCardSlot();
+    }
+
+    const flipClass = warReveal ? 'card-war-reveal' : 'card-flip';
+    const classes = [flipClass, win ? 'card-win' : '', lose ? 'card-lose' : ''].filter(Boolean).join(' ');
+    return `<div class="${classes}" data-role="${role}">${renderGPlayingCard(card, theme, CARD_WIDTH, CARD_HEIGHT)}</div>`;
 }
 
-function battleStrip(vm: KrigViewModel): string {
-    const warLabel = vm.warActive
-        ? `<div class="krig-war-label">⚔ KRIG! ⚔</div>`
-        : '';
-    const stakeFan = vm.warPileSize > 0 ? renderStakeFan(vm.warPileSize) : '';
-    const flipBtn = `<button class="btn primary" data-action="flip-card" ${!vm.canFlip ? 'disabled' : ''} style="min-width:140px;">Vend kort</button>`;
-
-    return `<div class="krig-battle-strip">
-  ${warLabel}
-  ${stakeFan}
-  <div class="krig-status-text">${vm.statusText}</div>
-  ${flipBtn}
-</div>`;
-}
-
-function renderStakeFan(count: number): string {
-    const visible = Math.min(count, 8);
-    const totalW = 26 + (visible - 1) * 10;
-    const cards = Array.from({ length: visible }, (_, i) =>
-        `<div class="krig-stake-card-fan" style="left:${i * 10}px;"></div>`,
+function warHand(
+    stakeCount: number,
+    faceUpCardCode: string | null,
+    theme: CardTheme,
+    win: boolean,
+    lose: boolean,
+    fromTop: boolean,
+    warReveal = false,
+): string {
+    const animation = fromTop ? 'slide-down' : 'slide-up';
+    const downCards = Array.from({ length: stakeCount }, (_, index) =>
+        `<div style="margin-left:${index > 0 ? -16 : 0}px;animation:${animation} ${0.18 + index * 0.09}s ease both">${renderGCardBack(50, 70, theme, `war-${fromTop ? 'top' : 'bottom'}-${index}`)}</div>`
     ).join('');
-    return `<div class="krig-stake-fan" style="width:${totalW}px;">${cards}</div>`;
+    const faceUpCard = faceUpCardCode ? battleCard(faceUpCardCode, theme, win, lose, fromTop ? 'top-war-card' : 'bottom-war-card', warReveal) : '';
+    const divider = downCards && faceUpCard ? `<div style="width:1px;height:55px;background:rgba(212,175,106,0.18);flex-shrink:0"></div>` : '';
+
+    return `<div style="display:flex;align-items:center;gap:8px"><div style="display:flex">${downCards}</div>${divider}${faceUpCard}</div>`;
 }
 
-function postGameOverlay(postGame: NonNullable<KrigViewModel['postGame']>): string {
-    return `<div class="krig-postgame-overlay">
-  <div class="krig-postgame-card">
-    <div class="krig-postgame-kicker">Game Over</div>
-    <div class="krig-postgame-title">${postGame.isTie ? 'Uafgjort' : `${postGame.winnerLabel} vinder`}</div>
-    <div class="krig-postgame-scores">
-      ${postGame.piles.map((p) => `
-      <div class="krig-postgame-score-row">
-        <span>${p.displayName}</span>
-        <strong>${p.pileCount} kort</strong>
-      </div>`).join('')}
-    </div>
-    <p class="krig-postgame-note">${postGame.rematchStatusText}</p>
-    <div class="krig-postgame-actions">
-      <button class="btn primary" data-action="request-rematch" ${postGame.rematchDisabled ? 'disabled' : ''}>${postGame.rematchButtonLabel}</button>
-      <button class="btn" data-action="leave-table">Forlad bord</button>
-    </div>
-  </div>
+function parseCardCode(cardCode: string): { rank: string; suit: { s: string; red: boolean } } | null {
+    const normalized = cardCode.trim().toUpperCase();
+    if (normalized.length < 2) {
+        return null;
+    }
+
+    const suit = normalized[0];
+    const rank = normalized.slice(1);
+    if (!['H', 'D', 'C', 'S'].includes(suit)) {
+        return null;
+    }
+    if (!['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'].includes(rank)) {
+        return null;
+    }
+
+    return {
+        rank,
+        suit: suit === 'H'
+            ? { s: '♥', red: true }
+            : suit === 'D'
+                ? { s: '♦', red: true }
+                : suit === 'C'
+                    ? { s: '♣', red: false }
+                    : { s: '♠', red: false },
+    };
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+}
+
+function resolveSeatPlayers(vm: KrigViewModel): {
+    topPlayer: KrigViewModel['players'][number] | null;
+    bottomPlayer: KrigViewModel['players'][number] | null;
+} {
+    const selfPlayer = vm.players.find((player) => player.isSelf) ?? null;
+    const opponentPlayer = vm.players.find((player) => !player.isSelf) ?? null;
+
+    if (selfPlayer) {
+        return {
+            topPlayer: opponentPlayer,
+            bottomPlayer: selfPlayer,
+        };
+    }
+
+    return {
+        topPlayer: vm.players[1] ?? null,
+        bottomPlayer: vm.players[0] ?? null,
+    };
+}
+
+function readyPips(isReady: boolean): string {
+    return `<div class="krig-ready-pips ${isReady ? 'krig-ready-pips-active' : ''}" aria-hidden="true">
+  <span></span>
+  <span></span>
+  <span></span>
 </div>`;
 }

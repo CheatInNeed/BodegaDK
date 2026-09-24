@@ -28,10 +28,8 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
     private static final String TAKE_DISCARD_PILE = "TAKE_DISCARD_PILE";
     private static final String LAY_MELD = "LAY_MELD";
     private static final String EXTEND_MELD = "EXTEND_MELD";
-    private static final String SWAP_JOKER = "SWAP_JOKER";
     private static final String DISCARD = "DISCARD";
-    private static final String CLAIM_DISCARD = "CLAIM_DISCARD";
-    private static final String PASS_GRAB = "PASS_GRAB";
+    private static final String REQUEST_REMATCH = "REQUEST_REMATCH";
 
     private final InMemoryRuntimeStore runtimeStore;
     private final ObjectMapper objectMapper;
@@ -41,7 +39,7 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
     public FemEnginePortAdapter(InMemoryRuntimeStore runtimeStore, ObjectMapper objectMapper) {
         this.runtimeStore = runtimeStore;
         this.objectMapper = objectMapper;
-        runtimeStore.registerMaxPlayers(FEM_GAME_TYPE, 6);
+        runtimeStore.registerMaxPlayers(FEM_GAME_TYPE, 4);
     }
 
     @Override
@@ -74,10 +72,8 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
             case TAKE_DISCARD_PILE -> handleTakeDiscardPile(state, command, room);
             case LAY_MELD -> handleLayMeld(state, command, room);
             case EXTEND_MELD -> handleExtendMeld(state, command, room);
-            case SWAP_JOKER -> handleSwapJoker(state, command, room);
             case DISCARD -> handleDiscard(state, command, room);
-            case CLAIM_DISCARD -> handleClaimDiscard(state, command, room);
-            case PASS_GRAB -> handlePassGrab(state, command, room);
+            case REQUEST_REMATCH -> handleRequestRematch(state, command, room);
             default -> GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         };
     }
@@ -230,29 +226,6 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
         return applyGameAction(state, command, room, action);
     }
 
-    /* ── SWAP_JOKER ── */
-
-    private GameLoopService.LoopResult handleSwapJoker(
-            GameLoopService.RoomState state,
-            GameLoopService.ActionCommand command,
-            InMemoryRuntimeStore.RoomSnapshot room
-    ) {
-        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
-            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
-        }
-
-        JsonNode payload = command.payloadRaw();
-        String meldId = readText(payload, "meldId");
-        String jokerCode = readText(payload, "jokerCode");
-        String realCardCode = readText(payload, "realCardCode");
-        if (meldId == null || jokerCode == null || realCardCode == null) {
-            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
-        }
-
-        FemAction action = new FemAction.SwapJoker(command.playerId(), meldId, jokerCode, realCardCode);
-        return applyGameAction(state, command, room, action);
-    }
-
     /* ── DISCARD ── */
 
     private GameLoopService.LoopResult handleDiscard(
@@ -274,9 +247,9 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
         return applyGameAction(state, command, room, action);
     }
 
-    /* ── CLAIM_DISCARD ── */
+    /* ── REQUEST_REMATCH ── */
 
-    private GameLoopService.LoopResult handleClaimDiscard(
+    private GameLoopService.LoopResult handleRequestRematch(
             GameLoopService.RoomState state,
             GameLoopService.ActionCommand command,
             InMemoryRuntimeStore.RoomSnapshot room
@@ -285,29 +258,24 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
         }
 
-        JsonNode payload = command.payloadRaw();
-        String meldId = readText(payload, "meldId");
-        if (meldId == null) {
-            return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
+        FemState current = loadFemState(command.roomCode())
+                .orElseThrow(() -> new GameEngine.GameRuleException("Fem state missing"));
+
+        if (!current.isFinished()) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game is not finished");
         }
 
-        FemAction action = new FemAction.ClaimDiscard(command.playerId(), meldId);
-        return applyGameAction(state, command, room, action);
-    }
+        FemState next = engine.init(room.participantIds());
+        runtimeStore.saveGameState(command.roomCode(), next);
+        GameLoopService.RoomState nextRoomState = toFemRoomState(state, room, command.playerId(), next);
 
-    /* ── PASS_GRAB ── */
-
-    private GameLoopService.LoopResult handlePassGrab(
-            GameLoopService.RoomState state,
-            GameLoopService.ActionCommand command,
-            InMemoryRuntimeStore.RoomSnapshot room
-    ) {
-        if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
-            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
-        }
-
-        FemAction action = new FemAction.PassGrab(command.playerId());
-        return applyGameAction(state, command, room, action);
+        return GameLoopService.LoopResult.success(
+                nextRoomState,
+                nextRoomState.publicState(),
+                privateUpdatesForAllPlayers(nextRoomState, room.participantIds()),
+                false,
+                null
+        );
     }
 
     /* ── Shared apply logic ── */
@@ -389,6 +357,7 @@ public class FemEnginePortAdapter implements GameLoopService.EnginePort {
         publicState.put("hostPlayerId", room.hostPlayerId());
         publicState.put("selectedGame", room.selectedGame());
         publicState.put("status", room.status().name());
+        publicState.put("started", room.status() == InMemoryRuntimeStore.RoomStatus.IN_GAME);
         publicState.put("isPrivate", room.isPrivate());
 
         ArrayNode players = objectMapper.createArrayNode();

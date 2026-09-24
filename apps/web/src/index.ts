@@ -19,7 +19,8 @@ import { renderFemRoom, type FemViewModel } from './games/fem-hundrede/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
-import { loadProfileData, renderProfilePage } from './profile.js';
+import { renderLeaderboardPage, type LeaderboardViewState } from './leaderboard.js';
+import { loadProfileData, renderProfilePage, type ProfileFriendUiState } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
     disablePushNotifications,
@@ -32,18 +33,30 @@ import {
     type PushStatus,
 } from './pwa.js';
 import {
+    acceptChallenge,
+    acceptFriendRequest,
     cancelMatchmakingTicket,
     claimRoomIdentity,
     createRoom,
+    createChallenge,
+    declineChallenge,
+    declineFriendRequest,
     enqueueMatchmaking,
+    getLeaderboard,
     getMatchmakingTicket,
+    getNotifications,
     joinRoom,
     kickPlayer,
     leaveRoom,
     listRooms,
+    markAllNotificationsRead,
+    markNotificationRead,
+    removeFriendship,
+    sendFriendRequest,
     updateRoomVisibility,
     type LobbyRoomSummary,
     type MatchmakingResponse,
+    type NotificationSummary,
 } from './net/api.js';
 
 type GenericAdapter = GameAdapter<Record<string, unknown>, Record<string, unknown>, unknown>;
@@ -58,7 +71,7 @@ const adapters: GenericAdapter[] = [
 type ThemeId = 'bodega' | 'harbor' | 'parlor';
 
 const THEME_STORAGE_KEY = 'ui-theme';
-const ROOM_HEARTBEAT_INTERVAL_MS = 20_000;
+const ROOM_PRESENCE_INTERVAL_MS = 20_000;
 
 const THEMES: Array<{ id: ThemeId; labelKey: string; toneKey: string }> = [
     { id: 'bodega', labelKey: 'theme.bodega.label', toneKey: 'theme.bodega.tone' },
@@ -114,6 +127,31 @@ const activeLobbyState = {
     route: null as AppRoute | null,
 };
 
+const leaderboardState: LeaderboardViewState = {
+    loading: false,
+    errorMessage: null,
+    data: null,
+    game: 'snyd',
+};
+
+const profileFriendUiState: ProfileFriendUiState = {
+    addUsername: '',
+    sending: false,
+    busyFriendshipId: null,
+    busyChallengeUserId: null,
+    errorMessage: null,
+};
+
+const notificationsState = {
+    open: false,
+    loading: false,
+    items: [] as NotificationSummary[],
+    unreadCount: 0,
+    errorMessage: null as string | null,
+    busyId: null as string | null,
+    readAllBusy: false,
+};
+
 type ActiveSession = ReturnType<typeof createGameRoomSession<Record<string, unknown>, Record<string, unknown>, unknown>>;
 const HIGHCARD_GAME_ID = 'highcard';
 const KRIG_GAME_ID = 'krig';
@@ -130,9 +168,9 @@ let quickPlayRealtimeRefreshTimer: number | null = null;
 let activeQueueClockTimer: number | null = null;
 let matchedCountdownTimer: number | null = null;
 let quickPlayGeneration = 0;
-let roomHeartbeatTimer: number | null = null;
-let roomHeartbeatKey: string | null = null;
-let roomHeartbeatInFlight = false;
+let roomPresenceTimer: number | null = null;
+let roomPresenceKey: string | null = null;
+let roomPresenceInFlight = false;
 let lobbyCopyFeedbackTimer: number | null = null;
 let profileDataCache: Awaited<ReturnType<typeof loadProfileData>> | null = null;
 
@@ -151,6 +189,8 @@ function applyTheme(theme: ThemeId) {
     document.documentElement.dataset.theme = theme;
 }
 let casinoSelectedStackIds: string[] = [];
+let femHandOrder: string[] | null = null;
+let femDraggedCard: string | null = null;
 
 function supportsLobbyLifecycle(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
@@ -257,6 +297,7 @@ function renderApp() {
             <option value="en">EN</option>
           </select>
 
+          ${renderNotificationsButton()}
           <div id="avatarDisplay" class="avatar hidden" aria-hidden="true"></div>
           <button class="btn" id="loginBtn" data-i18n="top.login"></button>
           <button class="btn primary" id="signupBtn" data-i18n="top.signup"></button>
@@ -305,6 +346,139 @@ function navItem(view: View, i18nKey: string | null, icon: string, literalLabel?
       ${labelHtml}
     </div>
   `;
+}
+
+function applyFemHandOrder(serverHand: string[]): string[] {
+    if (!femHandOrder) return serverHand;
+    const handSet = new Set(serverHand);
+    const kept = femHandOrder.filter((c) => handSet.has(c));
+    const keptSet = new Set(kept);
+    const newCards = serverHand.filter((c) => !keptSet.has(c));
+    const ordered = [...kept, ...newCards];
+    femHandOrder = ordered;
+    return ordered;
+}
+
+function renderNotificationsButton(): string {
+    const badge = notificationsState.unreadCount > 0
+        ? `<span class="notification-badge">${notificationsState.unreadCount > 99 ? '99+' : notificationsState.unreadCount}</span>`
+        : '';
+    const panel = notificationsState.open ? renderNotificationsPanel() : '';
+    return `
+    <div class="notification-menu" id="notificationMenu">
+      <button class="btn notification-button hidden" id="notificationsBtn" type="button" aria-expanded="${notificationsState.open ? 'true' : 'false'}" aria-label="${t(state.lang, 'notifications.title')}">
+        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M12 22a2.7 2.7 0 0 0 2.62-2h-5.24A2.7 2.7 0 0 0 12 22Zm7-6.4-1.55-1.74V9.6a5.46 5.46 0 0 0-4.2-5.33V3.6a1.25 1.25 0 1 0-2.5 0v.67a5.46 5.46 0 0 0-4.2 5.33v4.26L5 15.6V17h14v-1.4Z"></path>
+        </svg>
+        ${badge}
+      </button>
+      ${panel}
+    </div>
+  `;
+}
+
+function renderNotificationsPanel(): string {
+    const body = notificationsState.loading
+        ? `<p class="card-desc" data-i18n="notifications.loading"></p>`
+        : notificationsState.errorMessage
+            ? `<p class="card-desc notification-error">${escapeHtml(notificationsState.errorMessage)}</p>`
+            : notificationsState.items.length === 0
+                ? `<p class="card-desc" data-i18n="notifications.empty"></p>`
+                : `<div class="notification-list">${notificationsState.items.map(renderNotificationRow).join('')}</div>`;
+    const unreadSummary = notificationsState.unreadCount > 0
+        ? `<span class="notification-panel-count">${notificationsState.unreadCount > 99 ? '99+' : notificationsState.unreadCount}</span>`
+        : '';
+    return `
+    <section class="notification-panel card">
+      <div class="notification-panel-header">
+        <div>
+          <strong data-i18n="notifications.title"></strong>
+          ${unreadSummary}
+        </div>
+        <button class="btn" type="button" data-action="notifications-read-all" ${notificationsState.readAllBusy ? 'disabled' : ''} data-i18n="notifications.readAll"></button>
+      </div>
+      ${body}
+    </section>
+  `;
+}
+
+function renderNotificationRow(notification: NotificationSummary): string {
+    const unread = notification.readAt ? '' : 'unread';
+    const actor = notification.actor?.displayName || notification.actor?.username || t(state.lang, 'notifications.someone');
+    const message = notificationMessage(notification, actor);
+    const actions = notificationActions(notification);
+    return `
+    <article class="notification-row ${unread}">
+      <button class="notification-copy" type="button" data-action="notification-open" data-notification-id="${escapeHtml(notification.id)}">
+        <span class="notification-message">${escapeHtml(message)}</span>
+        <small>${escapeHtml(formatNotificationDate(notification.createdAt))}</small>
+      </button>
+      <div class="notification-actions" aria-label="${escapeHtml(t(state.lang, 'notifications.title'))}">
+        ${actions}
+        ${notification.readAt ? '' : `<button class="btn" type="button" data-action="notification-read" data-notification-id="${escapeHtml(notification.id)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.markRead"></button>`}
+      </div>
+    </article>
+  `;
+}
+
+function notificationActions(notification: NotificationSummary): string {
+    const challengeId = stringPayload(notification.payload, 'challengeId');
+    if (notification.type === 'challenge.received' && challengeId) {
+        return `
+          <button class="btn primary notification-action-primary" type="button" data-action="notification-challenge-accept" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.accept"></button>
+          <button class="btn notification-action-secondary" type="button" data-action="notification-challenge-decline" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${notificationsState.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.decline"></button>
+        `;
+    }
+    const roomCode = stringPayload(notification.payload, 'roomCode');
+    if (roomCode) {
+        return `<button class="btn primary notification-action-primary" type="button" data-action="notification-room" data-notification-id="${escapeHtml(notification.id)}" data-room-code="${escapeHtml(roomCode)}" data-game="${escapeHtml(stringPayload(notification.payload, 'gameType') || 'snyd')}" data-i18n="notifications.openRoom"></button>`;
+    }
+    return '';
+}
+
+function notificationMessage(notification: NotificationSummary, actor: string): string {
+    const gameType = stringPayload(notification.payload, 'gameType') || 'snyd';
+    switch (notification.type) {
+        case 'friend.request.received':
+            return t(state.lang, 'notifications.message.friendRequest').replace('{actor}', actor);
+        case 'friend.request.accepted':
+            return t(state.lang, 'notifications.message.friendAccepted').replace('{actor}', actor);
+        case 'challenge.received':
+            return t(state.lang, 'notifications.message.challengeReceived').replace('{actor}', actor).replace('{game}', formatGameName(gameType));
+        case 'challenge.accepted':
+            return t(state.lang, 'notifications.message.challengeAccepted').replace('{actor}', actor).replace('{game}', formatGameName(gameType));
+        case 'challenge.declined':
+            return t(state.lang, 'notifications.message.challengeDeclined').replace('{actor}', actor).replace('{game}', formatGameName(gameType));
+        default:
+            return t(state.lang, 'notifications.message.generic').replace('{actor}', actor);
+    }
+}
+
+function stringPayload(payload: Record<string, unknown>, key: string): string | null {
+    const value = payload[key];
+    return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function formatNotificationDate(value: string | null): string {
+    if (!value) {
+        return '';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return new Intl.DateTimeFormat(state.lang === 'da' ? 'da-DK' : 'en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
+}
+
+function escapeHtml(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
 }
 
 function renderView() {
@@ -426,6 +600,10 @@ function renderView() {
     } else if (state.view === 'profile') {
         cleanupRoomSession();
         main.innerHTML = renderProfileView();
+    } else if (state.view === 'leaderboard') {
+        cleanupRoomSessionIfUnneeded();
+        ensureLeaderboardLoaded();
+        main.innerHTML = renderLeaderboardPage(state.lang, leaderboardState);
     } else if (state.view === 'room') {
         main.innerHTML = renderRoomContent();
     }
@@ -438,11 +616,10 @@ function renderView() {
 }
 
 function renderLobbyContent(): string {
-    stopRoomHeartbeat();
     const route = state.route;
-    if (!route.room || !route.token) {
+    if (!route.room) {
         cleanupRoomSession();
-        return renderRoomError('Missing query params. Required: view=lobby&room=ABC123&token=yourToken');
+        return renderRoomError('Missing query params. Required: view=lobby&room=ABC123');
     }
 
     if (route.game && !supportsLobbyLifecycle(route.game)) {
@@ -452,14 +629,14 @@ function renderLobbyContent(): string {
                 view: 'room',
                 game: route.game,
                 room: route.room,
-                token: route.token,
                 mock: route.mock,
             });
         });
         return renderRoomError('Opening game room...');
     }
 
-    const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.token, route.mock);
+    const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.mock);
+    startRoomPresence(route.room, route.mock);
     const roomState = session?.getState();
     const publicState = toRecord(roomState?.publicState);
     const hostPlayerId = typeof publicState.hostPlayerId === 'string' ? publicState.hostPlayerId : null;
@@ -468,13 +645,12 @@ function renderLobbyContent(): string {
     const isPrivate = publicState.isPrivate === true;
     const players = readLobbyPlayers(publicState.players, hostPlayerId, roomState?.playerId ?? null);
 
-    if (status === 'IN_GAME' && route.room && route.token) {
+    if (status === 'IN_GAME' && route.room) {
         queueMicrotask(() => {
             navigate({
                 view: 'room',
                 game: selectedGame,
                 room: route.room,
-                token: route.token,
                 mock: route.mock,
             });
         });
@@ -499,7 +675,6 @@ function renderLobbyContent(): string {
         view: 'lobby',
         game: selectedGame,
         room: route.room,
-        token: route.token,
         mock: route.mock,
     });
 
@@ -508,9 +683,9 @@ function renderLobbyContent(): string {
 
 function renderRoomContent(): string {
     const route = state.route;
-    if (!route.room || !route.token || !route.game) {
+    if (!route.room || !route.game) {
         cleanupRoomSession();
-        return renderRoomError('Missing query params. Required: view=room&game=highcard&room=ABC123&token=yourToken');
+        return renderRoomError('Missing query params. Required: view=room&game=highcard&room=ABC123');
     }
 
     const adapter = resolveAdapter(route.game);
@@ -519,13 +694,13 @@ function renderRoomContent(): string {
         return renderRoomError(`Unsupported game mode: ${route.game}`);
     }
 
-    const session = ensureRoomSession(route.game, route.room, route.token, route.mock, adapter);
+    const session = ensureRoomSession(route.game, route.room, route.mock, adapter);
     const roomState = session?.getState();
     const selfUsername = authUiState.user?.username?.trim() || null;
     const viewModel = session?.toViewModel({ selfUsername });
 
     if (!roomState || !viewModel) {
-        stopRoomHeartbeat();
+        stopRoomPresence();
         return renderRoomError('Unable to initialize room session');
     }
 
@@ -536,23 +711,22 @@ function renderRoomContent(): string {
     });
     const status = typeof roomPublicState.status === 'string' ? roomPublicState.status : null;
     const hostPlayerId = typeof roomPublicState.hostPlayerId === 'string' ? roomPublicState.hostPlayerId : null;
-    const autoStartKey = `${route.room}|${route.token}|${route.game}`;
+    const autoStartKey = `${route.room}|${route.game}`;
     const suppressWinnerBanner = adapter.id === krigAdapter.id && roomPublicState.gamePhase === 'GAME_OVER';
     const hasFinished = !!roomState.winnerPlayerId || status === 'FINISHED' || roomPublicState.gamePhase === 'GAME_OVER';
 
     if (status === 'IN_GAME' && !hasFinished) {
-        startRoomHeartbeat(route.room, route.mock);
+        startRoomPresence(route.room, route.mock);
     } else {
-        stopRoomHeartbeat();
+        stopRoomPresence();
     }
 
-    if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room && route.token) {
+    if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room) {
         queueMicrotask(() => {
             navigate({
                 view: 'lobby',
                 game: route.game,
                 room: route.room,
-                token: route.token,
                 mock: route.mock,
             });
         });
@@ -584,7 +758,9 @@ function renderRoomContent(): string {
     let bodyHtml = '';
 
     if (adapter.id === femAdapter.id) {
-        return renderFemRoom(viewModel as FemViewModel);
+        const femVm = viewModel as FemViewModel;
+        const orderedHand = applyFemHandOrder(femVm.hand);
+        return renderFemRoom({ ...femVm, hand: orderedHand });
     }
 
     if (adapter.id === casinoAdapter.id) {
@@ -634,12 +810,11 @@ function renderRoomContent(): string {
 function ensureRoomSession(
     game: string,
     roomCode: string,
-    token: string,
     useMock: boolean,
     explicitAdapter?: GenericAdapter,
 ): ActiveSession | null {
     const adapter = explicitAdapter ?? resolveAdapter(game) ?? adapters[0];
-    const key = `${game}|${roomCode}|${token}|${useMock ? 'mock' : 'ws'}`;
+    const key = `${game}|${roomCode}|${useMock ? 'mock' : 'ws'}`;
 
     if (!roomSession || roomSessionKey !== key) {
         cleanupRoomSession();
@@ -648,8 +823,8 @@ function ensureRoomSession(
             bootstrap: {
                 game,
                 roomCode,
-                token,
                 useMock,
+                mockClientId: getMockClientId(),
             },
             adapter,
         });
@@ -668,7 +843,7 @@ function ensureRoomSession(
 }
 
 function cleanupRoomSession() {
-    stopRoomHeartbeat();
+    stopRoomPresence();
     clearLobbyCopyFeedback();
     unsubscribeRoomSession?.();
     unsubscribeRoomSession = null;
@@ -678,6 +853,8 @@ function cleanupRoomSession() {
     highCardAutoStartKey = null;
     roomHandTrayOpen = false;
     casinoSelectedStackIds = [];
+    femHandOrder = null;
+    femDraggedCard = null;
 }
 
 function cleanupRoomSessionIfUnneeded() {
@@ -687,49 +864,49 @@ function cleanupRoomSessionIfUnneeded() {
     cleanupRoomSession();
 }
 
-function startRoomHeartbeat(roomCode: string, useMock: boolean) {
+function startRoomPresence(roomCode: string, useMock: boolean) {
     if (useMock || !supabase) {
-        stopRoomHeartbeat();
+        stopRoomPresence();
         return;
     }
 
     const key = roomCode;
-    if (roomHeartbeatTimer !== null && roomHeartbeatKey === key) {
+    if (roomPresenceTimer !== null && roomPresenceKey === key) {
         return;
     }
 
-    stopRoomHeartbeat();
-    roomHeartbeatKey = key;
-    void sendRoomHeartbeat(roomCode);
-    roomHeartbeatTimer = window.setInterval(() => {
-        void sendRoomHeartbeat(roomCode);
-    }, ROOM_HEARTBEAT_INTERVAL_MS);
+    stopRoomPresence();
+    roomPresenceKey = key;
+    void sendRoomPresence(roomCode);
+    roomPresenceTimer = window.setInterval(() => {
+        void sendRoomPresence(roomCode);
+    }, ROOM_PRESENCE_INTERVAL_MS);
 }
 
-function stopRoomHeartbeat() {
-    if (roomHeartbeatTimer !== null) {
-        window.clearInterval(roomHeartbeatTimer);
-        roomHeartbeatTimer = null;
+function stopRoomPresence() {
+    if (roomPresenceTimer !== null) {
+        window.clearInterval(roomPresenceTimer);
+        roomPresenceTimer = null;
     }
-    roomHeartbeatKey = null;
-    roomHeartbeatInFlight = false;
+    roomPresenceKey = null;
+    roomPresenceInFlight = false;
 }
 
-async function sendRoomHeartbeat(roomCode: string) {
-    if (!supabase || roomHeartbeatInFlight) return;
-    roomHeartbeatInFlight = true;
+async function sendRoomPresence(roomCode: string) {
+    if (!supabase || roomPresenceInFlight) return;
+    roomPresenceInFlight = true;
 
     try {
-        const { error } = await supabase.rpc('touch_room_heartbeat', {
+        const { error } = await supabase.rpc('touch_room_presence', {
             room_code_input: roomCode,
         });
         if (error) {
-            console.warn('[room-heartbeat] failed to update room heartbeat', error);
+            console.warn('[room-presence] failed to update room presence', error);
         }
     } catch (error) {
-        console.warn('[room-heartbeat] failed to update room heartbeat', error);
+        console.warn('[room-presence] failed to update room presence', error);
     } finally {
-        roomHeartbeatInFlight = false;
+        roomPresenceInFlight = false;
     }
 }
 
@@ -881,8 +1058,10 @@ function renderHomepage() {
           ${playCards()}
         </article>
 
-        ${renderHomepagePlaceholderCard({
+        ${renderHomepageActionCard({
             titleKey: 'home.section.leaderboard.title',
+            descKey: 'home.section.leaderboard.desc',
+            action: 'open-leaderboard',
             className: 'home-card-narrow',
         })}
         ${renderHomepagePlaceholderCard({
@@ -904,7 +1083,7 @@ function renderHomepage() {
 
 function renderProfileView(): string {
     if (profileDataCache) {
-        return renderProfilePage(state.lang, profileDataCache);
+        return renderProfilePage(state.lang, profileDataCache, profileFriendUiState);
     }
 
     // Load async, then re-render
@@ -919,6 +1098,264 @@ function renderProfileView(): string {
   `;
 }
 
+function resetProfileFriendUi() {
+    profileFriendUiState.addUsername = '';
+    profileFriendUiState.sending = false;
+    profileFriendUiState.busyFriendshipId = null;
+    profileFriendUiState.busyChallengeUserId = null;
+    profileFriendUiState.errorMessage = null;
+}
+
+async function refreshProfileView() {
+    profileDataCache = await loadProfileData();
+    if (state.view === 'profile') {
+        renderView();
+    }
+}
+
+async function handleSendFriendRequest() {
+    const username = profileFriendUiState.addUsername.trim();
+    if (!username) {
+        profileFriendUiState.errorMessage = t(state.lang, 'profile.friends.addRequired');
+        renderView();
+        return;
+    }
+
+    profileFriendUiState.sending = true;
+    profileFriendUiState.errorMessage = null;
+    renderView();
+
+    try {
+        await sendFriendRequest(username);
+        profileFriendUiState.addUsername = '';
+        await refreshNotifications(false);
+        await refreshProfileView();
+    } catch (error) {
+        profileFriendUiState.errorMessage = toErrorMessage(error, t(state.lang, 'profile.friends.addError'));
+        renderView();
+    } finally {
+        profileFriendUiState.sending = false;
+        if (state.view === 'profile') {
+            renderView();
+        }
+    }
+}
+
+async function handleSendChallenge(username: string | undefined, userId: string | undefined) {
+    if (!username || !userId) {
+        return;
+    }
+
+    profileFriendUiState.busyChallengeUserId = userId;
+    profileFriendUiState.errorMessage = null;
+    renderView();
+
+    try {
+        await createChallenge({ username, gameType: 'snyd' });
+        await refreshNotifications(false);
+    } catch (error) {
+        profileFriendUiState.errorMessage = toErrorMessage(error, t(state.lang, 'profile.friends.challengeError'));
+    } finally {
+        profileFriendUiState.busyChallengeUserId = null;
+        if (state.view === 'profile') {
+            renderView();
+        }
+    }
+}
+
+async function handleFriendshipAction(friendshipId: string | undefined, action: 'accept' | 'decline' | 'remove') {
+    if (!friendshipId) {
+        return;
+    }
+
+    profileFriendUiState.busyFriendshipId = friendshipId;
+    profileFriendUiState.errorMessage = null;
+    renderView();
+
+    try {
+        if (action === 'accept') {
+            await acceptFriendRequest(friendshipId);
+        } else if (action === 'decline') {
+            await declineFriendRequest(friendshipId);
+        } else {
+            await removeFriendship(friendshipId);
+        }
+        await refreshNotifications(false);
+        await refreshProfileView();
+    } catch (error) {
+        profileFriendUiState.errorMessage = toErrorMessage(error, t(state.lang, 'profile.friends.actionError'));
+        renderView();
+    } finally {
+        profileFriendUiState.busyFriendshipId = null;
+        if (state.view === 'profile') {
+            renderView();
+        }
+    }
+}
+
+async function refreshNotifications(renderAfter = true) {
+    if (!authUiState.user) {
+        notificationsState.items = [];
+        notificationsState.unreadCount = 0;
+        notificationsState.errorMessage = null;
+        notificationsState.loading = false;
+        if (renderAfter) {
+            renderApp();
+        }
+        return;
+    }
+
+    notificationsState.loading = true;
+    notificationsState.errorMessage = null;
+    if (renderAfter) {
+        renderApp();
+    }
+
+    try {
+        const data = await getNotifications({ limit: 20 });
+        notificationsState.items = data.items;
+        notificationsState.unreadCount = data.unreadCount;
+    } catch (error) {
+        notificationsState.errorMessage = toErrorMessage(error, t(state.lang, 'notifications.error'));
+    } finally {
+        notificationsState.loading = false;
+        if (renderAfter) {
+            renderApp();
+        }
+    }
+}
+
+async function handleMarkNotificationRead(notificationId: string | undefined) {
+    if (!notificationId) {
+        return;
+    }
+    notificationsState.busyId = notificationId;
+    renderApp();
+    try {
+        await markNotificationRead(notificationId);
+        await refreshNotifications(false);
+    } catch (error) {
+        notificationsState.errorMessage = toErrorMessage(error, t(state.lang, 'notifications.actionError'));
+    } finally {
+        notificationsState.busyId = null;
+        renderApp();
+    }
+}
+
+async function handleMarkAllNotificationsRead() {
+    notificationsState.readAllBusy = true;
+    renderApp();
+    try {
+        await markAllNotificationsRead();
+        await refreshNotifications(false);
+    } catch (error) {
+        notificationsState.errorMessage = toErrorMessage(error, t(state.lang, 'notifications.actionError'));
+    } finally {
+        notificationsState.readAllBusy = false;
+        renderApp();
+    }
+}
+
+async function handleOpenNotification(notificationId: string | undefined) {
+    const notification = notificationsState.items.find((item) => item.id === notificationId);
+    if (!notification) {
+        return;
+    }
+    if (!notification.readAt) {
+        await markNotificationRead(notification.id);
+    }
+    notificationsState.open = false;
+    const roomCode = stringPayload(notification.payload, 'roomCode');
+    if (roomCode) {
+        navigate({
+            view: 'lobby',
+            game: stringPayload(notification.payload, 'gameType') || 'snyd',
+            room: roomCode,
+            mock: false,
+        });
+        return;
+    }
+    navigate({ view: 'profile' });
+}
+
+async function handleNotificationChallenge(notificationId: string | undefined, challengeId: string | undefined, accept: boolean) {
+    if (!notificationId || !challengeId) {
+        return;
+    }
+    notificationsState.busyId = notificationId;
+    renderApp();
+    try {
+        if (accept) {
+            const result = await acceptChallenge(challengeId);
+            await markNotificationRead(notificationId);
+            notificationsState.open = false;
+            navigate({
+                view: supportsLobbyLifecycle(result.room.selectedGame) ? 'lobby' : 'room',
+                game: result.room.selectedGame,
+                room: result.room.roomCode,
+                mock: false,
+            });
+            return;
+        }
+        await declineChallenge(challengeId);
+        await markNotificationRead(notificationId);
+        await refreshNotifications(false);
+    } catch (error) {
+        notificationsState.errorMessage = toErrorMessage(error, t(state.lang, 'notifications.actionError'));
+    } finally {
+        notificationsState.busyId = null;
+        renderApp();
+    }
+}
+
+async function handleNotificationRoom(notificationId: string | undefined, roomCode: string | undefined, game: string | undefined) {
+    if (!roomCode) {
+        return;
+    }
+    if (notificationId) {
+        await markNotificationRead(notificationId);
+    }
+    notificationsState.open = false;
+    navigate({
+        view: 'lobby',
+        game: game || 'snyd',
+        room: roomCode,
+        mock: false,
+    });
+}
+
+function ensureLeaderboardLoaded() {
+    if (leaderboardState.loading || leaderboardState.data) {
+        return;
+    }
+
+    leaderboardState.loading = true;
+    leaderboardState.errorMessage = null;
+    void getLeaderboard({ game: leaderboardState.game, mode: 'standard', limit: 20 })
+        .then((data) => {
+            leaderboardState.data = data;
+        })
+        .catch((error) => {
+            leaderboardState.errorMessage = error instanceof Error
+                ? error.message
+                : t(state.lang, 'leaderboard.error');
+        })
+        .finally(() => {
+            leaderboardState.loading = false;
+            if (state.view === 'leaderboard') {
+                renderView();
+            }
+        });
+}
+
+function refreshLeaderboard(game: string) {
+    leaderboardState.game = game;
+    leaderboardState.data = null;
+    leaderboardState.errorMessage = null;
+    ensureLeaderboardLoaded();
+    renderView();
+}
+
 function renderHomepagePlaceholderCard(input: {
     titleKey: string;
     className?: string;
@@ -931,6 +1368,25 @@ function renderHomepagePlaceholderCard(input: {
         </div>
         <span class="home-placeholder-tag" data-i18n="home.action.comingSoon"></span>
       </div>
+    </article>
+  `;
+}
+
+function renderHomepageActionCard(input: {
+    titleKey: string;
+    descKey: string;
+    action: string;
+    className?: string;
+}): string {
+    return `
+    <article class="card home-card ${input.className ?? ''}">
+      <div class="home-card-header">
+        <div>
+          <div class="card-title home-card-title" data-i18n="${input.titleKey}"></div>
+        </div>
+      </div>
+      <p class="card-desc" data-i18n="${input.descKey}"></p>
+      <button class="btn full-width" type="button" data-action="${input.action}" data-i18n="action.open"></button>
     </article>
   `;
 }
@@ -1008,7 +1464,6 @@ function wireViewEvents() {
                 view: 'room',
                 game,
                 room: `DEV-${game}`,
-                token: state.route.token ?? randomToken(),
                 mock: true,
             });
         });
@@ -1020,8 +1475,17 @@ function wireViewEvents() {
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-lobby-browser"]').forEach((button) => {
         button.addEventListener('click', () => {
-            navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+            navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         });
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="open-leaderboard"]')?.addEventListener('click', () => {
+        navigate({ view: 'leaderboard', room: null, game: null, mock: false });
+    });
+
+    document.querySelector<HTMLSelectElement>('#leaderboardGameSelect')?.addEventListener('change', (event) => {
+        const select = event.currentTarget as HTMLSelectElement;
+        refreshLeaderboard(select.value || 'snyd');
     });
 
     const homeJoinCodeInput = document.getElementById('homeJoinCodeInput') as HTMLInputElement | null;
@@ -1053,7 +1517,42 @@ function wireViewEvents() {
         if (!supabase) return;
         await supabase.auth.signOut();
         profileDataCache = null;
+        resetProfileFriendUi();
         navigate({ view: 'home' });
+    });
+
+    const friendUsernameInput = document.getElementById('friendUsernameInput') as HTMLInputElement | null;
+    friendUsernameInput?.addEventListener('input', () => {
+        profileFriendUiState.addUsername = friendUsernameInput.value;
+    });
+
+    document.getElementById('friendRequestForm')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void handleSendFriendRequest();
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-accept"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleFriendshipAction(button.dataset.friendshipId, 'accept');
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-decline"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleFriendshipAction(button.dataset.friendshipId, 'decline');
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-remove"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleFriendshipAction(button.dataset.friendshipId, 'remove');
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-challenge"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleSendChallenge(button.dataset.username, button.dataset.userId);
+        });
     });
 }
 
@@ -1195,6 +1694,48 @@ function wireEvents() {
     if (profileBtn) {
         profileBtn.onclick = () => navigate({ view: 'profile' });
     }
+
+    document.getElementById('notificationsBtn')?.addEventListener('click', () => {
+        notificationsState.open = !notificationsState.open;
+        if (notificationsState.open) {
+            void refreshNotifications();
+        }
+        renderApp();
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="notifications-read-all"]')?.addEventListener('click', () => {
+        void handleMarkAllNotificationsRead();
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-read"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleMarkNotificationRead(button.dataset.notificationId);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-open"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleOpenNotification(button.dataset.notificationId);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-challenge-accept"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleNotificationChallenge(button.dataset.notificationId, button.dataset.challengeId, true);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-challenge-decline"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleNotificationChallenge(button.dataset.notificationId, button.dataset.challengeId, false);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-room"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleNotificationRoom(button.dataset.notificationId, button.dataset.roomCode, button.dataset.game);
+        });
+    });
 }
 
 function wireRoomEvents() {
@@ -1212,9 +1753,9 @@ function wireRoomEvents() {
         });
     });
 
-    document.querySelectorAll<HTMLButtonElement>('button[data-action="toggle-card"]').forEach((button) => {
-        button.addEventListener('click', () => {
-            const card = button.dataset.card;
+    document.querySelectorAll<HTMLElement>('[data-action="toggle-card"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const card = el.dataset.card;
             if (!card) return;
             roomSession?.toggleCard(card);
         });
@@ -1296,8 +1837,12 @@ function wireRoomEvents() {
     document.querySelectorAll<HTMLElement>('[data-action="fem-discard"]').forEach((el) => {
         el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DISCARD' }));
     });
-    document.querySelectorAll<HTMLElement>('[data-action="fem-pass-grab"]').forEach((el) => {
-        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_PASS_GRAB' }));
+    document.querySelectorAll<HTMLElement>('[data-action="fem-close"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const card = el.dataset.card;
+            if (!card) return;
+            roomSession?.sendIntent({ type: 'FEM_CLOSE_ROUND', card });
+        });
     });
     document.querySelectorAll<HTMLElement>('[data-action="fem-extend-meld"]').forEach((el) => {
         el.addEventListener('click', () => {
@@ -1306,13 +1851,38 @@ function wireRoomEvents() {
             roomSession?.sendIntent({ type: 'FEM_EXTEND_MELD', meldId });
         });
     });
-    document.querySelectorAll<HTMLElement>('[data-action="fem-claim-discard"]').forEach((el) => {
-        el.addEventListener('click', () => {
-            const meldId = el.dataset.meldId;
-            if (!meldId) return;
-            roomSession?.sendIntent({ type: 'FEM_CLAIM_DISCARD', meldId });
+
+    // Hand drag-to-sort
+    document.querySelectorAll<HTMLElement>('[data-drag-card]').forEach((el) => {
+        el.addEventListener('dragstart', (e) => {
+            femDraggedCard = el.dataset.dragCard ?? null;
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', femDraggedCard ?? '');
+            }
+        });
+        el.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        });
+        el.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const targetCard = el.dataset.dragCard;
+            if (!femDraggedCard || !targetCard || femDraggedCard === targetCard) return;
+            const femVm = roomSession?.toViewModel() as { hand?: string[] } | undefined;
+            const currentOrder = femHandOrder ?? (femVm?.hand ?? []);
+            const fromIdx = currentOrder.indexOf(femDraggedCard);
+            const toIdx = currentOrder.indexOf(targetCard);
+            if (fromIdx === -1 || toIdx === -1) return;
+            const newOrder = [...currentOrder];
+            newOrder.splice(fromIdx, 1);
+            newOrder.splice(toIdx, 0, femDraggedCard);
+            femHandOrder = newOrder;
+            femDraggedCard = null;
+            renderView();
         });
     });
+
 }
 
 function wireLobbyEvents() {
@@ -1349,7 +1919,7 @@ function wireLobbyEvents() {
         });
     }
 
-    if (state.view === 'lobby' && roomSession && state.route.room && state.route.token) {
+    if (state.view === 'lobby' && roomSession && state.route.room) {
         document.querySelectorAll<HTMLButtonElement>('button[data-action="select-lobby-game"]').forEach((button) => {
             button.addEventListener('click', () => {
                 const game = button.dataset.game;
@@ -1376,19 +1946,19 @@ function wireLobbyEvents() {
         document.querySelectorAll<HTMLButtonElement>('button[data-action="set-room-visibility"]').forEach((button) => {
             button.addEventListener('click', () => {
                 const isPrivate = button.dataset.private === 'true';
-                void handleUpdateRoomVisibility(state.route.room!, state.route.token!, isPrivate);
+                void handleUpdateRoomVisibility(state.route.room!, isPrivate);
             });
         });
 
         document.querySelector<HTMLButtonElement>('button[data-action="leave-lobby"]')?.addEventListener('click', () => {
-            void handleLeaveLobby(state.route.room!, state.route.token!);
+            void handleLeaveLobby(state.route.room!);
         });
 
         document.querySelectorAll<HTMLButtonElement>('button[data-action="kick-player"]').forEach((button) => {
             button.addEventListener('click', () => {
                 const playerId = button.dataset.playerId;
                 if (!playerId) return;
-                void handleKickPlayer(state.route.room!, state.route.token!, playerId);
+                void handleKickPlayer(state.route.room!, playerId);
             });
         });
     }
@@ -1429,16 +1999,13 @@ async function handleCreateLobby() {
         const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
             isPrivate: lobbyBrowserState.createPrivate,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
             view: supportsLobbyLifecycle(created.selectedGame) ? 'lobby' : 'room',
             game: created.selectedGame,
             room: created.roomCode,
-            token: created.token,
             mock: false,
         });
     } catch (error) {
@@ -1470,16 +2037,13 @@ async function handleJoinByCode(rawRoomCode: string) {
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
             view: supportsLobbyLifecycle(joined.selectedGame) ? 'lobby' : 'room',
             game: joined.selectedGame,
             room: joined.roomCode,
-            token: joined.token,
             mock: false,
         });
     } catch (error) {
@@ -1504,16 +2068,13 @@ async function handleHomepageCreateLobby() {
         const created = await createRoom({
             gameType: FALLBACK_LOBBY_GAME_ID,
             isPrivate: false,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
             view: supportsLobbyLifecycle(created.selectedGame) ? 'lobby' : 'room',
             game: created.selectedGame,
             room: created.roomCode,
-            token: created.token,
             mock: false,
         });
     } catch (error) {
@@ -1545,16 +2106,13 @@ async function handleHomepageJoin() {
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
             view: supportsLobbyLifecycle(joined.selectedGame) ? 'lobby' : 'room',
             game: joined.selectedGame,
             room: joined.roomCode,
-            token: joined.token,
             mock: false,
         });
     } catch (error) {
@@ -1568,16 +2126,16 @@ async function handleHomepageJoin() {
     }
 }
 
-async function handleLeaveLobby(roomCode: string, token: string) {
+async function handleLeaveLobby(roomCode: string) {
     try {
-        await leaveRoom({ roomCode, token });
+        await leaveRoom({ roomCode });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to leave lobby'));
     } finally {
         clearActiveLobby();
         cleanupRoomSession();
         lobbyBrowserState.loaded = false;
-        navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+        navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         void refreshLobbyBrowser();
     }
 }
@@ -1587,34 +2145,34 @@ async function handleLeaveActiveRoom() {
     clearActiveLobby();
     cleanupRoomSession();
 
-    if (!route.room || !route.token || route.mock) {
-        navigate({ view: 'home', room: null, token: null, game: null, mock: false });
+    if (!route.room || route.mock) {
+        navigate({ view: 'home', room: null, game: null, mock: false });
         return;
     }
 
     try {
-        await leaveRoom({ roomCode: route.room, token: route.token });
+        await leaveRoom({ roomCode: route.room });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to leave table'));
     } finally {
         lobbyBrowserState.loaded = false;
-        navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+        navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         void refreshLobbyBrowser();
     }
 }
 
-async function handleKickPlayer(roomCode: string, actorToken: string, targetPlayerId: string) {
+async function handleKickPlayer(roomCode: string, targetPlayerId: string) {
     try {
-        await kickPlayer({ roomCode, actorToken, targetPlayerId });
+        await kickPlayer({ roomCode, targetPlayerId });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to kick player'));
         renderView();
     }
 }
 
-async function handleUpdateRoomVisibility(roomCode: string, actorToken: string, isPrivate: boolean) {
+async function handleUpdateRoomVisibility(roomCode: string, isPrivate: boolean) {
     try {
-        await updateRoomVisibility({ roomCode, actorToken, isPrivate });
+        await updateRoomVisibility({ roomCode, isPrivate });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to update room visibility'));
         renderView();
@@ -1625,7 +2183,7 @@ async function syncActiveLobbyParticipantProfile() {
     if (!roomSession) return;
 
     const activeLobby = resolveActiveLobbyRoute();
-    if (!activeLobby?.room || !activeLobby.token) return;
+    if (!activeLobby?.room) return;
 
     const sessionState = roomSession.getState();
     const publicState = toRecord(sessionState.publicState);
@@ -1633,14 +2191,11 @@ async function syncActiveLobbyParticipantProfile() {
     if (!sessionState.playerId) return;
 
     const username = authUiState.user?.username?.trim() || null;
-    const nextPlayerId = authUiState.user?.id?.trim() || randomToken();
 
     try {
         await claimRoomIdentity({
             roomCode: activeLobby.room,
-            playerId: nextPlayerId,
             username: username ?? undefined,
-            token: activeLobby.token,
         });
         restartActiveLobbySession(activeLobby);
     } catch (error) {
@@ -1652,6 +2207,7 @@ function applyAuthUI() {
     const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null;
     const signupBtn = document.getElementById('signupBtn') as HTMLButtonElement | null;
     const profileBtn = document.getElementById('profileBtn') as HTMLButtonElement | null;
+    const notificationsBtn = document.getElementById('notificationsBtn') as HTMLButtonElement | null;
     const avatarDisplay = document.getElementById('avatarDisplay') as HTMLDivElement | null;
 
     if (!loginBtn || !signupBtn || !profileBtn) return;
@@ -1665,6 +2221,7 @@ function applyAuthUI() {
         signupBtn.onclick = null;
         profileBtn.textContent = state.lang === 'en' ? 'Loading...' : 'Indlæser...';
         profileBtn.onclick = null;
+        notificationsBtn?.classList.add('hidden');
         avatarDisplay?.classList.add('hidden');
         return;
     }
@@ -1683,6 +2240,8 @@ function applyAuthUI() {
             avatarDisplay.classList.add('hidden');
             avatarDisplay.style.background = '';
         }
+        notificationsBtn?.classList.add('hidden');
+        notificationsState.open = false;
         return;
     }
 
@@ -1694,6 +2253,7 @@ function applyAuthUI() {
     signupBtn.onclick = () => navigate('/custom');
     profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
     profileBtn.onclick = () => navigate({ view: 'profile' });
+    notificationsBtn?.classList.remove('hidden');
 
     if (!avatarDisplay) return;
     if (!authUiState.avatar) {
@@ -1734,6 +2294,13 @@ async function syncAuthState(renderAfter = true) {
             ? { id: user.id, username: await loadProfileUsername(user.id, user.user_metadata?.username) }
             : null;
         authUiState.avatar = user ? await loadAvatarData(user.id) : null;
+        if (authUiState.user) {
+            await refreshNotifications(false);
+        } else {
+            notificationsState.items = [];
+            notificationsState.unreadCount = 0;
+            notificationsState.open = false;
+        }
     } catch (error) {
         console.error('Failed to sync auth UI', error);
         authUiState.initialized = true;
@@ -1752,18 +2319,18 @@ async function loadAvatarData(userId: string): Promise<{ color: string; shape: s
     }
 
     const { data: avatar } = await supabase
-        .from('avatars')
-        .select('*')
+        .from('user_avatars')
+        .select('color, avatar_defs(shape)')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
     if (!avatar) {
         return null;
     }
 
     return {
-        color: avatar.avatar_color ?? '',
-        shape: avatar.avatar_shape ?? 'square',
+        color: avatar.color ?? '',
+        shape: avatar.avatar_defs?.shape ?? 'square',
     };
 }
 
@@ -1775,8 +2342,8 @@ async function loadProfileUsername(userId: string, fallbackUsername?: string | n
     const { data: profile } = await supabase
         .from('profiles')
         .select('username')
-        .eq('id', userId)
-        .single();
+        .eq('user_id', userId)
+        .maybeSingle();
 
     return normalizeUsernameValue(profile?.username) ?? normalizeUsernameValue(fallbackUsername);
 }
@@ -1796,7 +2363,7 @@ async function upsertProfileFromAuth(user: {
     }
 
     await supabase.from('profiles').upsert({
-        id: user.id,
+        user_id: user.id,
         username,
         country,
     });
@@ -1834,19 +2401,14 @@ function normalizeGameKey(game: string): string {
 
 async function startRealtimeRoom(gameType: string) {
     try {
-        const token = randomToken();
-        const playerId = token;
         const created = await createRoom({
             gameType,
-            playerId,
-            token,
         });
 
         navigate({
             view: 'room',
             game: gameType,
             room: created.roomCode,
-            token: created.token,
             mock: false,
         });
     } catch (error) {
@@ -1885,9 +2447,8 @@ async function handleQuickPlay(gameType: string) {
         const identity = getLobbyIdentity();
         const ticket = await enqueueMatchmaking({
             gameType,
-            playerId: identity.playerId,
             username: identity.username ?? undefined,
-            token: identity.token,
+            clientSessionId: identity.playerId,
         });
         if (!isCurrentQuickPlayGeneration(generation)) {
             return;
@@ -2007,7 +2568,6 @@ function startMatchedCountdown(ticket: MatchmakingResponse, generation = quickPl
             view: 'room',
             game: ticket.gameType,
             room: ticket.roomCode,
-            token: ticket.token,
             mock: false,
         });
     }, 1000);
@@ -2039,33 +2599,9 @@ async function cancelQuickPlay() {
     resetQuickPlayState();
     renderView();
     updateActiveQueueBar();
-    void cancelQuickPlayWithSupabase(ticket);
 }
 
-async function cancelQuickPlayWithSupabase(ticket: MatchmakingResponse): Promise<boolean> {
-    if (!supabase) {
-        return false;
-    }
-
-    try {
-        const { data, error } = await supabase.rpc('cancel_matchmaking_ticket', {
-            ticket_id_input: ticket.ticketId,
-            session_token_input: ticket.token,
-        });
-
-        if (error) {
-            console.warn('Supabase matchmaking cancel failed after API cancel', error);
-            return false;
-        }
-
-        return data === true;
-    } catch (error) {
-        console.warn('Supabase matchmaking cancel threw after API cancel', error);
-        return false;
-    }
-}
-
-function subscribeQuickPlayRealtime(gameType: string, ticketId: string, generation = quickPlayGeneration) {
+function subscribeQuickPlayRealtime(_gameType: string, ticketId: string, generation = quickPlayGeneration) {
     if (!supabase || quickPlayRealtimeChannel) {
         return;
     }
@@ -2078,7 +2614,7 @@ function subscribeQuickPlayRealtime(gameType: string, ticketId: string, generati
                 event: '*',
                 schema: 'public',
                 table: 'matchmaking_tickets',
-                filter: `game_type=eq.${gameType}`,
+                filter: `id=eq.${ticketId}`,
             },
             () => {
                 scheduleRealtimeTicketRefresh(ticketId, generation);
@@ -2180,8 +2716,14 @@ function readCasinoValueMap(publicState: Record<string, unknown> | null): Record
     return valueMap as Record<string, number[]>;
 }
 
-function randomToken(): string {
-    return `player-${Math.random().toString(36).slice(2, 8)}`;
+function getMockClientId(): string {
+    const key = 'bodegadk.mockClientId';
+    const existing = window.sessionStorage.getItem(key);
+    if (existing) return existing;
+
+    const generated = `mock-${Math.random().toString(36).slice(2, 8)}`;
+    window.sessionStorage.setItem(key, generated);
+    return generated;
 }
 
 function formatQueueDuration(seconds: number): string {
@@ -2279,7 +2821,7 @@ function rememberActiveLobby(route: AppRoute) {
 
 function resolveActiveLobbyRoute(): AppRoute | null {
     const route = activeLobbyState.route;
-    if (!route?.room || !route.token) {
+    if (!route?.room) {
         return null;
     }
     return { ...route, view: 'lobby' };
@@ -2290,7 +2832,7 @@ function clearActiveLobby() {
 }
 
 function restartActiveLobbySession(route: AppRoute) {
-    if (!route.room || !route.token) {
+    if (!route.room) {
         return;
     }
 
@@ -2298,14 +2840,13 @@ function restartActiveLobbySession(route: AppRoute) {
     ensureRoomSession(
         route.game ?? FALLBACK_LOBBY_GAME_ID,
         route.room,
-        route.token,
         route.mock,
     );
 }
 
 async function leavePreservedLobbyBeforeTransition(targetRoomCode?: string | null) {
     const activeLobby = resolveActiveLobbyRoute();
-    if (!activeLobby?.room || !activeLobby.token) {
+    if (!activeLobby?.room) {
         return;
     }
     if (targetRoomCode && activeLobby.room === targetRoomCode) {
@@ -2313,7 +2854,7 @@ async function leavePreservedLobbyBeforeTransition(targetRoomCode?: string | nul
     }
 
     try {
-        await leaveRoom({ roomCode: activeLobby.room, token: activeLobby.token });
+        await leaveRoom({ roomCode: activeLobby.room });
     } catch (error) {
         console.warn('[lobby] failed to leave preserved lobby before transition', error);
     } finally {
@@ -2354,10 +2895,12 @@ function syncActiveLobbySessionState() {
 
 function getLobbyIdentity() {
     const authenticatedUserId = authUiState.user?.id?.trim();
+    if (!authenticatedUserId) {
+        window.location.href = '/login';
+    }
     return {
-        playerId: authenticatedUserId || randomToken(),
+        playerId: authenticatedUserId || '',
         username: authUiState.user?.username?.trim() || null,
-        token: randomToken(),
     };
 }
 

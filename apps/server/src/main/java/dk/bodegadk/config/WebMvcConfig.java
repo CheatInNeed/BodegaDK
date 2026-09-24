@@ -28,13 +28,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedOrigins("http://localhost:5173")
                 .allowedMethods("GET", "DELETE", "OPTIONS")
                 .allowedHeaders("*");
-        registry.addMapping("/push/**")
+        registry.addMapping("/me/matches")
                 .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "POST", "OPTIONS")
+                .allowedMethods("GET", "OPTIONS")
                 .allowedHeaders("*");
-        registry.addMapping("/friends/**")
+        registry.addMapping("/me/stats")
                 .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "POST", "OPTIONS")
+                .allowedMethods("GET", "OPTIONS")
+                .allowedHeaders("*");
+        registry.addMapping("/leaderboard")
+                .allowedOrigins("http://localhost:5173")
+                .allowedMethods("GET", "OPTIONS")
                 .allowedHeaders("*");
     }
 }

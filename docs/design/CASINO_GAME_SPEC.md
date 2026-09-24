@@ -305,7 +305,7 @@ TableStack
 Recommended client -> server messages for Casino:
 
 - `CONNECT`
-  - includes `roomCode`, `token`, `game`, `setup.casinoRules.valueMap`
+  - includes `roomCode`, Supabase `accessToken`, `game`, `setup.casinoRules.valueMap`
 - `CASINO_PLAY_MOVE`
   - `handCard`
   - `captureStackIds[]`

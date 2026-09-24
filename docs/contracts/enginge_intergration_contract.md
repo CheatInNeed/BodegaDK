@@ -118,7 +118,7 @@ All WS messages use:
 ```
 
 Baseline gameplay flow:
-1. Client sends `CONNECT` with `roomCode` + `token`.
+1. Client sends `CONNECT` with `roomCode` + Supabase `accessToken`.
 2. Server sends `STATE_SNAPSHOT`.
 3. Client sends game actions.
 4. Server emits `PUBLIC_UPDATE` and targeted `PRIVATE_UPDATE`.
@@ -129,7 +129,7 @@ Error contract:
 
 Protocol governance:
 - Any new game action/event type must update:
-1. `docs/PROTOCOL.md`
+1. `docs/design/PROTOCOL.md`
 2. `apps/server` implementation
 3. `apps/web` protocol + adapter implementation
 
@@ -201,7 +201,7 @@ Concurrency requirement:
 
 A game integration may merge only when:
 1. Engine, server, and web changes are compatible in same target branch.
-2. `docs/PROTOCOL.md` is updated if payload/message changes occurred.
+2. `docs/design/PROTOCOL.md` is updated if payload/message changes occurred.
 3. Build and test suites for touched modules pass.
 4. Manual E2E verification is recorded.
 
@@ -223,44 +223,29 @@ A game is considered URL-playable only when all are true:
 
 ---
 
-## 13. Current Known Gaps (Snapshot: 2026-03-11, branch: `server-v0.1`)
+## 13. Current Known Gaps (Snapshot: 2026-04-29)
 
 ### 13.1 Game Snapshot: `highcard`
 
 - Game ID: `highcard`
-- Engine status: implemented (`HighCardEngine`, `HighCardAction`, `HighCardState`, `HighCardViewProjector`) and unit-tested.
-- Branch/release status: engine commit `2fd3ff3` is present on `server-v0.1` and `Stupid1pCardGame`, but not guaranteed on `dev`/`master`.
-- Server registration status: missing production engine registry/dispatcher path from room `gameType` to HighCard engine.
-- WS action routing status: generic WS loop exists, but no HighCard action parser/routing contract is wired.
-- Public/private projector status: projector exists in engine domain, but is not wired into runtime outbound mapping.
-- Web adapter status: missing `highcardAdapter`; active adapter list still Snyd-only.
-- URL route status: HighCard route exists but uses local UI-only state, not real room session flow.
-- Mock mode status: mock transport simulates only Snyd.
-- Protocol doc status: `docs/PROTOCOL.md` does not define HighCard client action/event payloads.
-- E2E status: not URL-playable end-to-end against server-authoritative runtime.
-- Build/test status:
-  - `mvn -q test` passes in `apps/server`.
-  - `npm run build -w apps/web` passes.
-  - `mvn -q -DskipTests package` fails because two Spring Boot main classes exist.
-- Blockers:
-  - Packaging blocker: duplicate main-class candidates (`dk.bodegadk.BodegaServerApplication`, `dk.bodegadk.server.BodegaServerApplication`).
-  - Infra/API contract mismatch risk: nginx strips `/api` prefix, while controller is mapped at `/api/rooms`.
-  - Engine integration seam is still placeholder (`GameLoopService.EnginePort` missing production bean).
-  - Runtime persistence/session durability is still in-memory scaffolding.
+- Engine status: implemented and wired through the shared engine port pattern.
+- Runtime status: registered with the WebSocket room session and lobby/start flow.
+- URL route status: playable through the shared `view=room` flow.
+- Persistence status: completed match results write through the shared
+  match-history/stat/leaderboard completion path.
+- Remaining limitation: active in-game snapshots are still runtime memory, not
+  durable replay state.
 
 ### 13.2 System Baseline For Planning
 
 | System | What we currently have | What is missing | What needs to change |
 |---|---|---|---|
-| Branch/Release Integration | HighCard commit is on `server-v0.1` + `Stupid1pCardGame` | Not integrated into `dev`/`master` | Decide canonical integration branch and merge policy |
-| Game Engine Domain | HighCard and Snyd engine-domain classes | Runtime registration/selection from network `gameId` | Add engine registry/dispatcher and decode bridge |
-| Server Runtime (REST + WS) | `/api/rooms`, `/api/rooms/{roomCode}/join`, `/ws`, per-room queue, loop service | Persistent adapters + production engine integration | Wire engine port and DB/session stores without changing protocol bodies |
-| Protocol Contract | WS envelope + Snyd actions/events documented | HighCard action/event contract | Extend `docs/PROTOCOL.md` and TS protocol types |
-| Web Session/Transport Layer | Generic room session + WS/mock transport | HighCard action mapping path | Add HighCard protocol mapping in adapter/session flow |
-| Web UI/Game Integration | HighCard UI screen/route present | Route is local-only and not backend-driven | Move HighCard route to real `createGameRoomSession(...)` flow |
-| Adapter Layer | `snydAdapter` exists and is registered | No `highcardAdapter` | Implement and register `highcardAdapter` |
-| Mock/Dev Simulation | Snyd mock server simulation | No HighCard mock behavior | Add HighCard mock or enforce real WS for HighCard tests |
-| Infra/Deployment | Nginx and compose wiring for `/api` + `/ws` exists | API-prefix mismatch risk + server packaging blocker | Align API path contract and fix duplicate Spring Boot main class |
+| Branch/Release Integration | Game/server/web integrations are on the current platform branch | Merge target and release timing | Keep migrations, backend, and frontend deployed together |
+| Game Engine Domain | HighCard, Snyd, Casino, Krig, and Fem engines/adapters | Durable active-game snapshots | Add replay/recovery storage when needed |
+| Server Runtime (REST + WS) | Authenticated REST, `/ws`, per-room queue, engine ports, JDBC metadata/social/history stores | Horizontal shared runtime state | Add Redis/shared runtime store before multi-instance scaling |
+| Protocol Contract | REST/WS contracts documented in `docs/design/PROTOCOL.md` | Formal generated OpenAPI/TS schemas | Add generated schemas if contract drift becomes painful |
+| Web Session/Transport Layer | Generic room session, WS transport, mock transport, registered game adapters | Robust reconnect replay | Add resumable snapshot/replay strategy |
+| Infra/Deployment | Nginx strips `/api`, proxies `/ws`, server uses Supabase datasource | Automated environment validation before deploy | Add deploy preflight checks |
 
 ---
 

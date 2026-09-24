@@ -20,6 +20,8 @@ public class KrigViewProjector implements ViewProjector<KrigState> {
         view.put("readyPlayerIds", List.copyOf(state.readyPlayerIds()));
         view.put("warActive", state.warDepth() > 0);
         view.put("warDepth", state.warDepth());
+        view.put("warPhase", state.warPhase().name());
+        view.put("presentationEventId", state.presentationEventId());
         view.put("warPileSize", Math.max(0, state.centerPile().size() - state.currentFaceUpCards().size()));
         view.put("centerPileSize", state.centerPile().size());
 

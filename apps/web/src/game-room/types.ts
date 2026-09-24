@@ -41,7 +41,7 @@ export type SeatViewModel = {
     positionClass?: SeatPositionClass;
 };
 
-export type KrigPresentationPhase = 'idle' | 'suspense' | 'result';
+export type KrigPresentationPhase = 'idle' | 'suspense' | 'krig-reveal' | 'result';
 
 export type KrigPresentationState = {
     phase: KrigPresentationPhase;
@@ -101,10 +101,8 @@ export type UiIntent =
     | { type: 'FEM_TAKE_DISCARD_PILE' }
     | { type: 'FEM_LAY_MELD' }
     | { type: 'FEM_EXTEND_MELD'; meldId: string }
-    | { type: 'FEM_SWAP_JOKER'; meldId: string; jokerCode: string; realCardCode: string }
     | { type: 'FEM_DISCARD' }
-    | { type: 'FEM_CLAIM_DISCARD'; meldId: string }
-    | { type: 'FEM_PASS_GRAB' };
+    | { type: 'FEM_CLOSE_ROUND'; card: string };
 
 /**
  * Game-specific bridge that maps generic room state to concrete UI behavior.
@@ -126,9 +124,9 @@ export type GameAdapter<TPublic extends Record<string, unknown>, TPrivate extend
 
 export type RoomBootstrap = {
     roomCode: string;
-    token: string;
     game: string;
     useMock: boolean;
+    mockClientId?: string;
 };
 
 export type RoomTransportHandlers = {

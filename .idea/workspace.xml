@@ -3,26 +3,26 @@
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
-  <component name="BackgroundAgentGlobalSettings">
-    <option name="selectedModelId" value="auto" />
-  </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Notifications implemented but can only send test notifications currently. REMEMBER to set VAPID keys">
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="finished call sites, updated documentation,">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/InMemoryPushSubscriptionStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/InMemoryPushSubscriptionStore.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/JdbcPushSubscriptionStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/JdbcPushSubscriptionStore.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/PushSubscriptionStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/PushSubscriptionStore.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/WebPushNotificationService.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/WebPushNotificationService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/public/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/public/styles.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/public/sw.js" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/public/sw.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/i18n.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/i18n.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/net/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/net/api.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/pwa.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/pwa.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/profile.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/DATABASE_V1_SCHEMA_RESET.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/DATABASE_V1_SCHEMA_RESET.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/design/PROTOCOL.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/ROOM_AND_MATCHMAKING_ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/ROOM_AND_MATCHMAKING_ARCHITECTURE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -32,18 +32,17 @@
   <component name="CopilotPersistence">
     <persistenceIdMap>
       <entry key="_/Users/alex/WebstormProjects/BodegaDK" value="3C4WxYrhQF8Ooqah2ksVJ0CjBUJ" />
-      <entry key="_/Users/ivanviemoescuevas/IdeaProjects/BodegaDK" value="3JXT5nJGpNi09Y8OGkAynOV8jP1" />
       <entry key="_/Users/peterroland/Library/CloudStorage/OneDrive-DanmarksTekniskeUniversitet/DTU/4_Semester/62595_Full_stack_development/BodegaDK" value="3ATq15ONpesXwkLXmSD166wfQI8" />
+      <entry key="_C:/Users/lille/WebstormProjects/BodegaDK" value="3Cz5lx1ZkjQl7oymrnbvyPN9j5J" />
     </persistenceIdMap>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="161" />
-    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
+    <option name="cachedIndexableFilesCount" value="384" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="master" />
+        <entry key="$PROJECT_DIR$" value="database-overhaul" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -56,181 +55,45 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/CheatInNeed/BodegaDK.git&quot;,
-    &quot;accountId&quot;: &quot;4ac8c7e8-2bf5-4b03-bfdd-5b2228ed5a29&quot;
+    &quot;url&quot;: &quot;https://github.com/CheatInNeed/BodegaDK&quot;,
+    &quot;accountId&quot;: &quot;f1440bbb-0109-4eb8-b3f9-f95a5b160bb6&quot;
   }
-}</component>
-  <component name="KmpPackageLockUpdaterState">{
-  &quot;jsModulesKotlinGradlePluginVersion&quot;: {},
-  &quot;wasmModulesKotlinGradlePluginVersion&quot;: {}
 }</component>
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
   </component>
-  <component name="NextEditCompletionFeaturesState">
-    <decayedCancelled>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0" />
-      <entry key="S2" value="1.0" />
-      <entry key="S5" value="1.0" />
-      <entry key="S10" value="1.0" />
-      <entry key="S30" value="1.0" />
-      <entry key="S60" value="1.0000000305363936" />
-      <entry key="M2" value="1.00069880635458" />
-      <entry key="M5" value="1.2885277824731862" />
-      <entry key="M10" value="3.1485688668631813" />
-      <entry key="M15" value="5.195707185070862" />
-      <entry key="M30" value="9.193360666086432" />
-      <entry key="H1" value="12.449615473218188" />
-      <entry key="H2" value="14.534911191209206" />
-      <entry key="H4" value="15.71592916509532" />
-      <entry key="D1" value="16.778459493061455" />
-      <entry key="W1" value="16.968161922410523" />
-    </decayedCancelled>
-    <decayedSelected>
-      <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="0.0" />
-      <entry key="S5" value="0.0" />
-      <entry key="S10" value="0.0" />
-      <entry key="S30" value="0.0" />
-      <entry key="S60" value="0.0" />
-      <entry key="M2" value="0.0" />
-      <entry key="M5" value="0.0" />
-      <entry key="M10" value="0.0" />
-      <entry key="M15" value="0.0" />
-      <entry key="M30" value="0.0" />
-      <entry key="H1" value="0.0" />
-      <entry key="H2" value="0.0" />
-      <entry key="H4" value="0.0" />
-      <entry key="D1" value="0.0" />
-      <entry key="W1" value="0.0" />
-    </decayedSelected>
-    <decayedShown>
-      <entry key="MS100" value="0.9659363289248455" />
-      <entry key="MS500" value="0.9930924954370359" />
-      <entry key="S2" value="0.9982686325973925" />
-      <entry key="S5" value="0.9993070929904525" />
-      <entry key="S10" value="0.9996534864594093" />
-      <entry key="S30" value="0.9998844821426083" />
-      <entry key="S60" value="0.9999422699368995" />
-      <entry key="M2" value="1.0006698949380728" />
-      <entry key="M5" value="1.2885111271577259" />
-      <entry key="M10" value="3.148544050115297" />
-      <entry key="M15" value="5.195678528445633" />
-      <entry key="M30" value="9.193334503046406" />
-      <entry key="H1" value="12.449597569321002" />
-      <entry key="H2" value="14.534900694740692" />
-      <entry key="H4" value="15.715923479429902" />
-      <entry key="D1" value="16.77845847985434" />
-      <entry key="W1" value="16.968161775993515" />
-    </decayedShown>
-  </component>
-  <component name="ProjectCodeStyleSettingsMigration">
-    <option name="version" value="2" />
-  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
 }</component>
   <component name="ProjectId" id="3ATq15ONpesXwkLXmSD166wfQI8" />
-  <component name="ProjectSessionTemplates">
-    <option name="panelTemplate">
-      <template>
-        <option name="modeId" value="Ask" />
-        <option name="model">
-          <model>
-            <option name="modelType" value="builtin_id" />
-            <option name="modelValue" value="auto" />
-          </model>
-        </option>
-        <option name="targetType" value="BACKGROUND" />
-        <option name="worktreeMode" value="WORKSPACE" />
-      </template>
-    </option>
-  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
-    &quot;CidrDebugProfileConversion&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;copilot.chat.legacySessionMetadata.migrated&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feature/push__notifications&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;database-overhaul-2&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
     &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;npm.local:dev.executor&quot;: &quot;Run&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Project&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/Users/ivanviemoescuevas/IdeaProjects/BodegaDK/node_modules/typescript/lib&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.language&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\lille\\WebstormProjects\\BodegaDK\\node_modules\\typescript\\lib&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
-  },
-  &quot;keyToStringList&quot;: {
-    &quot;stardust.markdown.MarkdownSplitEditorSuppressor:keyList&quot;: []
   }
 }</component>
-  <component name="RunManager">
-    <configuration default="true" type="AZURE_FUNCTION_SUPPORT" factoryName="Run Functions">
-      <option name="appName" />
-      <option name="appServicePlanName" />
-      <option name="appServicePlanResourceGroup" />
-      <option name="appSettingsKey" value="06b743cc-4834-4045-8595-995b86d7588b" />
-      <option name="artifact" />
-      <option name="debugOptions" />
-      <option name="deployment" />
-      <option name="deploymentStagingDirectoryPath" />
-      <option name="funcPath" />
-      <option name="functionHostArguments" />
-      <option name="hostJsonPath" />
-      <option name="insightsName" />
-      <option name="instrumentationKey" />
-      <option name="javaVersion" />
-      <option name="localSettingsJsonPath" />
-      <option name="moduleName" />
-      <option name="os" />
-      <option name="pricingTier" />
-      <option name="providerMap">
-        <map />
-      </option>
-      <option name="region" />
-      <option name="resourceGroup" />
-      <option name="stagingFolder" />
-      <option name="subscription" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="local:dev" type="js.build_tools.npm" nameIsGenerated="true">
-      <package-json value="$PROJECT_DIR$/package.json" />
-      <command value="run" />
-      <scripts>
-        <script value="local:dev" />
-      </scripts>
-      <node-interpreter value="project" />
-      <envs />
-      <method v="2" />
-    </configuration>
-  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-30f59d01ecdd-a203e0a19954-intellij.indexing.shared.core-IU-262.10315.125" />
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-WS-253.30387.83" />
       </set>
     </attachedChunks>
   </component>
@@ -255,6 +118,8 @@
       <workItem from="1773860197305" duration="2071000" />
       <workItem from="1775645570494" duration="1149000" />
       <workItem from="1775647164563" duration="3073000" />
+      <workItem from="1777375713384" duration="14002000" />
+      <workItem from="1777399983706" duration="1276000" />
     </task>
     <task id="LOCAL-00002" summary="login and customize avatar">
       <option name="closed" value="true" />
@@ -280,26 +145,85 @@
       <option name="project" value="LOCAL" />
       <updated>1775649787092</updated>
     </task>
-    <task id="LOCAL-00005" summary="Notifications implemented but can only send test notifications currently. REMEMBER to set VAPID keys">
+    <task id="LOCAL-00005" summary="Database refactor - central migration path and documentation.">
       <option name="closed" value="true" />
-      <created>1789809231104</created>
+      <created>1777381090236</created>
       <option name="number" value="00005" />
       <option name="presentableId" value="LOCAL-00005" />
       <option name="project" value="LOCAL" />
-      <updated>1789809231104</updated>
+      <updated>1777381090236</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="Database overhaul - migration, server + web call updates and documentationen">
+      <option name="closed" value="true" />
+      <created>1777388670373</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1777388670373</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Added safe secrets to the local scripts">
+      <option name="closed" value="true" />
+      <created>1777394942585</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1777394942585</updated>
+    </task>
+    <task id="LOCAL-00008" summary="script updates">
+      <option name="closed" value="true" />
+      <created>1777395730892</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1777395730892</updated>
+    </task>
+    <task id="LOCAL-00009" summary="finished call sites, updated documentation,">
+      <option name="closed" value="true" />
+      <created>1777398726761</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1777398726761</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
+    <option name="RECENT_FILTERS">
+      <map>
+        <entry key="Branch">
+          <value>
+            <list>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
+                  <option value="HEAD" />
+                </option>
+              </RecentGroup>
+            </list>
+          </value>
+        </entry>
+      </map>
+    </option>
     <option name="TAB_STATES">
       <map>
         <entry key="MAIN">
           <value>
-            <State />
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
           </value>
         </entry>
       </map>
@@ -310,12 +234,12 @@
     <MESSAGE value="login and customize avatar" />
     <MESSAGE value="Updated gitignore" />
     <MESSAGE value="added migration based database" />
-    <MESSAGE value="Notifications implemented but can only send test notifications currently. REMEMBER to set VAPID keys" />
-    <option name="LAST_COMMIT_MESSAGE" value="Notifications implemented but can only send test notifications currently. REMEMBER to set VAPID keys" />
-  </component>
-  <component name="XSLT-Support.FileAssociations.UIState">
-    <expand />
-    <select />
+    <MESSAGE value="Database refactor - central migration path and documentation." />
+    <MESSAGE value="Database overhaul - migration, server + web call updates and documentationen" />
+    <MESSAGE value="Added safe secrets to the local scripts" />
+    <MESSAGE value="script updates" />
+    <MESSAGE value="finished call sites, updated documentation," />
+    <option name="LAST_COMMIT_MESSAGE" value="finished call sites, updated documentation," />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>
