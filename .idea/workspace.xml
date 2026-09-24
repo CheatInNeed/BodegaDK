@@ -6,23 +6,32 @@
   <component name="ChangeListManager">
     <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="finished call sites, updated documentation,">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/SecurityConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/PushSubscriptionStoreConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/PushSubscriptionStoreConfiguration.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/FriendController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/PushController.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/PushController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcFriendsStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcFriendsStore.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/public/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/public/styles.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/FriendRequest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/FriendRequestService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/FriendRequestStore.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/FriendRequestStoreConfiguration.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/InMemoryFriendRequestStore.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/JdbcFriendRequestStore.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/resources/db/migration/V5__push_subscriptions.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/resources/db/migration/V6__friend_requests.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/FemEnginePortAdapterTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/FemEnginePortAdapterTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/social/FriendRequestServiceTest.java" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/i18n.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/i18n.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/net/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/net/api.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/DATABASE_V1_SCHEMA_RESET.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/DATABASE_V1_SCHEMA_RESET.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/pwa.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/pwa.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/design/PROTOCOL.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/ROOM_AND_MATCHMAKING_ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/ROOM_AND_MATCHMAKING_ARCHITECTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/run-local-env.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/run-local-env.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/supabase/migrations/202604231200_friend_requests.sql" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -63,6 +72,68 @@
     <commands />
     <urls />
   </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.2064802957572296" />
+      <entry key="MS500" value="2.113883509192947" />
+      <entry key="S2" value="3.2473939838560253" />
+      <entry key="S5" value="3.6642270844485694" />
+      <entry key="S10" value="3.825676652751495" />
+      <entry key="S30" value="3.9403993161653568" />
+      <entry key="S60" value="3.9749964725419" />
+      <entry key="M2" value="4.171846945197165" />
+      <entry key="M5" value="5.653125066229603" />
+      <entry key="M10" value="8.324881709454349" />
+      <entry key="M15" value="11.955945672876851" />
+      <entry key="M30" value="23.64566179809667" />
+      <entry key="H1" value="38.09901869657283" />
+      <entry key="H2" value="49.75933426267138" />
+      <entry key="H4" value="57.20652171602818" />
+      <entry key="D1" value="64.43092647032196" />
+      <entry key="W1" value="65.77317046525722" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="0.0" />
+      <entry key="M5" value="0.0" />
+      <entry key="M10" value="0.0" />
+      <entry key="M15" value="0.0" />
+      <entry key="M30" value="0.0" />
+      <entry key="H1" value="0.0" />
+      <entry key="H2" value="0.0" />
+      <entry key="H4" value="0.0" />
+      <entry key="D1" value="0.0" />
+      <entry key="W1" value="0.0" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="1.1427594320366998" />
+      <entry key="MS500" value="2.0919146500499073" />
+      <entry key="S2" value="3.2389685381360067" />
+      <entry key="S5" value="3.6604207665079684" />
+      <entry key="S10" value="3.823688794736411" />
+      <entry key="S30" value="3.939716611022514" />
+      <entry key="S60" value="3.9746519262289337" />
+      <entry key="M2" value="4.171663065542805" />
+      <entry key="M5" value="5.653016030236893" />
+      <entry key="M10" value="8.324799101062807" />
+      <entry key="M15" value="11.955869428619328" />
+      <entry key="M30" value="23.645592240077708" />
+      <entry key="H1" value="38.09896502996029" />
+      <entry key="H2" value="49.759299876033964" />
+      <entry key="H4" value="57.20650211852002" />
+      <entry key="D1" value="64.43092281602789" />
+      <entry key="W1" value="65.77316993292438" />
+    </decayedShown>
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
 }</component>
@@ -71,25 +142,98 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;database-overhaul-2&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.language&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\lille\\WebstormProjects\\BodegaDK\\node_modules\\typescript\\lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "git-widget-placeholder": "feature/push__notifications",
+    "ignore.virus.scanning.warn.message": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "last_opened_file_path": "/Users/ivanviemoescuevas/IdeaProjects/BodegaDK",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "npm.local:dev.executor": "Run",
+    "npm.supabase:push:dry-run.executor": "Run",
+    "settings.editor.selected.configurable": "configurable.group.language",
+    "ts.external.directory.path": "/Users/ivanviemoescuevas/IdeaProjects/BodegaDK/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+    </key>
+  </component>
+  <component name="RunManager" selected="npm.supabase:push">
+    <configuration default="true" type="AZURE_FUNCTION_SUPPORT" factoryName="Run Functions">
+      <option name="appName" />
+      <option name="appServicePlanName" />
+      <option name="appServicePlanResourceGroup" />
+      <option name="appSettingsKey" value="463aa052-7f2f-468e-b473-87c43cbde498" />
+      <option name="artifact" />
+      <option name="debugOptions" />
+      <option name="deployment" />
+      <option name="deploymentStagingDirectoryPath" />
+      <option name="funcPath" />
+      <option name="functionHostArguments" />
+      <option name="hostJsonPath" />
+      <option name="insightsName" />
+      <option name="instrumentationKey" />
+      <option name="javaVersion" />
+      <option name="localSettingsJsonPath" />
+      <option name="moduleName" />
+      <option name="os" />
+      <option name="pricingTier" />
+      <option name="providerMap">
+        <map />
+      </option>
+      <option name="region" />
+      <option name="resourceGroup" />
+      <option name="stagingFolder" />
+      <option name="subscription" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="Application" factoryName="Application">
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="local:dev" type="js.build_tools.npm" nameIsGenerated="true">
+      <package-json value="$PROJECT_DIR$/package.json" />
+      <command value="run" />
+      <scripts>
+        <script value="local:dev" />
+      </scripts>
+      <node-interpreter value="project" />
+      <envs>
+        <env name="SPRING_DATASOURCE_USERNAME" value="bodegadk" />
+        <env name="SPRING_DATASOURCE_PASSWORD" value="bodegadk" />
+        <env name="SPRING_DATASOURCE_URL" value="jdbc:postgresql://localhost:5432/bodegadk" />
+      </envs>
+      <method v="2" />
+    </configuration>
+    <configuration name="supabase:push" type="js.build_tools.npm" nameIsGenerated="true">
+      <package-json value="$PROJECT_DIR$/package.json" />
+      <command value="run" />
+      <scripts>
+        <script value="supabase:push" />
+      </scripts>
+      <node-interpreter value="project" />
+      <envs />
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="npm.local:dev" />
+      <item itemvalue="npm.supabase:push" />
+    </list>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>

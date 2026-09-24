@@ -1582,16 +1582,22 @@ async function refreshPushSettingsCard() {
     }
 
     const status = await readPushStatus();
-    const message = resolvePushStatusMessage(status);
+    const authLoading = !authUiState.initialized && isSupabaseConfigured;
+    const loginRequired = authUiState.initialized && !authUiState.user && status.supported && status.configured && status.permission !== 'denied';
+    const message = authLoading
+        ? { titleKey: 'settings.push.status.authLoading', bodyKey: 'settings.push.status.authLoadingBody' }
+        : loginRequired
+            ? { titleKey: 'settings.push.status.authRequired', bodyKey: 'settings.push.status.authRequiredBody' }
+            : resolvePushStatusMessage(status);
     titleEl.textContent = t(state.lang, message.titleKey);
     bodyEl.textContent = t(state.lang, message.bodyKey);
     deviceEl.textContent = status.platformLabel;
     if (recipientEl) {
         recipientEl.textContent = resolvePushRecipientUserId(authUiState.user?.id ?? null);
     }
-    enableBtn.disabled = !status.supported || !status.configured || status.subscribed || status.permission === 'denied';
+    enableBtn.disabled = authLoading || loginRequired || !status.supported || !status.configured || status.subscribed || status.permission === 'denied';
     disableBtn.disabled = !status.subscribed;
-    testBtn.disabled = !status.subscribed;
+    testBtn.disabled = authLoading || loginRequired || !status.subscribed;
     if (hintEl) {
         hintEl.hidden = !(status.coarsePointer && !status.standalone);
     }

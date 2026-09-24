@@ -214,22 +214,12 @@ export BODEGADK_VAPID_SUBJECT="mailto:admin@example.com"
 ```
 
 Uden disse nøgler returnerer `GET /push/config` `enabled: false`, og Settings
-viser at serveren mangler nøgler. `npm run server:local` bruger in-memory
-subscription storage; full-stack/Docker bruger Flyway-tabellen
+viser at serveren mangler nøgler. Push subscriptions gemmes i Supabase-tabellen
 `public.push_subscriptions`.
 
-Friend-request notifications can be tested after one device has enabled push.
-If Supabase auth is unavailable, Settings shows a `Local test recipient` value
-such as `guest:<device-id>`. Use that value as `recipientUserId`:
-
-``` bash
-curl -X POST http://localhost:8080/friends/requests \
-  -H "Content-Type: application/json" \
-  -d '{"senderUserId":"sender-1","senderUsername":"Alice","recipientUserId":"guest:paste-local-test-recipient-here"}'
-```
-
-The response includes `notifiedDevices`, which is the count of recipient
-subscriptions that accepted the push delivery.
+Friend-request push notifications can be tested by logging in as the recipient
+in one installed app/browser, enabling push in Settings, then logging in as
+another user and sending a friend request from Profile using `Send anmodning`.
 
 ------------------------------------------------------------------------
 

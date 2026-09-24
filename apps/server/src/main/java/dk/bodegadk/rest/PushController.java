@@ -1,11 +1,15 @@
 package dk.bodegadk.rest;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import dk.bodegadk.auth.AuthSupport;
+import dk.bodegadk.auth.AuthenticatedUser;
 import dk.bodegadk.push.PushProperties;
 import dk.bodegadk.push.PushSubscriptionStore;
 import dk.bodegadk.push.StoredPushSubscription;
 import dk.bodegadk.push.WebPushNotificationService;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,7 +47,8 @@ public class PushController {
 
     @PostMapping("/subscriptions")
     @ResponseStatus(HttpStatus.OK)
-    public PushActionResponse subscribe(@RequestBody SubscribeRequest request) {
+    public PushActionResponse subscribe(Authentication authentication, @RequestBody SubscribeRequest request) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
         if (request == null || request.subscription() == null || request.subscription().keys() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "subscription is required");
         }
@@ -57,33 +62,63 @@ public class PushController {
                 subscription.endpoint(),
                 keys.p256dh(),
                 keys.auth(),
-                request.userId(),
+                user.userId(),
                 request.username(),
                 request.deviceId(),
                 request.deviceLabel(),
                 request.userAgent()
         );
-        subscriptionStore.upsert(stored);
+        try {
+            subscriptionStore.upsert(stored);
+        } catch (DataAccessException exception) {
+            throw pushStorageUnavailable(exception);
+        }
         return new PushActionResponse(true);
     }
 
     @PostMapping("/subscriptions/unsubscribe")
     @ResponseStatus(HttpStatus.OK)
-    public PushActionResponse unsubscribe(@RequestBody UnsubscribeRequest request) {
+    public PushActionResponse unsubscribe(Authentication authentication, @RequestBody UnsubscribeRequest request) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
         if (request == null || blank(request.endpoint())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "endpoint is required");
         }
-        subscriptionStore.deleteByEndpoint(request.endpoint());
+        StoredPushSubscription subscription;
+        try {
+            subscription = subscriptionStore.findActiveByEndpoint(request.endpoint())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Push subscription not found"));
+        } catch (DataAccessException exception) {
+            throw pushStorageUnavailable(exception);
+        }
+        if (!user.userId().equals(subscription.userId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Push subscription not found");
+        }
+        try {
+            subscriptionStore.deleteByEndpoint(request.endpoint());
+        } catch (DataAccessException exception) {
+            throw pushStorageUnavailable(exception);
+        }
         return new PushActionResponse(true);
     }
 
     @PostMapping("/test")
     @ResponseStatus(HttpStatus.OK)
-    public PushActionResponse test(@RequestBody TestPushRequest request) {
+    public PushActionResponse test(Authentication authentication, @RequestBody TestPushRequest request) {
+        AuthenticatedUser user = AuthSupport.requireUser(authentication);
         if (request == null || blank(request.endpoint())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "endpoint is required");
         }
         try {
+            StoredPushSubscription subscription;
+            try {
+                subscription = subscriptionStore.findActiveByEndpoint(request.endpoint())
+                        .orElseThrow(() -> new NoSuchElementException("Push subscription not found"));
+            } catch (DataAccessException exception) {
+                throw pushStorageUnavailable(exception);
+            }
+            if (!user.userId().equals(subscription.userId())) {
+                throw new NoSuchElementException("Push subscription not found");
+            }
             pushNotificationService.sendTest(request.endpoint());
             return new PushActionResponse(true);
         } catch (NoSuchElementException exception) {
@@ -95,6 +130,14 @@ public class PushController {
 
     private boolean blank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private ResponseStatusException pushStorageUnavailable(DataAccessException exception) {
+        return new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Push subscription storage is unavailable. Check the database credentials and connectivity.",
+                exception
+        );
     }
 
     public record PushConfigResponse(boolean enabled, String publicKey) {

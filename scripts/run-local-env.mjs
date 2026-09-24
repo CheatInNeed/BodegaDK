@@ -135,6 +135,12 @@ function validateBackendEnvironment(env) {
         console.error('[local-env] SPRING_DATASOURCE_URL must be a JDBC URL starting with jdbc:.');
         process.exit(1);
     }
+
+    if (/^jdbc:postgresql:\/\/db(?::|\/)/u.test(env.SPRING_DATASOURCE_URL)) {
+        console.error('[local-env] SPRING_DATASOURCE_URL points at host "db", which only resolves inside Docker Compose.');
+        console.error('[local-env] For npm run local:dev, use your Supabase JDBC URL or a local localhost Postgres URL.');
+        process.exit(1);
+    }
 }
 
 function quoteForCmd(value) {

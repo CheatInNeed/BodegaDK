@@ -1,4 +1,4 @@
-import { resolveApiBaseUrl } from './net/api.js';
+import { authenticatedFetch, resolveApiBaseUrl } from './net/api.js';
 
 const SERVICE_WORKER_URL = '/sw.js';
 const DEVICE_ID_KEY = 'bodegadk-push-device-id';
@@ -79,10 +79,18 @@ export async function enablePushNotifications(input: { userId?: string | null; u
         throw new Error('Notification permission was not granted.');
     }
 
-    const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(config.publicKey),
-    });
+    const applicationServerKey = urlBase64ToUint8Array(config.publicKey);
+    let subscription = await registration.pushManager.getSubscription();
+    if (subscription && !subscriptionUsesApplicationServerKey(subscription, applicationServerKey)) {
+        await subscription.unsubscribe();
+        subscription = null;
+    }
+    if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey,
+        });
+    }
 
     await saveSubscription(subscription, input);
     return readPushStatus();
@@ -104,8 +112,15 @@ export async function disablePushNotifications(): Promise<PushStatus> {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
     if (subscription) {
-        await deleteSubscription(subscription);
-        await subscription.unsubscribe();
+        await deleteSubscription(subscription).catch((error) => {
+            console.warn('[pwa] server push unsubscribe failed; clearing local subscription anyway', error);
+        });
+        const unsubscribed = await subscription.unsubscribe();
+        if (!unsubscribed) {
+            console.warn('[pwa] browser push unsubscribe returned false; resetting service worker registration');
+            await registration.unregister();
+            await registerPwaServiceWorker();
+        }
     }
     return readPushStatus();
 }
@@ -118,7 +133,7 @@ export async function sendTestPush(): Promise<void> {
     }
 
     const payload = subscription.toJSON() as PushSubscriptionPayload;
-    const response = await fetch(`${resolveApiBaseUrl()}/push/test`, {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/push/test`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -165,7 +180,7 @@ async function fetchPushConfig(): Promise<PushConfigResponse> {
 async function saveSubscription(subscription: PushSubscription, input: { userId?: string | null; username?: string | null }) {
     const payload = subscription.toJSON() as PushSubscriptionPayload;
     const deviceId = getDeviceId();
-    const response = await fetch(`${resolveApiBaseUrl()}/push/subscriptions`, {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/push/subscriptions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -195,7 +210,7 @@ export function resolvePushRecipientUserId(authUserId?: string | null): string {
 
 async function deleteSubscription(subscription: PushSubscription) {
     const payload = subscription.toJSON() as PushSubscriptionPayload;
-    const response = await fetch(`${resolveApiBaseUrl()}/push/subscriptions/unsubscribe`, {
+    const response = await authenticatedFetch(`${resolveApiBaseUrl()}/push/subscriptions/unsubscribe`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -230,6 +245,19 @@ function urlBase64ToUint8Array(value: string): ArrayBuffer {
         output[index] = raw.charCodeAt(index);
     }
     return buffer;
+}
+
+function subscriptionUsesApplicationServerKey(subscription: PushSubscription, applicationServerKey: ArrayBuffer): boolean {
+    const existingKey = subscription.options.applicationServerKey;
+    if (!existingKey) {
+        return true;
+    }
+    const existing = new Uint8Array(existingKey);
+    const expected = new Uint8Array(applicationServerKey);
+    if (existing.byteLength !== expected.byteLength) {
+        return false;
+    }
+    return existing.every((value, index) => value === expected[index]);
 }
 
 function getDeviceId(): string {

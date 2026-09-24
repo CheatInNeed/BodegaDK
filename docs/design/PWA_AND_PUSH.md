@@ -20,9 +20,8 @@ The service worker must not cache `/api/*`, `/ws`, or `/app-config.js`.
 2. Browser requests notification permission from that user gesture.
 3. Browser creates a `PushSubscription` with the server VAPID public key.
 4. Client posts the subscription to `POST /push/subscriptions`.
-5. Server stores endpoint, encryption keys, user/device metadata, and active status.
-   When Supabase auth is unavailable, the client uses a stable local
-   `guest:<device-id>` recipient id so local push fan-out can still be tested.
+5. Server stores endpoint, encryption keys, authenticated user/device metadata,
+   and active status.
 6. Server sends Web Push payloads with the VAPID private key.
 7. Service worker receives `push`, displays the notification, and opens/focuses the target URL on click.
 
@@ -66,8 +65,9 @@ Not yet wired to gameplay events:
 - Room started.
 - Turn reminder.
 
-Friend requests are wired through `POST /friends/requests`, which calls
-`WebPushNotificationService.sendToUser(...)` for the recipient.
+Friend requests are wired through the authenticated `POST /friends/request`
+flow. `JdbcFriendsStore` creates the in-app notification and calls
+`WebPushNotificationService.sendToUser(...)` for the addressee.
 
 Other event notifications should call `WebPushNotificationService.sendToEndpoint(...)`
 or `sendToUser(...)` using the same stored subscriptions.
