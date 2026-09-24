@@ -45,7 +45,7 @@ public class JdbcMatchHistoryStore implements MatchHistoryStore {
                 """
                 insert into public.matches (id, game_id, room_id, status, ended_at, winner_user_id, result_type, final_state)
                 values (?, ?::uuid, ?::uuid, 'COMPLETED', ?, ?::uuid,
-                        case when ? is null then 'DRAW' else 'WIN' end,
+                        case when ?::text is null then 'DRAW' else 'WIN' end,
                         cast(? as jsonb))
                 """,
                 matchId,

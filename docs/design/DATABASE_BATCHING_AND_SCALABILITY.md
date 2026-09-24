@@ -87,8 +87,21 @@ increasing N to ~100 (available on higher Supabase tiers) with no code changes.
 
 File: `apps/server/src/main/resources/application.yml`
 
-No explicit HikariCP configuration exists. Spring Boot defaults apply (~10 pool
-size). The pool is not tuned for concurrency.
+HikariCP is explicitly configured (Phase 1 complete):
+
+```yaml
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:10}
+      minimum-idle: ${HIKARI_MIN_IDLE:2}
+      connection-timeout: 5000
+      idle-timeout: 30000
+      max-lifetime: 600000
+```
+
+Pool size defaults to 10 (below the Supabase 15-session limit) and is
+configurable per environment via `HIKARI_MAX_POOL_SIZE`.
 
 ### 3.2 JDBC stores
 
@@ -137,7 +150,7 @@ These endpoints issue multiple sequential DB calls per invocation:
 
 | Flow | DB calls | Scales with | Transactional |
 |---|---|---|---|
-| Room create + first join | ~5 | Fixed | No |
+| Room create + first join | ~5 | Fixed | Yes (Phase 1) |
 | Game completion (2 players) | 11-13 | Player count (+4/player) | Yes |
 | Game completion (6 players) | 27+ | Player count (+4/player) | Yes |
 | Matchmaking enqueue → match | ~8 | Matched players | No |
@@ -449,12 +462,22 @@ measure the effect of application-side changes independently from pool scaling.
 
 ## 9. Implementation Order
 
-### Phase 1: Connection pool tuning
+### Phase 1: Connection pool tuning (done)
 
 - Add explicit HikariCP config to `application.yml`
 - Add `@Transactional` to multi-statement REST flows that currently auto-commit
-  per statement (room create + join, challenge accept)
+  per statement (room create + join)
 - Re-run load test to establish new baseline
+
+### Phase 1.5: Load test suite (done)
+
+- Created `tests/load/rest-capacity.mjs` load test runner
+- Authenticates against Supabase for a real JWT, then runs stepped concurrency
+  (5, 10, 15, 20, 25, 50 VU) against the lobby flow
+- Each step runs for a configurable duration (default 2 min) with 1s pause
+- Records per-request latency, computes p50/p95/p99 and error rate
+- Writes JSON + Markdown results to `tests/load/results/`
+- Run with: `npm run load:rest:capacity`
 
 ### Phase 2: Cache public reads (Workstream 1)
 
@@ -478,6 +501,33 @@ measure the effect of application-side changes independently from pool scaling.
 ---
 
 ## 10. Validation
+
+### Load test runner
+
+Script: `tests/load/rest-capacity.mjs`
+npm command: `npm run load:rest:capacity`
+
+The script authenticates against the live Supabase project, then runs stepped
+concurrency against the local Spring server's lobby flow:
+
+```
+GET /health → GET /rooms → GET /me/stats → POST /rooms → POST /rooms/{code}/leave
+```
+
+Configuration via environment variables (defaults in parentheses):
+
+| Variable | Default |
+|---|---|
+| `LOAD_BASE_URL` | `http://localhost:8080` |
+| `LOAD_SUPABASE_URL` | from `.env.local` / `PUBLIC_SUPABASE_URL` |
+| `LOAD_SUPABASE_ANON_KEY` | from `.env.local` / `PUBLIC_SUPABASE_ANON_KEY` |
+| `LOAD_EMAIL` | (required) |
+| `LOAD_PASSWORD` | (required) |
+| `LOAD_STEPS` | `5,10,15,20,25,50` |
+| `LOAD_STEP_DURATION_SEC` | `120` |
+| `LOAD_PAUSE_MS` | `1000` |
+
+Results are written to `tests/load/results/` (gitignored except `.gitkeep`).
 
 ### Load test re-run
 
