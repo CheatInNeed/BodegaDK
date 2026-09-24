@@ -34,7 +34,7 @@ public class JdbcUserGameStatsQueryStore implements UserGameStatsQueryStore {
                   on user_game_stats.game_id = games.id
                  and user_game_stats.user_id = ?::uuid
                 where games.is_active = true
-                  and (? is null or games.slug = ?)
+                  and (?::text is null or games.slug = ?::text)
                 order by games.title asc
                 """,
                 (rs, rowNum) -> new UserGameStatsSummary(

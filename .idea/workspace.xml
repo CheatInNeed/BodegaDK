@@ -4,25 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="finished call sites, updated documentation,">
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Fixed Heartbeat checks, so vacant/stale rooms is no longer a thing">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/public/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/public/styles.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/i18n.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/i18n.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/net/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/net/api.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/profile.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/contracts/enginge_intergration_contract.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/ARCHITECTURE_AND_PROJECT_STRUCTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/DATABASE_V1_SCHEMA_RESET.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/DATABASE_V1_SCHEMA_RESET.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/PROTOCOL.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/ROOM_AND_MATCHMAKING_ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/ROOM_AND_MATCHMAKING_ARCHITECTURE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SERVER_GUIDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcUserGameStatsQueryStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcUserGameStatsQueryStore.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -42,7 +26,7 @@
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="database-overhaul" />
+        <entry key="$PROJECT_DIR$" value="dev" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -55,8 +39,8 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/CheatInNeed/BodegaDK&quot;,
-    &quot;accountId&quot;: &quot;f1440bbb-0109-4eb8-b3f9-f95a5b160bb6&quot;
+    &quot;url&quot;: &quot;https://github.com/CheatInNeed/BodegaDK.git&quot;,
+    &quot;accountId&quot;: &quot;e1b6cf9a-6d31-42b1-8682-9161bda8295c&quot;
   }
 }</component>
   <component name="McpProjectServerCommands">
@@ -71,25 +55,25 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;database-overhaul-2&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.language&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\lille\\WebstormProjects\\BodegaDK\\node_modules\\typescript\\lib&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "git-widget-placeholder": "supabase-connection-pooler-local-fix",
+    "ignore.virus.scanning.warn.message": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "configurable.group.language",
+    "ts.external.directory.path": "/Users/peterroland/Library/CloudStorage/OneDrive-DanmarksTekniskeUniversitet/DTU/4_Semester/62595_Full_stack_development/BodegaDK/node_modules/typescript/lib",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -120,6 +104,18 @@
       <workItem from="1775647164563" duration="3073000" />
       <workItem from="1777375713384" duration="14002000" />
       <workItem from="1777399983706" duration="1276000" />
+      <workItem from="1777895792905" duration="16000" />
+      <workItem from="1777987444043" duration="1225000" />
+      <workItem from="1778242908383" duration="173000" />
+      <workItem from="1778243174374" duration="2275000" />
+      <workItem from="1779195813738" duration="16000" />
+      <workItem from="1788438835031" duration="42000" />
+      <workItem from="1788439346933" duration="291000" />
+      <workItem from="1788439740193" duration="715000" />
+      <workItem from="1789038657582" duration="863000" />
+      <workItem from="1790080425921" duration="1557000" />
+      <workItem from="1790191568773" duration="2482000" />
+      <workItem from="1790252619671" duration="3158000" />
     </task>
     <task id="LOCAL-00002" summary="login and customize avatar">
       <option name="closed" value="true" />
@@ -185,7 +181,15 @@
       <option name="project" value="LOCAL" />
       <updated>1777398726761</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="Fixed Heartbeat checks, so vacant/stale rooms is no longer a thing">
+      <option name="closed" value="true" />
+      <created>1777893423807</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1777893423807</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -239,7 +243,8 @@
     <MESSAGE value="Added safe secrets to the local scripts" />
     <MESSAGE value="script updates" />
     <MESSAGE value="finished call sites, updated documentation," />
-    <option name="LAST_COMMIT_MESSAGE" value="finished call sites, updated documentation," />
+    <MESSAGE value="Fixed Heartbeat checks, so vacant/stale rooms is no longer a thing" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed Heartbeat checks, so vacant/stale rooms is no longer a thing" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>
