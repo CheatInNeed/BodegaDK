@@ -23,6 +23,16 @@ import { renderLeaderboardPage, type LeaderboardViewState } from './leaderboard.
 import { loadProfileData, renderProfilePage, type ProfileFriendUiState } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
+    disablePushNotifications,
+    enablePushNotifications,
+    readPushStatus,
+    registerPwaServiceWorker,
+    resolvePushRecipientUserId,
+    sendTestPush,
+    syncPushSubscriptionIdentity,
+    type PushStatus,
+} from './pwa.js';
+import {
     acceptChallenge,
     acceptFriendRequest,
     cancelMatchmakingTicket,
@@ -492,6 +502,33 @@ function renderView() {
               </button>
             `).join('')}
           </div>
+        </article>
+        <article class="card settings-card">
+          <div class="settings-card-header">
+            <div>
+              <p class="home-eyebrow" data-i18n="settings.push.kicker"></p>
+              <div class="card-title" data-i18n="settings.push.title"></div>
+            </div>
+            <span class="pill" id="pushDeviceLabel" data-i18n="settings.push.deviceChecking"></span>
+          </div>
+          <p class="card-desc" data-i18n="settings.push.desc"></p>
+          <div class="push-status-panel">
+            <div class="push-status-copy">
+              <strong id="pushStatusTitle" data-i18n="settings.push.status.checking"></strong>
+              <span id="pushStatusBody" data-i18n="settings.push.status.checkingBody"></span>
+            </div>
+            <div class="push-actions">
+              <button class="btn primary" type="button" id="pushEnableBtn" data-i18n="settings.push.enable" disabled></button>
+              <button class="btn" type="button" id="pushTestBtn" data-i18n="settings.push.test" disabled></button>
+              <button class="btn" type="button" id="pushDisableBtn" data-i18n="settings.push.disable" disabled></button>
+            </div>
+          </div>
+          <p class="card-desc push-install-hint" id="pushInstallHint" data-i18n="settings.push.installHint" hidden></p>
+          <div class="push-recipient-row">
+            <span data-i18n="settings.push.recipientLabel"></span>
+            <code id="pushRecipientId"></code>
+          </div>
+          <p class="card-desc push-feedback" id="pushFeedback" aria-live="polite"></p>
         </article>
       </section>
     `;
@@ -1255,6 +1292,8 @@ function imageGameCard(titleKey: string, imageClass: string) {
 }
 
 function wireViewEvents() {
+    void refreshPushSettingsCard();
+
     const themeSelect = document.getElementById('themeSelect') as HTMLSelectElement | null;
     if (themeSelect) {
         themeSelect.value = store.getState().theme;
@@ -1275,6 +1314,30 @@ function wireViewEvents() {
                 return;
             }
             setTheme(nextTheme as ThemeId);
+        });
+    });
+
+    document.querySelector<HTMLButtonElement>('#pushEnableBtn')?.addEventListener('click', async () => {
+        await runPushSettingsAction(async () => {
+            await enablePushNotifications({
+                userId: store.getState().auth.user?.id ?? null,
+                username: store.getState().auth.user?.username ?? null,
+            });
+            setPushFeedback(t(store.getState().lang, 'settings.push.feedback.enabled'));
+        });
+    });
+
+    document.querySelector<HTMLButtonElement>('#pushDisableBtn')?.addEventListener('click', async () => {
+        await runPushSettingsAction(async () => {
+            await disablePushNotifications();
+            setPushFeedback(t(store.getState().lang, 'settings.push.feedback.disabled'));
+        });
+    });
+
+    document.querySelector<HTMLButtonElement>('#pushTestBtn')?.addEventListener('click', async () => {
+        await runPushSettingsAction(async () => {
+            await sendTestPush();
+            setPushFeedback(t(store.getState().lang, 'settings.push.feedback.testSent'));
         });
     });
 
@@ -1381,6 +1444,92 @@ function wireViewEvents() {
             void handleSendChallenge(button.dataset.username, button.dataset.userId);
         });
     });
+}
+
+async function runPushSettingsAction(action: () => Promise<void>) {
+    setPushButtonsBusy(true);
+    try {
+        await action();
+    } catch (error) {
+        setPushFeedback(error instanceof Error ? error.message : t(store.getState().lang, 'settings.push.feedback.failed'));
+    } finally {
+        setPushButtonsBusy(false);
+        await refreshPushSettingsCard();
+    }
+}
+
+async function refreshPushSettingsCard() {
+    const titleEl = document.getElementById('pushStatusTitle');
+    const bodyEl = document.getElementById('pushStatusBody');
+    const deviceEl = document.getElementById('pushDeviceLabel');
+    const hintEl = document.getElementById('pushInstallHint') as HTMLParagraphElement | null;
+    const recipientEl = document.getElementById('pushRecipientId');
+    const enableBtn = document.getElementById('pushEnableBtn') as HTMLButtonElement | null;
+    const disableBtn = document.getElementById('pushDisableBtn') as HTMLButtonElement | null;
+    const testBtn = document.getElementById('pushTestBtn') as HTMLButtonElement | null;
+    if (!titleEl || !bodyEl || !deviceEl || !enableBtn || !disableBtn || !testBtn) {
+        return;
+    }
+
+    const status = await readPushStatus();
+    const auth = store.getState().auth;
+    const authLoading = !auth.initialized && isSupabaseConfigured;
+    const loginRequired = auth.initialized && !auth.user && status.supported && status.configured && status.permission !== 'denied';
+    const message = authLoading
+        ? { titleKey: 'settings.push.status.authLoading', bodyKey: 'settings.push.status.authLoadingBody' }
+        : loginRequired
+            ? { titleKey: 'settings.push.status.authRequired', bodyKey: 'settings.push.status.authRequiredBody' }
+            : resolvePushStatusMessage(status);
+    titleEl.textContent = t(store.getState().lang, message.titleKey);
+    bodyEl.textContent = t(store.getState().lang, message.bodyKey);
+    deviceEl.textContent = status.platformLabel;
+    if (recipientEl) {
+        recipientEl.textContent = resolvePushRecipientUserId(auth.user?.id ?? null);
+    }
+    enableBtn.disabled = authLoading || loginRequired || !status.supported || !status.configured || status.subscribed || status.permission === 'denied';
+    disableBtn.disabled = !status.subscribed;
+    testBtn.disabled = authLoading || loginRequired || !status.subscribed;
+    if (hintEl) {
+        hintEl.hidden = !(status.coarsePointer && !status.standalone);
+    }
+    if (status.subscribed) {
+        await syncPushSubscriptionIdentity({
+            userId: auth.user?.id ?? null,
+            username: auth.user?.username ?? null,
+        }).catch(() => undefined);
+    }
+}
+
+function resolvePushStatusMessage(status: PushStatus): { titleKey: string; bodyKey: string } {
+    if (!status.secureContext) {
+        return { titleKey: 'settings.push.status.insecure', bodyKey: 'settings.push.status.insecureBody' };
+    }
+    if (!status.supported) {
+        return { titleKey: 'settings.push.status.unsupported', bodyKey: 'settings.push.status.unsupportedBody' };
+    }
+    if (!status.configured) {
+        return { titleKey: 'settings.push.status.notConfigured', bodyKey: 'settings.push.status.notConfiguredBody' };
+    }
+    if (status.permission === 'denied') {
+        return { titleKey: 'settings.push.status.denied', bodyKey: 'settings.push.status.deniedBody' };
+    }
+    if (status.subscribed) {
+        return { titleKey: 'settings.push.status.enabled', bodyKey: 'settings.push.status.enabledBody' };
+    }
+    return { titleKey: 'settings.push.status.ready', bodyKey: 'settings.push.status.readyBody' };
+}
+
+function setPushButtonsBusy(busy: boolean) {
+    document.querySelectorAll<HTMLButtonElement>('#pushEnableBtn, #pushDisableBtn, #pushTestBtn').forEach((button) => {
+        button.disabled = busy;
+    });
+}
+
+function setPushFeedback(message: string) {
+    const feedback = document.getElementById('pushFeedback');
+    if (feedback) {
+        feedback.textContent = message;
+    }
 }
 
 function wireEvents() {
@@ -2656,3 +2805,5 @@ if (isSupabaseConfigured && supabase) {
 void syncAuthState();
 
 syncStateFromRoute();
+void registerPwaServiceWorker();
+renderApp();
