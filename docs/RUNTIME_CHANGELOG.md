@@ -1,5 +1,67 @@
 # Runtime Changelog
 
+## 2026-04-29 -- Supabase V1 Platform, Friends, Challenges, Notifications
+
+### What changed
+- **Canonical Supabase schema**: Added the V1 schema reset and game catalog
+  seed migrations. Supabase Postgres is now the durable source of truth for
+  profiles, avatars, rooms, room players, matchmaking tickets, match history,
+  per-game stats, all-time leaderboard scores, friendships, challenges, and
+  notifications. Spring no longer owns app schema migrations through Flyway.
+- **Authenticated runtime**: Room, matchmaking, profile, leaderboard, friends,
+  challenges, notifications, and WebSocket flows now derive durable user
+  identity from Supabase JWTs instead of guest/session-token fallbacks.
+- **Durable room and matchmaking metadata**: `JdbcRoomMetadataStore` persists
+  room lifecycle, participants, selected games, heartbeats, and quick-play
+  tickets. Runtime socket bindings and active engine snapshots remain
+  in-memory.
+- **Match history, profile stats, and leaderboard**: Completed games write
+  permanent match rows, match-player rows, cached user stats, and all-time win
+  leaderboard scores. Profile and leaderboard UI now read those authenticated
+  backend APIs.
+- **Friends system**: Added backend friend request/list/accept/decline/remove
+  endpoints backed by the existing `friendships` table, plus Profile-page UI
+  for friends, incoming requests, outgoing requests, and add-by-username.
+- **Challenges system**: Added direct friends-only Snyd challenges. Accepting a
+  challenge creates a private `LOBBY` room with both users attached and returns
+  normal room navigation data.
+- **Notifications system**: Added notification list/read/read-all APIs, social
+  notification emission for friend requests and challenges, and a topbar
+  notification dropdown with unread badge and challenge actions.
+- **Local/deploy tooling**: Root npm scripts now generate public web config,
+  run local web/server development together, and require explicit Supabase
+  datasource/JWT environment for DB-backed server operation.
+
+### Why
+This branch moves BodegaDK from mostly local/placeholder multiplayer surfaces
+to an authenticated Supabase-backed platform foundation while preserving the
+core invariant that Spring remains authoritative for room lifecycle, game
+rules, matchmaking decisions, and result writes.
+
+## 2026-04-25 -- Krig Multiplayer UI Wiring
+
+### What changed
+- **Krig room view**: Replaced the leftover standalone/local Krig prototype
+  mount with the server-driven game-room renderer. The visible Krig table now
+  renders from `RoomSessionState` public/private updates instead of local deck
+  state.
+- **Player names**: Krig now uses the shared room player-name mapping, so
+  authenticated users render their profile username and anonymous players fall
+  back to the guest display label.
+- **Perspective seating**: The current player is always anchored at the bottom
+  of the Krig table and the opponent is always shown at the top, so each
+  browser gets its own player perspective.
+- **Ready indication**: Added a non-text visual ready state for Krig seats,
+  including animated ready pips and a subtle glow around the ready player's
+  pile/table-card area.
+
+### Why
+The local Krig prototype was still mounting inside the room route with
+hardcoded player names and browser-local flip logic. That bypassed the
+authoritative WebSocket room session, so one browser could appear to flip both
+cards while the other browser did not update. The room now keeps the existing
+Krig look while using the multiplayer protocol state for rendering and actions.
+
 ## 2026-04-24 — Centralized Lobby Coordinator For Game Switching
 
 ### What changed

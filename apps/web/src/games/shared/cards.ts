@@ -163,11 +163,12 @@ export function renderHandFan(
         const selBadge = isSel
             ? `<div style="position:absolute;top:-7px;right:-5px;width:18px;height:18px;border-radius:50%;background:#ffb300;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#1a0800;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,0.5);">✓</div>`
             : '';
-        const content  = faceUp ? renderCardFront(code, cw, ch) : renderCardBack(`opp${i}`, cw, ch);
-        const action   = interactive ? `data-action="toggle-card" data-card="${code}"` : '';
-        const cursor   = interactive ? 'pointer' : 'default';
+        const content   = faceUp ? renderCardFront(code, cw, ch) : renderCardBack(`opp${i}`, cw, ch);
+        const action    = interactive ? `data-action="toggle-card" data-card="${code}"` : '';
+        const dragAttrs = interactive ? `draggable="true" data-drag-card="${code}"` : '';
+        const cursor    = interactive ? 'pointer' : 'default';
 
-        return `<div ${action} style="position:absolute;left:${i * over}px;bottom:8px;z-index:${i};transform-origin:bottom center;transform:rotate(${rotate}deg) translateY(${arcY + liftY}px);transition:transform 0.16s ease;cursor:${cursor};">
+        return `<div ${action} ${dragAttrs} style="position:absolute;left:${i * over}px;bottom:8px;z-index:${i};transform-origin:bottom center;transform:rotate(${rotate}deg) translateY(${arcY + liftY}px);transition:transform 0.16s ease;cursor:${cursor};">
   <div style="border-radius:${CR}px;box-shadow:${shadow};transition:box-shadow 0.16s ease;">${content}</div>
   ${selBadge}
 </div>`;

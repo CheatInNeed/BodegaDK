@@ -8,25 +8,27 @@ import java.util.UUID;
 public interface RoomMetadataStore {
     boolean roomExists(String roomCode);
 
-    void createRoom(String roomCode, String hostPlayerId, boolean isPrivate, String gameType, InMemoryRuntimeStore.RoomStatus status);
+    void createRoom(String roomCode, String hostUserId, RoomVisibility visibility, String gameType, InMemoryRuntimeStore.RoomStatus status);
 
     Optional<StoredRoom> room(String roomCode);
 
     List<StoredRoom> publicRooms();
 
-    void upsertParticipant(String roomCode, String playerId, String username);
+    void upsertParticipant(String roomCode, String userId, String username);
 
-    void removeParticipant(String roomCode, String playerId);
+    void removeParticipant(String roomCode, String userId);
 
-    void updateRoomHost(String roomCode, String hostPlayerId);
+    void updateRoomHost(String roomCode, String hostUserId);
 
     void updateRoomGameType(String roomCode, String gameType);
+
+    void updateRoomVisibility(String roomCode, RoomVisibility visibility);
 
     void updateRoomStatus(String roomCode, InMemoryRuntimeStore.RoomStatus status);
 
     void deleteRoom(String roomCode);
 
-    UUID enqueueTicket(String gameType, String playerId, String username, String token, int minPlayers, int maxPlayers, boolean strictCount);
+    UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId, int minPlayers, int maxPlayers, boolean strictCount);
 
     Optional<MatchmakingTicket> ticket(UUID ticketId);
 
@@ -36,22 +38,45 @@ public interface RoomMetadataStore {
 
     void cancelTicket(UUID ticketId);
 
+    void markRoomAbandoned(String roomCode);
+
+    enum RoomVisibility {
+        PUBLIC,
+        PRIVATE,
+        FRIENDS_ONLY;
+
+        public static RoomVisibility fromPrivateFlag(boolean isPrivate) {
+            return isPrivate ? PRIVATE : PUBLIC;
+        }
+
+        public boolean isPrivate() {
+            return this != PUBLIC;
+        }
+    }
+
     record StoredRoom(
             String roomCode,
-            String hostPlayerId,
-            boolean isPrivate,
+            String hostUserId,
+            RoomVisibility visibility,
             String selectedGame,
             InMemoryRuntimeStore.RoomStatus status,
             List<InMemoryRuntimeStore.PlayerSummary> participants
     ) {
+        public String hostPlayerId() {
+            return hostUserId;
+        }
+
+        public boolean isPrivate() {
+            return visibility.isPrivate();
+        }
     }
 
     record MatchmakingTicket(
             UUID ticketId,
             String gameType,
-            String playerId,
+            String userId,
             String username,
-            String token,
+            String clientSessionId,
             MatchmakingTicketStatus status,
             String roomCode,
             int minPlayers,
@@ -64,6 +89,7 @@ public interface RoomMetadataStore {
     enum MatchmakingTicketStatus {
         WAITING,
         MATCHED,
-        CANCELLED
+        CANCELLED,
+        EXPIRED
     }
 }

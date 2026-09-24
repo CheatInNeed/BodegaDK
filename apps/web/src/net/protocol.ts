@@ -7,7 +7,7 @@ export type WsEnvelope<TType extends string, TPayload> = {
 };
 
 export type PlayerRef = string | { playerId: string; handCount?: number; name?: string };
-export type RoomStatus = 'LOBBY' | 'IN_GAME';
+export type RoomStatus = 'LOBBY' | 'IN_GAME' | 'FINISHED' | 'ABANDONED';
 export type CasinoValueMap = Record<string, number[]>;
 
 export type LobbyPublicState = {
@@ -70,7 +70,7 @@ export type CasinoPrivateState = {
 
 export type ConnectMessage = WsEnvelope<'CONNECT', {
     roomCode: string;
-    token: string;
+    accessToken: string;
     game?: string;
     setup?: {
         casinoRules?: {

@@ -124,6 +124,8 @@ class FemEnginePortAdapterTest {
         knownState.stockPile().add(new Card("D", "2"));
         knownState.discardPile().add(new Card("C", "10"));
         knownState.setHasDrawnThisTurn(true);
+        // Melds are only legal from round two onwards.
+        knownState.setFirstRound(false);
         knownState.setPhase(GameState.Phase.PLAYING);
         store.saveGameState(roomCode, knownState);
 
@@ -202,7 +204,7 @@ class FemEnginePortAdapterTest {
         // Add a meld that H6 could extend (H3,H4,H5)
         knownState.melds().add(new FemState.Meld("m1", "H",
                 new ArrayList<>(List.of(new Card("H", "3"), new Card("H", "4"), new Card("H", "5"))),
-                new java.util.LinkedHashMap<>()));
+                new java.util.LinkedHashMap<>(), "p1"));
         knownState.setHasDrawnThisTurn(true);
         knownState.setPhase(GameState.Phase.PLAYING);
         knownState.setFirstRound(false);

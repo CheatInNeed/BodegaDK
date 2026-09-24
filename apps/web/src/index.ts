@@ -19,22 +19,36 @@ import { renderFemRoom, type FemViewModel } from './games/fem-hundrede/view.js';
 import { renderLogin } from './login.js';
 import { renderSignup } from './signUp.js';
 import { renderCustom } from './custom.js';
-import { loadProfileData, renderProfilePage } from './profile.js';
+import { renderLeaderboardPage, type LeaderboardViewState } from './leaderboard.js';
+import { loadProfileData, renderProfilePage, type ProfileFriendUiState } from './profile.js';
 import { isSupabaseConfigured, supabase } from './supabase.js';
 import {
+    acceptChallenge,
+    acceptFriendRequest,
     cancelMatchmakingTicket,
     claimRoomIdentity,
     createRoom,
+    createChallenge,
+    declineChallenge,
+    declineFriendRequest,
     enqueueMatchmaking,
+    getLeaderboard,
     getMatchmakingTicket,
+    getNotifications,
     joinRoom,
     kickPlayer,
     leaveRoom,
     listRooms,
+    markAllNotificationsRead,
+    markNotificationRead,
+    removeFriendship,
+    sendFriendRequest,
     updateRoomVisibility,
     type LobbyRoomSummary,
     type MatchmakingResponse,
+    type NotificationSummary,
 } from './net/api.js';
+import { createAppStore, type ThemeId } from './app/store.js';
 
 type GenericAdapter = GameAdapter<Record<string, unknown>, Record<string, unknown>, unknown>;
 const adapters: GenericAdapter[] = [
@@ -45,10 +59,8 @@ const adapters: GenericAdapter[] = [
     femAdapter as GenericAdapter,
 ];
 
-type ThemeId = 'bodega' | 'harbor' | 'parlor';
-
 const THEME_STORAGE_KEY = 'ui-theme';
-const ROOM_HEARTBEAT_INTERVAL_MS = 20_000;
+const ROOM_PRESENCE_INTERVAL_MS = 20_000;
 
 const THEMES: Array<{ id: ThemeId; labelKey: string; toneKey: string }> = [
     { id: 'bodega', labelKey: 'theme.bodega.label', toneKey: 'theme.bodega.tone' },
@@ -56,45 +68,20 @@ const THEMES: Array<{ id: ThemeId; labelKey: string; toneKey: string }> = [
     { id: 'parlor', labelKey: 'theme.parlor.label', toneKey: 'theme.parlor.tone' },
 ];
 
-const state = {
-    lang: getInitialLang() as Lang,
-    view: readRoute().view as View,
+const store = createAppStore({
+    lang: getInitialLang(),
+    view: readRoute().view,
+    theme: getInitialTheme(),
     sidebarCollapsed: false,
-    route: readRoute() as AppRoute,
-    theme: getInitialTheme() as ThemeId,
-};
-
-const lobbyBrowserState = {
-    rooms: [] as LobbyRoomSummary[],
-    loading: false,
-    loaded: false,
-    busy: false,
-    errorMessage: null as string | null,
-    joinCode: '',
-    createPrivate: false,
-};
-
-const homeMatchmakingState = {
-    joinCode: '',
-    busy: false,
-    errorMessage: null as string | null,
-};
-
-const quickPlayState = {
-    loading: false,
-    errorMessage: null as string | null,
-    activeGame: null as string | null,
-    ticket: null as MatchmakingResponse | null,
-    startedAtMs: null as number | null,
-    leaving: false,
-    matchedCountdown: null as number | null,
-};
-
-const authUiState = {
-    initialized: false,
-    user: null as { id: string; username: string | null } | null,
-    avatar: null as { color: string; shape: string } | null,
-};
+    route: readRoute(),
+    auth: { initialized: false, user: null, avatar: null },
+    notifications: { open: false, loading: false, items: [], unreadCount: 0, errorMessage: null, busyId: null, readAllBusy: false },
+    lobbyBrowser: { rooms: [], loading: false, loaded: false, busy: false, errorMessage: null, joinCode: '', createPrivate: false },
+    leaderboard: { loading: false, errorMessage: null, data: null, game: 'snyd' },
+    profileFriend: { addUsername: '', sending: false, busyFriendshipId: null, busyChallengeUserId: null, errorMessage: null },
+    quickPlay: { loading: false, errorMessage: null, activeGame: null, ticket: null, startedAtMs: null, leaving: false, matchedCountdown: null },
+    homeMatchmaking: { joinCode: '', busy: false, errorMessage: null },
+});
 
 const lobbyRoomUiState = {
     copiedShareValue: false,
@@ -120,9 +107,9 @@ let quickPlayRealtimeRefreshTimer: number | null = null;
 let activeQueueClockTimer: number | null = null;
 let matchedCountdownTimer: number | null = null;
 let quickPlayGeneration = 0;
-let roomHeartbeatTimer: number | null = null;
-let roomHeartbeatKey: string | null = null;
-let roomHeartbeatInFlight = false;
+let roomPresenceTimer: number | null = null;
+let roomPresenceKey: string | null = null;
+let roomPresenceInFlight = false;
 let lobbyCopyFeedbackTimer: number | null = null;
 let profileDataCache: Awaited<ReturnType<typeof loadProfileData>> | null = null;
 
@@ -132,7 +119,7 @@ function getInitialTheme(): ThemeId {
 }
 
 function setTheme(theme: ThemeId) {
-    state.theme = theme;
+    store.dispatch({ type: 'SET_THEME', theme });
     localStorage.setItem(THEME_STORAGE_KEY, theme);
     applyTheme(theme);
 }
@@ -141,6 +128,8 @@ function applyTheme(theme: ThemeId) {
     document.documentElement.dataset.theme = theme;
 }
 let casinoSelectedStackIds: string[] = [];
+let femHandOrder: string[] | null = null;
+let femDraggedCard: string | null = null;
 
 function supportsLobbyLifecycle(game: string | null | undefined): boolean {
     const normalized = (game ?? '').trim().toLowerCase();
@@ -194,13 +183,7 @@ function resetQuickPlayState() {
     clearQuickPlayRealtime();
     clearActiveQueueClock();
     clearMatchedCountdown();
-    quickPlayState.loading = false;
-    quickPlayState.errorMessage = null;
-    quickPlayState.activeGame = null;
-    quickPlayState.ticket = null;
-    quickPlayState.startedAtMs = null;
-    quickPlayState.leaving = false;
-    quickPlayState.matchedCountdown = null;
+    store.dispatch({ type: 'QUICK_PLAY_RESET' });
 }
 
 function iconSvg(pathD: string) {
@@ -213,7 +196,7 @@ function iconSvg(pathD: string) {
 
 function renderApp() {
     const path = window.location.pathname;
-    applyTheme(state.theme);
+    applyTheme(store.getState().theme);
 
     if (path === '/login') {
         renderLogin();
@@ -232,7 +215,7 @@ function renderApp() {
     if (!app) throw new Error('Missing #app');
 
     app.innerHTML = `
-    <div class="shell ${state.sidebarCollapsed ? 'collapsed' : ''} ${state.view === 'room' ? 'shell-room-mode' : ''}" id="shell">
+    <div class="shell ${store.getState().sidebarCollapsed ? 'collapsed' : ''} ${store.getState().view === 'room' ? 'shell-room-mode' : ''}" id="shell">
       <header class="topbar">
         <a class="brand" href="#" id="goHome" aria-label="Gå til forsiden">
           <span class="logo" aria-hidden="true">
@@ -247,6 +230,7 @@ function renderApp() {
             <option value="en">EN</option>
           </select>
 
+          ${renderNotificationsButton()}
           <div id="avatarDisplay" class="avatar hidden" aria-hidden="true"></div>
           <button class="btn" id="loginBtn" data-i18n="top.login"></button>
           <button class="btn primary" id="signupBtn" data-i18n="top.signup"></button>
@@ -276,16 +260,18 @@ function renderApp() {
   `;
 
     const langSelect = document.getElementById('langSelect') as HTMLSelectElement | null;
-    if (langSelect) langSelect.value = state.lang;
+    if (langSelect) langSelect.value = store.getState().lang;
 
-    applyI18n(app, state.lang);
+    applyI18n(app, store.getState().lang);
     renderView();
     wireEvents();
     applyAuthUI();
 }
 
+store.subscribe(() => renderApp());
+
 function navItem(view: View, i18nKey: string | null, icon: string, literalLabel?: string) {
-    const active = state.view === view || (view === 'lobby-browser' && state.view === 'lobby') ? 'active' : '';
+    const active = store.getState().view === view || (view === 'lobby-browser' && store.getState().view === 'lobby') ? 'active' : '';
     const labelHtml = i18nKey
         ? `<span class="nav-label" data-i18n="${i18nKey}"></span>`
         : `<span class="nav-label">${literalLabel ?? ''}</span>`;
@@ -297,37 +283,170 @@ function navItem(view: View, i18nKey: string | null, icon: string, literalLabel?
   `;
 }
 
+function applyFemHandOrder(serverHand: string[]): string[] {
+    if (!femHandOrder) return serverHand;
+    const handSet = new Set(serverHand);
+    const kept = femHandOrder.filter((c) => handSet.has(c));
+    const keptSet = new Set(kept);
+    const newCards = serverHand.filter((c) => !keptSet.has(c));
+    const ordered = [...kept, ...newCards];
+    femHandOrder = ordered;
+    return ordered;
+}
+
+function renderNotificationsButton(): string {
+    const badge = store.getState().notifications.unreadCount > 0
+        ? `<span class="notification-badge">${store.getState().notifications.unreadCount > 99 ? '99+' : store.getState().notifications.unreadCount}</span>`
+        : '';
+    const panel = store.getState().notifications.open ? renderNotificationsPanel() : '';
+    return `
+    <div class="notification-menu" id="notificationMenu">
+      <button class="btn notification-button hidden" id="notificationsBtn" type="button" aria-expanded="${store.getState().notifications.open ? 'true' : 'false'}" aria-label="${t(store.getState().lang, 'notifications.title')}">
+        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M12 22a2.7 2.7 0 0 0 2.62-2h-5.24A2.7 2.7 0 0 0 12 22Zm7-6.4-1.55-1.74V9.6a5.46 5.46 0 0 0-4.2-5.33V3.6a1.25 1.25 0 1 0-2.5 0v.67a5.46 5.46 0 0 0-4.2 5.33v4.26L5 15.6V17h14v-1.4Z"></path>
+        </svg>
+        ${badge}
+      </button>
+      ${panel}
+    </div>
+  `;
+}
+
+function renderNotificationsPanel(): string {
+    const body = store.getState().notifications.loading
+        ? `<p class="card-desc" data-i18n="notifications.loading"></p>`
+        : store.getState().notifications.errorMessage
+            ? `<p class="card-desc notification-error">${escapeHtml(store.getState().notifications.errorMessage!)}</p>`
+            : store.getState().notifications.items.length === 0
+                ? `<p class="card-desc" data-i18n="notifications.empty"></p>`
+                : `<div class="notification-list">${store.getState().notifications.items.map(renderNotificationRow).join('')}</div>`;
+    const unreadSummary = store.getState().notifications.unreadCount > 0
+        ? `<span class="notification-panel-count">${store.getState().notifications.unreadCount > 99 ? '99+' : store.getState().notifications.unreadCount}</span>`
+        : '';
+    return `
+    <section class="notification-panel card">
+      <div class="notification-panel-header">
+        <div>
+          <strong data-i18n="notifications.title"></strong>
+          ${unreadSummary}
+        </div>
+        <button class="btn" type="button" data-action="notifications-read-all" ${store.getState().notifications.busyId === 'all' ? 'disabled' : ''} data-i18n="notifications.readAll"></button>
+      </div>
+      ${body}
+    </section>
+  `;
+}
+
+function renderNotificationRow(notification: NotificationSummary): string {
+    const unread = notification.readAt ? '' : 'unread';
+    const actor = notification.actor?.displayName || notification.actor?.username || t(store.getState().lang, 'notifications.someone');
+    const message = notificationMessage(notification, actor);
+    const actions = notificationActions(notification);
+    return `
+    <article class="notification-row ${unread}">
+      <button class="notification-copy" type="button" data-action="notification-open" data-notification-id="${escapeHtml(notification.id)}">
+        <span class="notification-message">${escapeHtml(message)}</span>
+        <small>${escapeHtml(formatNotificationDate(notification.createdAt))}</small>
+      </button>
+      <div class="notification-actions" aria-label="${escapeHtml(t(store.getState().lang, 'notifications.title'))}">
+        ${actions}
+        ${notification.readAt ? '' : `<button class="btn" type="button" data-action="notification-read" data-notification-id="${escapeHtml(notification.id)}" ${store.getState().notifications.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.markRead"></button>`}
+      </div>
+    </article>
+  `;
+}
+
+function notificationActions(notification: NotificationSummary): string {
+    const challengeId = stringPayload(notification.payload, 'challengeId');
+    if (notification.type === 'challenge.received' && challengeId) {
+        return `
+          <button class="btn primary notification-action-primary" type="button" data-action="notification-challenge-accept" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${store.getState().notifications.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.accept"></button>
+          <button class="btn notification-action-secondary" type="button" data-action="notification-challenge-decline" data-notification-id="${escapeHtml(notification.id)}" data-challenge-id="${escapeHtml(challengeId)}" ${store.getState().notifications.busyId === notification.id ? 'disabled' : ''} data-i18n="notifications.decline"></button>
+        `;
+    }
+    const roomCode = stringPayload(notification.payload, 'roomCode');
+    if (roomCode) {
+        return `<button class="btn primary notification-action-primary" type="button" data-action="notification-room" data-notification-id="${escapeHtml(notification.id)}" data-room-code="${escapeHtml(roomCode)}" data-game="${escapeHtml(stringPayload(notification.payload, 'gameType') || 'snyd')}" data-i18n="notifications.openRoom"></button>`;
+    }
+    return '';
+}
+
+function notificationMessage(notification: NotificationSummary, actor: string): string {
+    const gameType = stringPayload(notification.payload, 'gameType') || 'snyd';
+    switch (notification.type) {
+        case 'friend.request.received':
+            return t(store.getState().lang, 'notifications.message.friendRequest').replace('{actor}', actor);
+        case 'friend.request.accepted':
+            return t(store.getState().lang, 'notifications.message.friendAccepted').replace('{actor}', actor);
+        case 'challenge.received':
+            return t(store.getState().lang, 'notifications.message.challengeReceived').replace('{actor}', actor).replace('{game}', formatGameName(gameType));
+        case 'challenge.accepted':
+            return t(store.getState().lang, 'notifications.message.challengeAccepted').replace('{actor}', actor).replace('{game}', formatGameName(gameType));
+        case 'challenge.declined':
+            return t(store.getState().lang, 'notifications.message.challengeDeclined').replace('{actor}', actor).replace('{game}', formatGameName(gameType));
+        default:
+            return t(store.getState().lang, 'notifications.message.generic').replace('{actor}', actor);
+    }
+}
+
+function stringPayload(payload: Record<string, unknown>, key: string): string | null {
+    const value = payload[key];
+    return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function formatNotificationDate(value: string | null): string {
+    if (!value) {
+        return '';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return new Intl.DateTimeFormat(store.getState().lang === 'da' ? 'da-DK' : 'en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
+}
+
+function escapeHtml(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+}
+
 function renderView() {
     const main = document.getElementById('main');
     if (!main) return;
 
-    if (state.view === 'home') {
+    if (store.getState().view === 'home') {
         cleanupRoomSessionIfUnneeded();
         main.innerHTML = renderHomepage();
-    } else if (state.view === 'play') {
+    } else if (store.getState().view === 'play') {
         cleanupRoomSessionIfUnneeded();
         main.innerHTML = `
       <h1 class="h1" data-i18n="play.title"></h1>
       <p class="sub" data-i18n="play.subtitle"></p>
       ${playCards()}
     `;
-    } else if (state.view === 'lobby-browser') {
+    } else if (store.getState().view === 'lobby-browser') {
         cleanupRoomSessionIfUnneeded();
         ensureLobbyBrowserLoaded();
         main.innerHTML = renderLobbyBrowser({
-            rooms: lobbyBrowserState.rooms,
-            loading: lobbyBrowserState.loading,
-            errorMessage: lobbyBrowserState.errorMessage,
-            joinCode: lobbyBrowserState.joinCode,
-            createPrivate: lobbyBrowserState.createPrivate,
-            busy: lobbyBrowserState.busy,
-            visibilityLabel: t(state.lang, 'lobby.create.visibility'),
-            joinLobbyLabel: t(state.lang, 'lobby.join.lobby'),
-            joinRunningLabel: t(state.lang, 'lobby.join.running'),
+            rooms: store.getState().lobbyBrowser.rooms,
+            loading: store.getState().lobbyBrowser.loading,
+            errorMessage: store.getState().lobbyBrowser.errorMessage,
+            joinCode: store.getState().lobbyBrowser.joinCode,
+            createPrivate: store.getState().lobbyBrowser.createPrivate,
+            busy: store.getState().lobbyBrowser.busy,
+            visibilityLabel: t(store.getState().lang, 'lobby.create.visibility'),
+            joinLobbyLabel: t(store.getState().lang, 'lobby.join.lobby'),
+            joinRunningLabel: t(store.getState().lang, 'lobby.join.running'),
         });
-    } else if (state.view === 'lobby') {
+    } else if (store.getState().view === 'lobby') {
         main.innerHTML = renderLobbyContent();
-    } else if (state.view === 'settings') {
+    } else if (store.getState().view === 'settings') {
         cleanupRoomSessionIfUnneeded();
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.settings"></h1>
@@ -343,7 +462,7 @@ function renderView() {
           <p class="card-desc" data-i18n="settings.theme.desc"></p>
           <label class="settings-field" for="themeSelect">
             <span data-i18n="settings.theme.selectLabel"></span>
-            <select class="select settings-select" id="themeSelect" aria-label="${t(state.lang, 'settings.theme.ariaLabel')}">
+            <select class="select settings-select" id="themeSelect" aria-label="${t(store.getState().lang, 'settings.theme.ariaLabel')}">
               ${THEMES.map((theme) => `
                 <option value="${theme.id}" data-i18n="${theme.labelKey}"></option>
               `).join('')}
@@ -359,7 +478,7 @@ function renderView() {
           </div>
           <div class="theme-preview-grid">
             ${THEMES.map((theme) => `
-              <button class="theme-preview ${theme.id === state.theme ? 'active' : ''}" type="button" data-theme-preview="${theme.id}">
+              <button class="theme-preview ${theme.id === store.getState().theme ? 'active' : ''}" type="button" data-theme-preview="${theme.id}">
                 <span class="theme-preview-swatches">
                   <span class="theme-swatch accent"></span>
                   <span class="theme-swatch secondary"></span>
@@ -376,7 +495,7 @@ function renderView() {
         </article>
       </section>
     `;
-    } else if (state.view === 'help') {
+    } else if (store.getState().view === 'help') {
         cleanupRoomSessionIfUnneeded();
         main.innerHTML = `
       <h1 class="h1" data-i18n="nav.help"></h1>
@@ -386,14 +505,18 @@ function renderView() {
         </p>
       </div>
     `;
-    } else if (state.view === 'profile') {
+    } else if (store.getState().view === 'profile') {
         cleanupRoomSession();
         main.innerHTML = renderProfileView();
-    } else if (state.view === 'room') {
+    } else if (store.getState().view === 'leaderboard') {
+        cleanupRoomSessionIfUnneeded();
+        ensureLeaderboardLoaded();
+        main.innerHTML = renderLeaderboardPage(store.getState().lang, store.getState().leaderboard);
+    } else if (store.getState().view === 'room') {
         main.innerHTML = renderRoomContent();
     }
 
-    applyI18n(main, state.lang);
+    applyI18n(main, store.getState().lang);
     applyAuthUI();
     wireViewEvents();
     wireRoomEvents();
@@ -401,11 +524,10 @@ function renderView() {
 }
 
 function renderLobbyContent(): string {
-    stopRoomHeartbeat();
-    const route = state.route;
-    if (!route.room || !route.token) {
+    const route = store.getState().route;
+    if (!route.room) {
         cleanupRoomSession();
-        return renderRoomError('Missing query params. Required: view=lobby&room=ABC123&token=yourToken');
+        return renderRoomError('Missing query params. Required: view=lobby&room=ABC123');
     }
 
     if (route.game && !supportsLobbyLifecycle(route.game)) {
@@ -415,14 +537,14 @@ function renderLobbyContent(): string {
                 view: 'room',
                 game: route.game,
                 room: route.room,
-                token: route.token,
                 mock: route.mock,
             });
         });
         return renderRoomError('Opening game room...');
     }
 
-    const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.token, route.mock);
+    const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.mock);
+    startRoomPresence(route.room, route.mock);
     const roomState = session?.getState();
     const publicState = toRecord(roomState?.publicState);
     const hostPlayerId = typeof publicState.hostPlayerId === 'string' ? publicState.hostPlayerId : null;
@@ -431,20 +553,19 @@ function renderLobbyContent(): string {
     const isPrivate = publicState.isPrivate === true;
     const players = readLobbyPlayers(publicState.players, hostPlayerId, roomState?.playerId ?? null);
 
-    if (status === 'IN_GAME' && route.room && route.token) {
+    if (status === 'IN_GAME' && route.room) {
         queueMicrotask(() => {
             navigate({
                 view: 'room',
                 game: selectedGame,
                 room: route.room,
-                token: route.token,
                 mock: route.mock,
             });
         });
     }
 
     const viewModel: LobbyRoomViewModel = {
-        lang: state.lang,
+        lang: store.getState().lang,
         roomCode: route.room,
         hostPlayerId,
         hostDisplayName: players.find((player) => player.playerId === hostPlayerId)?.username ?? formatPlayerDisplayName(hostPlayerId),
@@ -462,7 +583,6 @@ function renderLobbyContent(): string {
         view: 'lobby',
         game: selectedGame,
         room: route.room,
-        token: route.token,
         mock: route.mock,
     });
 
@@ -470,10 +590,10 @@ function renderLobbyContent(): string {
 }
 
 function renderRoomContent(): string {
-    const route = state.route;
-    if (!route.room || !route.token || !route.game) {
+    const route = store.getState().route;
+    if (!route.room || !route.game) {
         cleanupRoomSession();
-        return renderRoomError('Missing query params. Required: view=room&game=highcard&room=ABC123&token=yourToken');
+        return renderRoomError('Missing query params. Required: view=room&game=highcard&room=ABC123');
     }
 
     const adapter = resolveAdapter(route.game);
@@ -482,13 +602,13 @@ function renderRoomContent(): string {
         return renderRoomError(`Unsupported game mode: ${route.game}`);
     }
 
-    const session = ensureRoomSession(route.game, route.room, route.token, route.mock, adapter);
+    const session = ensureRoomSession(route.game, route.room, route.mock, adapter);
     const roomState = session?.getState();
-    const selfUsername = authUiState.user?.username?.trim() || null;
+    const selfUsername = store.getState().auth.user?.username?.trim() || null;
     const viewModel = session?.toViewModel({ selfUsername });
 
     if (!roomState || !viewModel) {
-        stopRoomHeartbeat();
+        stopRoomPresence();
         return renderRoomError('Unable to initialize room session');
     }
 
@@ -499,23 +619,22 @@ function renderRoomContent(): string {
     });
     const status = typeof roomPublicState.status === 'string' ? roomPublicState.status : null;
     const hostPlayerId = typeof roomPublicState.hostPlayerId === 'string' ? roomPublicState.hostPlayerId : null;
-    const autoStartKey = `${route.room}|${route.token}|${route.game}`;
+    const autoStartKey = `${route.room}|${route.game}`;
     const suppressWinnerBanner = adapter.id === krigAdapter.id && roomPublicState.gamePhase === 'GAME_OVER';
     const hasFinished = !!roomState.winnerPlayerId || status === 'FINISHED' || roomPublicState.gamePhase === 'GAME_OVER';
 
     if (status === 'IN_GAME' && !hasFinished) {
-        startRoomHeartbeat(route.room, route.mock);
+        startRoomPresence(route.room, route.mock);
     } else {
-        stopRoomHeartbeat();
+        stopRoomPresence();
     }
 
-    if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room && route.token) {
+    if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room) {
         queueMicrotask(() => {
             navigate({
                 view: 'lobby',
                 game: route.game,
                 room: route.room,
-                token: route.token,
                 mock: route.mock,
             });
         });
@@ -547,7 +666,9 @@ function renderRoomContent(): string {
     let bodyHtml = '';
 
     if (adapter.id === femAdapter.id) {
-        return renderFemRoom(viewModel as FemViewModel);
+        const femVm = viewModel as FemViewModel;
+        const orderedHand = applyFemHandOrder(femVm.hand);
+        return renderFemRoom({ ...femVm, hand: orderedHand });
     }
 
     if (adapter.id === casinoAdapter.id) {
@@ -597,12 +718,11 @@ function renderRoomContent(): string {
 function ensureRoomSession(
     game: string,
     roomCode: string,
-    token: string,
     useMock: boolean,
     explicitAdapter?: GenericAdapter,
 ): ActiveSession | null {
     const adapter = explicitAdapter ?? resolveAdapter(game) ?? adapters[0];
-    const key = `${game}|${roomCode}|${token}|${useMock ? 'mock' : 'ws'}`;
+    const key = `${game}|${roomCode}|${useMock ? 'mock' : 'ws'}`;
 
     if (!roomSession || roomSessionKey !== key) {
         cleanupRoomSession();
@@ -611,15 +731,15 @@ function ensureRoomSession(
             bootstrap: {
                 game,
                 roomCode,
-                token,
                 useMock,
+                mockClientId: getMockClientId(),
             },
             adapter,
         });
 
         unsubscribeRoomSession = roomSession.subscribe(() => {
             syncActiveLobbySessionState();
-            if (state.view === 'room' || state.view === 'lobby') {
+            if (store.getState().view === 'room' || store.getState().view === 'lobby') {
                 renderView();
             }
         });
@@ -631,7 +751,7 @@ function ensureRoomSession(
 }
 
 function cleanupRoomSession() {
-    stopRoomHeartbeat();
+    stopRoomPresence();
     clearLobbyCopyFeedback();
     unsubscribeRoomSession?.();
     unsubscribeRoomSession = null;
@@ -641,6 +761,8 @@ function cleanupRoomSession() {
     highCardAutoStartKey = null;
     roomHandTrayOpen = false;
     casinoSelectedStackIds = [];
+    femHandOrder = null;
+    femDraggedCard = null;
 }
 
 function cleanupRoomSessionIfUnneeded() {
@@ -650,49 +772,49 @@ function cleanupRoomSessionIfUnneeded() {
     cleanupRoomSession();
 }
 
-function startRoomHeartbeat(roomCode: string, useMock: boolean) {
+function startRoomPresence(roomCode: string, useMock: boolean) {
     if (useMock || !supabase) {
-        stopRoomHeartbeat();
+        stopRoomPresence();
         return;
     }
 
     const key = roomCode;
-    if (roomHeartbeatTimer !== null && roomHeartbeatKey === key) {
+    if (roomPresenceTimer !== null && roomPresenceKey === key) {
         return;
     }
 
-    stopRoomHeartbeat();
-    roomHeartbeatKey = key;
-    void sendRoomHeartbeat(roomCode);
-    roomHeartbeatTimer = window.setInterval(() => {
-        void sendRoomHeartbeat(roomCode);
-    }, ROOM_HEARTBEAT_INTERVAL_MS);
+    stopRoomPresence();
+    roomPresenceKey = key;
+    void sendRoomPresence(roomCode);
+    roomPresenceTimer = window.setInterval(() => {
+        void sendRoomPresence(roomCode);
+    }, ROOM_PRESENCE_INTERVAL_MS);
 }
 
-function stopRoomHeartbeat() {
-    if (roomHeartbeatTimer !== null) {
-        window.clearInterval(roomHeartbeatTimer);
-        roomHeartbeatTimer = null;
+function stopRoomPresence() {
+    if (roomPresenceTimer !== null) {
+        window.clearInterval(roomPresenceTimer);
+        roomPresenceTimer = null;
     }
-    roomHeartbeatKey = null;
-    roomHeartbeatInFlight = false;
+    roomPresenceKey = null;
+    roomPresenceInFlight = false;
 }
 
-async function sendRoomHeartbeat(roomCode: string) {
-    if (!supabase || roomHeartbeatInFlight) return;
-    roomHeartbeatInFlight = true;
+async function sendRoomPresence(roomCode: string) {
+    if (!supabase || roomPresenceInFlight) return;
+    roomPresenceInFlight = true;
 
     try {
-        const { error } = await supabase.rpc('touch_room_heartbeat', {
+        const { error } = await supabase.rpc('touch_room_presence', {
             room_code_input: roomCode,
         });
         if (error) {
-            console.warn('[room-heartbeat] failed to update room heartbeat', error);
+            console.warn('[room-presence] failed to update room presence', error);
         }
     } catch (error) {
-        console.warn('[room-heartbeat] failed to update room heartbeat', error);
+        console.warn('[room-presence] failed to update room presence', error);
     } finally {
-        roomHeartbeatInFlight = false;
+        roomPresenceInFlight = false;
     }
 }
 
@@ -701,7 +823,7 @@ function resolveAdapter(game: string): GenericAdapter | undefined {
 }
 
 function hasActiveQuickPlayQueue(): boolean {
-    return quickPlayState.loading || quickPlayState.ticket !== null;
+    return store.getState().quickPlay.loading || store.getState().quickPlay.ticket !== null;
 }
 
 function playCards() {
@@ -717,16 +839,16 @@ function playCards() {
 }
 
 function renderActiveQueueBar() {
-    const ticket = quickPlayState.ticket;
+    const ticket = store.getState().quickPlay.ticket;
     if (!ticket || (ticket.status !== 'WAITING' && ticket.status !== 'MATCHED')) {
-        if (quickPlayState.errorMessage) {
+        if (store.getState().quickPlay.errorMessage) {
             return `<section class="active-queue-bar active-queue-bar-error" aria-live="polite">
       <div class="active-queue-copy">
-        <span class="active-queue-error">${quickPlayState.errorMessage}</span>
+        <span class="active-queue-error">${store.getState().quickPlay.errorMessage}</span>
       </div>
     </section>`;
         }
-        if (quickPlayState.loading) {
+        if (store.getState().quickPlay.loading) {
             return `<section class="active-queue-bar" aria-live="polite">
       <div class="active-queue-copy">
         <span data-i18n="queue.bar.joining"></span>
@@ -737,17 +859,17 @@ function renderActiveQueueBar() {
     }
 
     const targetPlayers = Math.max(ticket.minPlayers, ticket.queuedPlayers);
-    const elapsedSeconds = quickPlayState.startedAtMs
-        ? Math.max(Math.floor((Date.now() - quickPlayState.startedAtMs) / 1000), 0)
+    const elapsedSeconds = store.getState().quickPlay.startedAtMs
+        ? Math.max(Math.floor((Date.now() - store.getState().quickPlay.startedAtMs!) / 1000), 0)
         : 0;
     const isMatched = ticket.status === 'MATCHED';
-    const countdown = quickPlayState.matchedCountdown ?? 0;
+    const countdown = store.getState().quickPlay.matchedCountdown ?? 0;
     const statusText = isMatched
-        ? `${t(state.lang, countdown > 0 ? 'queue.bar.matchedCountdown' : 'queue.bar.matchedNow')} ${countdown > 0 ? countdown : ''}`.trim()
-        : `${t(state.lang, 'queue.bar.players')}: ${ticket.queuedPlayers}/${targetPlayers}`;
+        ? `${t(store.getState().lang, countdown > 0 ? 'queue.bar.matchedCountdown' : 'queue.bar.matchedNow')} ${countdown > 0 ? countdown : ''}`.trim()
+        : `${t(store.getState().lang, 'queue.bar.players')}: ${ticket.queuedPlayers}/${targetPlayers}`;
 
-    const error = quickPlayState.errorMessage
-        ? `<span class="active-queue-error">${quickPlayState.errorMessage}</span>`
+    const error = store.getState().quickPlay.errorMessage
+        ? `<span class="active-queue-error">${store.getState().quickPlay.errorMessage}</span>`
         : '';
     return `
     <section class="active-queue-bar ${isMatched ? 'matched' : ''}" aria-live="polite">
@@ -759,21 +881,21 @@ function renderActiveQueueBar() {
         </div>
         <div class="active-queue-meta">
           <span>${statusText}</span>
-          ${isMatched ? '' : `<span>${t(state.lang, 'queue.bar.wait')}: ${formatQueueDuration(ticket.estimatedWaitSeconds)}</span>`}
-          <span>${t(state.lang, 'queue.bar.elapsed')}: ${formatQueueDuration(elapsedSeconds)}</span>
+          ${isMatched ? '' : `<span>${t(store.getState().lang, 'queue.bar.wait')}: ${formatQueueDuration(ticket.estimatedWaitSeconds)}</span>`}
+          <span>${t(store.getState().lang, 'queue.bar.elapsed')}: ${formatQueueDuration(elapsedSeconds)}</span>
           ${error}
         </div>
       </div>
       ${isMatched
             ? `<span class="active-queue-ready" data-i18n="queue.bar.ready"></span>`
-            : `<button class="btn active-queue-leave" type="button" data-action="active-queue-leave" ${quickPlayState.leaving ? 'disabled' : ''} data-i18n="queue.bar.leave"></button>`}
+            : `<button class="btn active-queue-leave" type="button" data-action="active-queue-leave" ${store.getState().quickPlay.leaving ? 'disabled' : ''} data-i18n="queue.bar.leave"></button>`}
     </section>
   `;
 }
 
 function renderHomepageMatchmakingCard() {
-    const errorBanner = homeMatchmakingState.errorMessage
-        ? `<div class="room-banner room-banner-error">${homeMatchmakingState.errorMessage}</div>`
+    const errorBanner = store.getState().homeMatchmaking.errorMessage
+        ? `<div class="room-banner room-banner-error">${store.getState().homeMatchmaking.errorMessage}</div>`
         : '';
 
     return `
@@ -798,17 +920,17 @@ function renderHomepageMatchmakingCard() {
               autocapitalize="characters"
               autocomplete="off"
               spellcheck="false"
-              value="${homeMatchmakingState.joinCode}"
-              placeholder="${t(state.lang, 'home.card.quick.join.placeholder')}"
-              aria-label="${t(state.lang, 'home.card.quick.join.label')}"
+              value="${store.getState().homeMatchmaking.joinCode}"
+              placeholder="${t(store.getState().lang, 'home.card.quick.join.placeholder')}"
+              aria-label="${t(store.getState().lang, 'home.card.quick.join.label')}"
             />
-            <button class="btn primary" type="button" data-action="home-join-room" ${homeMatchmakingState.busy ? 'disabled' : ''} data-i18n="home.card.quick.join.action"></button>
+            <button class="btn primary" type="button" data-action="home-join-room" ${store.getState().homeMatchmaking.busy ? 'disabled' : ''} data-i18n="home.card.quick.join.action"></button>
           </div>
         </div>
 
         <div class="home-matchmaking-actions">
-          <button class="btn primary full-width" type="button" data-action="home-create-lobby" ${homeMatchmakingState.busy ? 'disabled' : ''} data-i18n="home.card.quick.create.action"></button>
-          <button class="btn full-width" type="button" data-action="open-lobby-browser" ${homeMatchmakingState.busy ? 'disabled' : ''} data-i18n="home.card.quick.browse.action"></button>
+          <button class="btn primary full-width" type="button" data-action="home-create-lobby" ${store.getState().homeMatchmaking.busy ? 'disabled' : ''} data-i18n="home.card.quick.create.action"></button>
+          <button class="btn full-width" type="button" data-action="open-lobby-browser" ${store.getState().homeMatchmaking.busy ? 'disabled' : ''} data-i18n="home.card.quick.browse.action"></button>
         </div>
       </div>
     </article>
@@ -844,8 +966,10 @@ function renderHomepage() {
           ${playCards()}
         </article>
 
-        ${renderHomepagePlaceholderCard({
+        ${renderHomepageActionCard({
             titleKey: 'home.section.leaderboard.title',
+            descKey: 'home.section.leaderboard.desc',
+            action: 'open-leaderboard',
             className: 'home-card-narrow',
         })}
         ${renderHomepagePlaceholderCard({
@@ -867,10 +991,9 @@ function renderHomepage() {
 
 function renderProfileView(): string {
     if (profileDataCache) {
-        return renderProfilePage(state.lang, profileDataCache);
+        return renderProfilePage(store.getState().lang, profileDataCache, store.getState().profileFriend);
     }
 
-    // Load async, then re-render
     void loadProfileData().then((data) => {
         profileDataCache = data;
         renderView();
@@ -878,8 +1001,213 @@ function renderProfileView(): string {
 
     return `
     <h1 class="h1" data-i18n="profile.title"></h1>
-    <p class="sub">${state.lang === 'en' ? 'Loading...' : 'Indlæser...'}</p>
+    <p class="sub">${store.getState().lang === 'en' ? 'Loading...' : 'Indlæser...'}</p>
   `;
+}
+
+function resetProfileFriendUi() {
+    store.dispatch({ type: 'PROFILE_FRIEND_RESET' });
+}
+
+async function refreshProfileView() {
+    profileDataCache = await loadProfileData();
+    if (store.getState().view === 'profile') {
+        renderView();
+    }
+}
+
+async function handleSendFriendRequest() {
+    const username = store.getState().profileFriend.addUsername.trim();
+    if (!username) {
+        store.dispatch({ type: 'PROFILE_FRIEND_ERROR', message: t(store.getState().lang, 'profile.friends.addRequired') });
+        return;
+    }
+
+    store.dispatch({ type: 'PROFILE_FRIEND_SENDING', value: true });
+    store.dispatch({ type: 'PROFILE_FRIEND_ERROR', message: null });
+
+    try {
+        await sendFriendRequest(username);
+        store.dispatch({ type: 'PROFILE_FRIEND_SET_USERNAME', username: '' });
+        await refreshNotifications(false);
+        await refreshProfileView();
+    } catch (error) {
+        store.dispatch({ type: 'PROFILE_FRIEND_ERROR', message: toErrorMessage(error, t(store.getState().lang, 'profile.friends.addError')) });
+    } finally {
+        store.dispatch({ type: 'PROFILE_FRIEND_SENDING', value: false });
+    }
+}
+
+async function handleSendChallenge(username: string | undefined, userId: string | undefined) {
+    if (!username || !userId) {
+        return;
+    }
+
+    store.dispatch({ type: 'PROFILE_FRIEND_BUSY_CHALLENGE', userId });
+    store.dispatch({ type: 'PROFILE_FRIEND_ERROR', message: null });
+
+    try {
+        await createChallenge({ username, gameType: 'snyd' });
+        await refreshNotifications(false);
+    } catch (error) {
+        store.dispatch({ type: 'PROFILE_FRIEND_ERROR', message: toErrorMessage(error, t(store.getState().lang, 'profile.friends.challengeError')) });
+    } finally {
+        store.dispatch({ type: 'PROFILE_FRIEND_BUSY_CHALLENGE', userId: null });
+    }
+}
+
+async function handleFriendshipAction(friendshipId: string | undefined, action: 'accept' | 'decline' | 'remove') {
+    if (!friendshipId) {
+        return;
+    }
+
+    store.dispatch({ type: 'PROFILE_FRIEND_BUSY_FRIENDSHIP', id: friendshipId });
+    store.dispatch({ type: 'PROFILE_FRIEND_ERROR', message: null });
+
+    try {
+        if (action === 'accept') {
+            await acceptFriendRequest(friendshipId);
+        } else if (action === 'decline') {
+            await declineFriendRequest(friendshipId);
+        } else {
+            await removeFriendship(friendshipId);
+        }
+        await refreshNotifications(false);
+        await refreshProfileView();
+    } catch (error) {
+        store.dispatch({ type: 'PROFILE_FRIEND_ERROR', message: toErrorMessage(error, t(store.getState().lang, 'profile.friends.actionError')) });
+    } finally {
+        store.dispatch({ type: 'PROFILE_FRIEND_BUSY_FRIENDSHIP', id: null });
+    }
+}
+
+async function refreshNotifications(_renderAfter = true) {
+    if (!store.getState().auth.user) {
+        store.dispatch({ type: 'NOTIFICATIONS_CLEAR' });
+        return;
+    }
+
+    store.dispatch({ type: 'NOTIFICATIONS_LOADING' });
+
+    try {
+        const data = await getNotifications({ limit: 20 });
+        store.dispatch({ type: 'NOTIFICATIONS_LOADED', items: data.items, unreadCount: data.unreadCount });
+    } catch (error) {
+        store.dispatch({ type: 'NOTIFICATIONS_ERROR', message: toErrorMessage(error, t(store.getState().lang, 'notifications.error')) });
+    }
+}
+
+async function handleMarkNotificationRead(notificationId: string | undefined) {
+    if (!notificationId) {
+        return;
+    }
+    store.dispatch({ type: 'NOTIFICATIONS_BUSY', id: notificationId });
+    try {
+        await markNotificationRead(notificationId);
+        await refreshNotifications(false);
+    } catch (error) {
+        store.dispatch({ type: 'NOTIFICATIONS_ERROR', message: toErrorMessage(error, t(store.getState().lang, 'notifications.actionError')) });
+    } finally {
+        store.dispatch({ type: 'NOTIFICATIONS_BUSY', id: null });
+    }
+}
+
+async function handleMarkAllNotificationsRead() {
+    store.dispatch({ type: 'NOTIFICATIONS_BUSY', id: 'all' });
+    try {
+        await markAllNotificationsRead();
+        await refreshNotifications(false);
+    } catch (error) {
+        store.dispatch({ type: 'NOTIFICATIONS_ERROR', message: toErrorMessage(error, t(store.getState().lang, 'notifications.actionError')) });
+    } finally {
+        store.dispatch({ type: 'NOTIFICATIONS_BUSY', id: null });
+    }
+}
+
+async function handleOpenNotification(notificationId: string | undefined) {
+    const notification = store.getState().notifications.items.find((item) => item.id === notificationId);
+    if (!notification) {
+        return;
+    }
+    if (!notification.readAt) {
+        await markNotificationRead(notification.id);
+    }
+    store.dispatch({ type: 'NOTIFICATIONS_CLOSE' });
+    const roomCode = stringPayload(notification.payload, 'roomCode');
+    if (roomCode) {
+        navigate({
+            view: 'lobby',
+            game: stringPayload(notification.payload, 'gameType') || 'snyd',
+            room: roomCode,
+            mock: false,
+        });
+        return;
+    }
+    navigate({ view: 'profile' });
+}
+
+async function handleNotificationChallenge(notificationId: string | undefined, challengeId: string | undefined, accept: boolean) {
+    if (!notificationId || !challengeId) {
+        return;
+    }
+    store.dispatch({ type: 'NOTIFICATIONS_BUSY', id: notificationId });
+    try {
+        if (accept) {
+            const result = await acceptChallenge(challengeId);
+            await markNotificationRead(notificationId);
+            store.dispatch({ type: 'NOTIFICATIONS_CLOSE' });
+            navigate({
+                view: supportsLobbyLifecycle(result.room.selectedGame) ? 'lobby' : 'room',
+                game: result.room.selectedGame,
+                room: result.room.roomCode,
+                mock: false,
+            });
+            return;
+        }
+        await declineChallenge(challengeId);
+        await markNotificationRead(notificationId);
+        await refreshNotifications(false);
+    } catch (error) {
+        store.dispatch({ type: 'NOTIFICATIONS_ERROR', message: toErrorMessage(error, t(store.getState().lang, 'notifications.actionError')) });
+    } finally {
+        store.dispatch({ type: 'NOTIFICATIONS_BUSY', id: null });
+    }
+}
+
+async function handleNotificationRoom(notificationId: string | undefined, roomCode: string | undefined, game: string | undefined) {
+    if (!roomCode) {
+        return;
+    }
+    if (notificationId) {
+        await markNotificationRead(notificationId);
+    }
+    store.dispatch({ type: 'NOTIFICATIONS_CLOSE' });
+    navigate({
+        view: 'lobby',
+        game: game || 'snyd',
+        room: roomCode,
+        mock: false,
+    });
+}
+
+function ensureLeaderboardLoaded() {
+    if (store.getState().leaderboard.loading || store.getState().leaderboard.data) {
+        return;
+    }
+
+    store.dispatch({ type: 'LEADERBOARD_LOADING' });
+    void getLeaderboard({ game: store.getState().leaderboard.game, mode: 'standard', limit: 20 })
+        .then((data) => {
+            store.dispatch({ type: 'LEADERBOARD_LOADED', data });
+        })
+        .catch((error) => {
+            store.dispatch({ type: 'LEADERBOARD_ERROR', message: error instanceof Error ? error.message : t(store.getState().lang, 'leaderboard.error') });
+        });
+}
+
+function refreshLeaderboard(game: string) {
+    store.dispatch({ type: 'LEADERBOARD_SET_GAME', game });
+    ensureLeaderboardLoaded();
 }
 
 function renderHomepagePlaceholderCard(input: {
@@ -898,6 +1226,25 @@ function renderHomepagePlaceholderCard(input: {
   `;
 }
 
+function renderHomepageActionCard(input: {
+    titleKey: string;
+    descKey: string;
+    action: string;
+    className?: string;
+}): string {
+    return `
+    <article class="card home-card ${input.className ?? ''}">
+      <div class="home-card-header">
+        <div>
+          <div class="card-title home-card-title" data-i18n="${input.titleKey}"></div>
+        </div>
+      </div>
+      <p class="card-desc" data-i18n="${input.descKey}"></p>
+      <button class="btn full-width" type="button" data-action="${input.action}" data-i18n="action.open"></button>
+    </article>
+  `;
+}
+
 function imageGameCard(titleKey: string, imageClass: string) {
     const disabled = hasActiveQuickPlayQueue() ? 'disabled aria-disabled="true"' : '';
     return `
@@ -910,15 +1257,14 @@ function imageGameCard(titleKey: string, imageClass: string) {
 function wireViewEvents() {
     const themeSelect = document.getElementById('themeSelect') as HTMLSelectElement | null;
     if (themeSelect) {
-        themeSelect.value = state.theme;
+        themeSelect.value = store.getState().theme;
         themeSelect.addEventListener('change', () => {
             const nextTheme = themeSelect.value;
             if (!THEMES.some((theme) => theme.id === nextTheme)) {
-                themeSelect.value = state.theme;
+                themeSelect.value = store.getState().theme;
                 return;
             }
             setTheme(nextTheme as ThemeId);
-            renderApp();
         });
     }
 
@@ -929,7 +1275,6 @@ function wireViewEvents() {
                 return;
             }
             setTheme(nextTheme as ThemeId);
-            renderApp();
         });
     });
 
@@ -945,7 +1290,6 @@ function wireViewEvents() {
                 view: 'room',
                 game,
                 room: `DEV-${game}`,
-                token: state.route.token ?? randomToken(),
                 mock: true,
             });
         });
@@ -957,14 +1301,24 @@ function wireViewEvents() {
 
     document.querySelectorAll<HTMLButtonElement>('button[data-action="open-lobby-browser"]').forEach((button) => {
         button.addEventListener('click', () => {
-            navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+            navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         });
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="open-leaderboard"]')?.addEventListener('click', () => {
+        navigate({ view: 'leaderboard', room: null, game: null, mock: false });
+    });
+
+    document.querySelector<HTMLSelectElement>('#leaderboardGameSelect')?.addEventListener('change', (event) => {
+        const select = event.currentTarget as HTMLSelectElement;
+        refreshLeaderboard(select.value || 'snyd');
     });
 
     const homeJoinCodeInput = document.getElementById('homeJoinCodeInput') as HTMLInputElement | null;
     homeJoinCodeInput?.addEventListener('input', () => {
-        homeMatchmakingState.joinCode = sanitizeRoomCode(homeJoinCodeInput.value);
-        homeJoinCodeInput.value = homeMatchmakingState.joinCode;
+        const code = sanitizeRoomCode(homeJoinCodeInput.value);
+        store.dispatch({ type: 'HOME_MATCHMAKING_SET_CODE', code });
+        homeJoinCodeInput.value = code;
     });
     homeJoinCodeInput?.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter') {
@@ -990,15 +1344,49 @@ function wireViewEvents() {
         if (!supabase) return;
         await supabase.auth.signOut();
         profileDataCache = null;
+        resetProfileFriendUi();
         navigate({ view: 'home' });
+    });
+
+    const friendUsernameInput = document.getElementById('friendUsernameInput') as HTMLInputElement | null;
+    friendUsernameInput?.addEventListener('input', () => {
+        store.dispatch({ type: 'PROFILE_FRIEND_SET_USERNAME', username: friendUsernameInput.value });
+    });
+
+    document.getElementById('friendRequestForm')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void handleSendFriendRequest();
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-accept"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleFriendshipAction(button.dataset.friendshipId, 'accept');
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-decline"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleFriendshipAction(button.dataset.friendshipId, 'decline');
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-remove"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleFriendshipAction(button.dataset.friendshipId, 'remove');
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="friend-challenge"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleSendChallenge(button.dataset.username, button.dataset.userId);
+        });
     });
 }
 
 function wireEvents() {
     const burgerBtn = document.getElementById('burgerBtn');
     burgerBtn?.addEventListener('click', () => {
-        state.sidebarCollapsed = !state.sidebarCollapsed;
-        renderApp();
+        store.dispatch({ type: 'TOGGLE_SIDEBAR' });
     });
 
     document.querySelectorAll<HTMLElement>('.nav-item').forEach((el) => {
@@ -1034,9 +1422,8 @@ function wireEvents() {
     const langSelect = document.getElementById('langSelect') as HTMLSelectElement | null;
     langSelect?.addEventListener('change', () => {
         const next = langSelect.value === 'en' ? 'en' : 'da';
-        state.lang = next;
+        store.dispatch({ type: 'SET_LANG', lang: next });
         setLang(next);
-        renderApp();
     });
 
     const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null;
@@ -1053,10 +1440,52 @@ function wireEvents() {
     if (profileBtn) {
         profileBtn.onclick = () => navigate({ view: 'profile' });
     }
+
+    document.getElementById('notificationsBtn')?.addEventListener('click', () => {
+        const isOpen = store.getState().notifications.open;
+        store.dispatch({ type: isOpen ? 'NOTIFICATIONS_CLOSE' : 'NOTIFICATIONS_OPEN' });
+        if (!isOpen) {
+            void refreshNotifications(false);
+        }
+    });
+
+    document.querySelector<HTMLButtonElement>('button[data-action="notifications-read-all"]')?.addEventListener('click', () => {
+        void handleMarkAllNotificationsRead();
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-read"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleMarkNotificationRead(button.dataset.notificationId);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-open"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleOpenNotification(button.dataset.notificationId);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-challenge-accept"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleNotificationChallenge(button.dataset.notificationId, button.dataset.challengeId, true);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-challenge-decline"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleNotificationChallenge(button.dataset.notificationId, button.dataset.challengeId, false);
+        });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('button[data-action="notification-room"]').forEach((button) => {
+        button.addEventListener('click', () => {
+            void handleNotificationRoom(button.dataset.notificationId, button.dataset.roomCode, button.dataset.game);
+        });
+    });
 }
 
 function wireRoomEvents() {
-    if (state.view !== 'room') return;
+    if (store.getState().view !== 'room') return;
     if (!roomSession) return;
 
     document.querySelector<HTMLButtonElement>('button[data-action="toggle-room-hand"]')?.addEventListener('click', () => {
@@ -1070,9 +1499,9 @@ function wireRoomEvents() {
         });
     });
 
-    document.querySelectorAll<HTMLButtonElement>('button[data-action="toggle-card"]').forEach((button) => {
-        button.addEventListener('click', () => {
-            const card = button.dataset.card;
+    document.querySelectorAll<HTMLElement>('[data-action="toggle-card"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const card = el.dataset.card;
             if (!card) return;
             roomSession?.toggleCard(card);
         });
@@ -1154,8 +1583,12 @@ function wireRoomEvents() {
     document.querySelectorAll<HTMLElement>('[data-action="fem-discard"]').forEach((el) => {
         el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_DISCARD' }));
     });
-    document.querySelectorAll<HTMLElement>('[data-action="fem-pass-grab"]').forEach((el) => {
-        el.addEventListener('click', () => roomSession?.sendIntent({ type: 'FEM_PASS_GRAB' }));
+    document.querySelectorAll<HTMLElement>('[data-action="fem-close"]').forEach((el) => {
+        el.addEventListener('click', () => {
+            const card = el.dataset.card;
+            if (!card) return;
+            roomSession?.sendIntent({ type: 'FEM_CLOSE_ROUND', card });
+        });
     });
     document.querySelectorAll<HTMLElement>('[data-action="fem-extend-meld"]').forEach((el) => {
         el.addEventListener('click', () => {
@@ -1164,26 +1597,52 @@ function wireRoomEvents() {
             roomSession?.sendIntent({ type: 'FEM_EXTEND_MELD', meldId });
         });
     });
-    document.querySelectorAll<HTMLElement>('[data-action="fem-claim-discard"]').forEach((el) => {
-        el.addEventListener('click', () => {
-            const meldId = el.dataset.meldId;
-            if (!meldId) return;
-            roomSession?.sendIntent({ type: 'FEM_CLAIM_DISCARD', meldId });
+
+    // Hand drag-to-sort
+    document.querySelectorAll<HTMLElement>('[data-drag-card]').forEach((el) => {
+        el.addEventListener('dragstart', (e) => {
+            femDraggedCard = el.dataset.dragCard ?? null;
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', femDraggedCard ?? '');
+            }
+        });
+        el.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        });
+        el.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const targetCard = el.dataset.dragCard;
+            if (!femDraggedCard || !targetCard || femDraggedCard === targetCard) return;
+            const femVm = roomSession?.toViewModel() as { hand?: string[] } | undefined;
+            const currentOrder = femHandOrder ?? (femVm?.hand ?? []);
+            const fromIdx = currentOrder.indexOf(femDraggedCard);
+            const toIdx = currentOrder.indexOf(targetCard);
+            if (fromIdx === -1 || toIdx === -1) return;
+            const newOrder = [...currentOrder];
+            newOrder.splice(fromIdx, 1);
+            newOrder.splice(toIdx, 0, femDraggedCard);
+            femHandOrder = newOrder;
+            femDraggedCard = null;
+            renderView();
         });
     });
+
 }
 
 function wireLobbyEvents() {
-    if (state.view === 'lobby-browser') {
+    if (store.getState().view === 'lobby-browser') {
         const joinCodeInput = document.getElementById('joinCodeInput') as HTMLInputElement | null;
         joinCodeInput?.addEventListener('input', () => {
-            lobbyBrowserState.joinCode = sanitizeRoomCode(joinCodeInput.value);
-            joinCodeInput.value = lobbyBrowserState.joinCode;
+            const code = sanitizeRoomCode(joinCodeInput.value);
+            store.dispatch({ type: 'LOBBY_SET_JOIN_CODE', code });
+            joinCodeInput.value = code;
         });
 
         const createPrivateToggle = document.getElementById('createPrivateToggle') as HTMLInputElement | null;
         createPrivateToggle?.addEventListener('change', () => {
-            lobbyBrowserState.createPrivate = createPrivateToggle.checked;
+            store.dispatch({ type: 'LOBBY_SET_CREATE_PRIVATE', value: createPrivateToggle.checked });
         });
 
         document.querySelector<HTMLButtonElement>('button[data-action="refresh-lobbies"]')?.addEventListener('click', () => {
@@ -1195,7 +1654,7 @@ function wireLobbyEvents() {
         });
 
         document.querySelector<HTMLButtonElement>('button[data-action="join-by-code"]')?.addEventListener('click', () => {
-            void handleJoinByCode(lobbyBrowserState.joinCode);
+            void handleJoinByCode(store.getState().lobbyBrowser.joinCode);
         });
 
         document.querySelectorAll<HTMLButtonElement>('button[data-action="join-public-room"]').forEach((button) => {
@@ -1207,7 +1666,7 @@ function wireLobbyEvents() {
         });
     }
 
-    if (state.view === 'lobby' && roomSession && state.route.room && state.route.token) {
+    if (store.getState().view === 'lobby' && roomSession && store.getState().route.room) {
         document.querySelectorAll<HTMLButtonElement>('button[data-action="select-lobby-game"]').forEach((button) => {
             button.addEventListener('click', () => {
                 const game = button.dataset.game;
@@ -1227,134 +1686,108 @@ function wireLobbyEvents() {
         });
 
         document.querySelector<HTMLButtonElement>('button[data-action="copy-lobby-share"]')?.addEventListener('click', () => {
-            const shareValue = document.querySelector<HTMLButtonElement>('button[data-action="copy-lobby-share"]')?.dataset.shareValue ?? state.route.room!;
+            const shareValue = document.querySelector<HTMLButtonElement>('button[data-action="copy-lobby-share"]')?.dataset.shareValue ?? store.getState().route.room!;
             void copyLobbyShareValue(shareValue);
         });
 
         document.querySelectorAll<HTMLButtonElement>('button[data-action="set-room-visibility"]').forEach((button) => {
             button.addEventListener('click', () => {
                 const isPrivate = button.dataset.private === 'true';
-                void handleUpdateRoomVisibility(state.route.room!, state.route.token!, isPrivate);
+                void handleUpdateRoomVisibility(store.getState().route.room!, isPrivate);
             });
         });
 
         document.querySelector<HTMLButtonElement>('button[data-action="leave-lobby"]')?.addEventListener('click', () => {
-            void handleLeaveLobby(state.route.room!, state.route.token!);
+            void handleLeaveLobby(store.getState().route.room!);
         });
 
         document.querySelectorAll<HTMLButtonElement>('button[data-action="kick-player"]').forEach((button) => {
             button.addEventListener('click', () => {
                 const playerId = button.dataset.playerId;
                 if (!playerId) return;
-                void handleKickPlayer(state.route.room!, state.route.token!, playerId);
+                void handleKickPlayer(store.getState().route.room!, playerId);
             });
         });
     }
 }
 
 function ensureLobbyBrowserLoaded() {
-    if (lobbyBrowserState.loading || lobbyBrowserState.loaded) {
+    if (store.getState().lobbyBrowser.loading || store.getState().lobbyBrowser.loaded) {
         return;
     }
     void refreshLobbyBrowser();
 }
 
 async function refreshLobbyBrowser() {
-    lobbyBrowserState.loading = true;
-    lobbyBrowserState.errorMessage = null;
-    renderView();
+    store.dispatch({ type: 'LOBBY_LOADING' });
 
     try {
-        lobbyBrowserState.rooms = await listRooms();
-        lobbyBrowserState.loaded = true;
+        const rooms = await listRooms();
+        store.dispatch({ type: 'LOBBY_LOADED', rooms });
     } catch (error) {
-        lobbyBrowserState.errorMessage = toErrorMessage(error, 'Failed to load lobbies');
-        lobbyBrowserState.loaded = true;
-    } finally {
-        lobbyBrowserState.loading = false;
-        renderView();
+        store.dispatch({ type: 'LOBBY_ERROR', message: toErrorMessage(error, 'Failed to load lobbies') });
     }
 }
 
 async function handleCreateLobby() {
-    homeMatchmakingState.errorMessage = null;
-    lobbyBrowserState.busy = true;
-    lobbyBrowserState.errorMessage = null;
-    renderView();
+    store.dispatch({ type: 'HOME_MATCHMAKING_ERROR', message: null });
+    store.dispatch({ type: 'LOBBY_SET_BUSY', busy: true });
 
     try {
         await leavePreservedLobbyBeforeTransition();
         const playerIdentity = getLobbyIdentity();
         const created = await createRoom({
-            isPrivate: lobbyBrowserState.createPrivate,
-            playerId: playerIdentity.playerId,
+            isPrivate: store.getState().lobbyBrowser.createPrivate,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
             view: supportsLobbyLifecycle(created.selectedGame) ? 'lobby' : 'room',
             game: created.selectedGame,
             room: created.roomCode,
-            token: created.token,
             mock: false,
         });
     } catch (error) {
-        lobbyBrowserState.errorMessage = toErrorMessage(error, 'Failed to create lobby');
-        renderView();
+        store.dispatch({ type: 'LOBBY_ERROR', message: toErrorMessage(error, 'Failed to create lobby') });
     } finally {
-        lobbyBrowserState.busy = false;
-        if (state.view === 'lobby-browser') {
-            renderView();
-        }
+        store.dispatch({ type: 'LOBBY_SET_BUSY', busy: false });
     }
 }
 
 async function handleJoinByCode(rawRoomCode: string) {
     const roomCode = sanitizeRoomCode(rawRoomCode);
     if (!roomCode) {
-        lobbyBrowserState.errorMessage = 'Enter a valid room code';
-        renderView();
+        store.dispatch({ type: 'LOBBY_ERROR', message: 'Enter a valid room code' });
         return;
     }
 
-    lobbyBrowserState.busy = true;
-    lobbyBrowserState.errorMessage = null;
-    lobbyBrowserState.joinCode = roomCode;
-    renderView();
+    store.dispatch({ type: 'LOBBY_SET_BUSY', busy: true });
+    store.dispatch({ type: 'LOBBY_SET_JOIN_CODE', code: roomCode });
 
     try {
         await leavePreservedLobbyBeforeTransition(roomCode);
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
             view: supportsLobbyLifecycle(joined.selectedGame) ? 'lobby' : 'room',
             game: joined.selectedGame,
             room: joined.roomCode,
-            token: joined.token,
             mock: false,
         });
     } catch (error) {
-        lobbyBrowserState.errorMessage = toErrorMessage(error, 'Failed to join lobby');
-        renderView();
+        store.dispatch({ type: 'LOBBY_ERROR', message: toErrorMessage(error, 'Failed to join lobby') });
     } finally {
-        lobbyBrowserState.busy = false;
-        if (state.view === 'lobby-browser') {
-            renderView();
-        }
+        store.dispatch({ type: 'LOBBY_SET_BUSY', busy: false });
     }
 }
 
 async function handleHomepageCreateLobby() {
-    homeMatchmakingState.busy = true;
-    homeMatchmakingState.errorMessage = null;
-    renderView();
+    store.dispatch({ type: 'HOME_MATCHMAKING_SET_BUSY', busy: true });
+    store.dispatch({ type: 'HOME_MATCHMAKING_ERROR', message: null });
 
     try {
         await leavePreservedLobbyBeforeTransition();
@@ -1362,117 +1795,100 @@ async function handleHomepageCreateLobby() {
         const created = await createRoom({
             gameType: FALLBACK_LOBBY_GAME_ID,
             isPrivate: false,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
             view: supportsLobbyLifecycle(created.selectedGame) ? 'lobby' : 'room',
             game: created.selectedGame,
             room: created.roomCode,
-            token: created.token,
             mock: false,
         });
     } catch (error) {
-        homeMatchmakingState.errorMessage = toErrorMessage(error, 'Failed to create lobby');
-        renderView();
+        store.dispatch({ type: 'HOME_MATCHMAKING_ERROR', message: toErrorMessage(error, 'Failed to create lobby') });
     } finally {
-        homeMatchmakingState.busy = false;
-        if (state.view === 'home') {
-            renderView();
-        }
+        store.dispatch({ type: 'HOME_MATCHMAKING_SET_BUSY', busy: false });
     }
 }
 
 async function handleHomepageJoin() {
-    const roomCode = sanitizeRoomCode(homeMatchmakingState.joinCode);
+    const roomCode = sanitizeRoomCode(store.getState().homeMatchmaking.joinCode);
     if (!roomCode) {
-        homeMatchmakingState.errorMessage = 'Enter a valid room code';
-        renderView();
+        store.dispatch({ type: 'HOME_MATCHMAKING_ERROR', message: 'Enter a valid room code' });
         return;
     }
 
-    homeMatchmakingState.busy = true;
-    homeMatchmakingState.errorMessage = null;
-    homeMatchmakingState.joinCode = roomCode;
-    renderView();
+    store.dispatch({ type: 'HOME_MATCHMAKING_SET_BUSY', busy: true });
+    store.dispatch({ type: 'HOME_MATCHMAKING_SET_CODE', code: roomCode });
 
     try {
         await leavePreservedLobbyBeforeTransition(roomCode);
         const playerIdentity = getLobbyIdentity();
         const joined = await joinRoom({
             roomCode,
-            playerId: playerIdentity.playerId,
             username: playerIdentity.username ?? undefined,
-            token: playerIdentity.token,
         });
 
         navigate({
             view: supportsLobbyLifecycle(joined.selectedGame) ? 'lobby' : 'room',
             game: joined.selectedGame,
             room: joined.roomCode,
-            token: joined.token,
             mock: false,
         });
     } catch (error) {
-        homeMatchmakingState.errorMessage = toErrorMessage(error, 'Failed to join lobby');
-        renderView();
+        store.dispatch({ type: 'HOME_MATCHMAKING_ERROR', message: toErrorMessage(error, 'Failed to join lobby') });
     } finally {
-        homeMatchmakingState.busy = false;
-        if (state.view === 'home') {
-            renderView();
-        }
+        store.dispatch({ type: 'HOME_MATCHMAKING_SET_BUSY', busy: false });
     }
 }
 
-async function handleLeaveLobby(roomCode: string, token: string) {
+async function handleLeaveLobby(roomCode: string) {
     try {
-        await leaveRoom({ roomCode, token });
+        await leaveRoom({ roomCode });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to leave lobby'));
     } finally {
         clearActiveLobby();
         cleanupRoomSession();
-        lobbyBrowserState.loaded = false;
-        navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+        store.dispatch({ type: 'LOBBY_RESET_LOADED' });
+        navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         void refreshLobbyBrowser();
     }
 }
 
 async function handleLeaveActiveRoom() {
-    const route = state.route;
+    const route = store.getState().route;
     clearActiveLobby();
     cleanupRoomSession();
 
-    if (!route.room || !route.token || route.mock) {
-        navigate({ view: 'home', room: null, token: null, game: null, mock: false });
+    if (!route.room || route.mock) {
+        navigate({ view: 'home', room: null, game: null, mock: false });
         return;
     }
 
     try {
-        await leaveRoom({ roomCode: route.room, token: route.token });
+        await leaveRoom({ roomCode: route.room });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to leave table'));
     } finally {
-        lobbyBrowserState.loaded = false;
-        navigate({ view: 'lobby-browser', room: null, token: null, game: null, mock: false });
+        store.dispatch({ type: 'LOBBY_RESET_LOADED' });
+        navigate({ view: 'lobby-browser', room: null, game: null, mock: false });
         void refreshLobbyBrowser();
     }
 }
 
-async function handleKickPlayer(roomCode: string, actorToken: string, targetPlayerId: string) {
+async function handleKickPlayer(roomCode: string, targetPlayerId: string) {
     try {
-        await kickPlayer({ roomCode, actorToken, targetPlayerId });
+        await kickPlayer({ roomCode, targetPlayerId });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to kick player'));
         renderView();
     }
 }
 
-async function handleUpdateRoomVisibility(roomCode: string, actorToken: string, isPrivate: boolean) {
+async function handleUpdateRoomVisibility(roomCode: string, isPrivate: boolean) {
     try {
-        await updateRoomVisibility({ roomCode, actorToken, isPrivate });
+        await updateRoomVisibility({ roomCode, isPrivate });
     } catch (error) {
         alert(toErrorMessage(error, 'Failed to update room visibility'));
         renderView();
@@ -1483,22 +1899,19 @@ async function syncActiveLobbyParticipantProfile() {
     if (!roomSession) return;
 
     const activeLobby = resolveActiveLobbyRoute();
-    if (!activeLobby?.room || !activeLobby.token) return;
+    if (!activeLobby?.room) return;
 
     const sessionState = roomSession.getState();
     const publicState = toRecord(sessionState.publicState);
     if (typeof publicState.status !== 'string' || publicState.status !== 'LOBBY') return;
     if (!sessionState.playerId) return;
 
-    const username = authUiState.user?.username?.trim() || null;
-    const nextPlayerId = authUiState.user?.id?.trim() || randomToken();
+    const username = store.getState().auth.user?.username?.trim() || null;
 
     try {
         await claimRoomIdentity({
             roomCode: activeLobby.room,
-            playerId: nextPlayerId,
             username: username ?? undefined,
-            token: activeLobby.token,
         });
         restartActiveLobbySession(activeLobby);
     } catch (error) {
@@ -1510,37 +1923,40 @@ function applyAuthUI() {
     const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null;
     const signupBtn = document.getElementById('signupBtn') as HTMLButtonElement | null;
     const profileBtn = document.getElementById('profileBtn') as HTMLButtonElement | null;
+    const notificationsBtn = document.getElementById('notificationsBtn') as HTMLButtonElement | null;
     const avatarDisplay = document.getElementById('avatarDisplay') as HTMLDivElement | null;
 
     if (!loginBtn || !signupBtn || !profileBtn) return;
 
-    if (!authUiState.initialized) {
+    if (!store.getState().auth.initialized) {
         loginBtn.classList.add('hidden');
         loginBtn.dataset.i18n = 'top.login';
         signupBtn.removeAttribute('data-i18n');
         profileBtn.removeAttribute('data-i18n');
-        signupBtn.textContent = state.lang === 'en' ? 'Loading...' : 'Indlæser...';
+        signupBtn.textContent = store.getState().lang === 'en' ? 'Loading...' : 'Indlæser...';
         signupBtn.onclick = null;
-        profileBtn.textContent = state.lang === 'en' ? 'Loading...' : 'Indlæser...';
+        profileBtn.textContent = store.getState().lang === 'en' ? 'Loading...' : 'Indlæser...';
         profileBtn.onclick = null;
+        notificationsBtn?.classList.add('hidden');
         avatarDisplay?.classList.add('hidden');
         return;
     }
 
-    if (!authUiState.user) {
+    if (!store.getState().auth.user) {
         loginBtn.classList.remove('hidden');
         loginBtn.dataset.i18n = 'top.login';
         signupBtn.dataset.i18n = 'top.signup';
         profileBtn.dataset.i18n = 'top.profile';
-        signupBtn.textContent = state.lang === 'en' ? 'Create account' : 'Opret konto';
+        signupBtn.textContent = store.getState().lang === 'en' ? 'Create account' : 'Opret konto';
         signupBtn.onclick = () => navigate('/signup');
-        profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
+        profileBtn.textContent = store.getState().lang === 'en' ? 'Profile' : 'Profil';
         profileBtn.onclick = () => navigate({ view: 'profile' });
 
         if (avatarDisplay) {
             avatarDisplay.classList.add('hidden');
             avatarDisplay.style.background = '';
         }
+        notificationsBtn?.classList.add('hidden');
         return;
     }
 
@@ -1550,30 +1966,27 @@ function applyAuthUI() {
     profileBtn.removeAttribute('data-i18n');
     signupBtn.textContent = 'Customize player';
     signupBtn.onclick = () => navigate('/custom');
-    profileBtn.textContent = state.lang === 'en' ? 'Profile' : 'Profil';
+    profileBtn.textContent = store.getState().lang === 'en' ? 'Profile' : 'Profil';
     profileBtn.onclick = () => navigate({ view: 'profile' });
+    notificationsBtn?.classList.remove('hidden');
 
     if (!avatarDisplay) return;
-    if (!authUiState.avatar) {
+    if (!store.getState().auth.avatar) {
         avatarDisplay.classList.add('hidden');
         avatarDisplay.style.background = '';
         return;
     }
 
+    const avatar = store.getState().auth.avatar!;
     avatarDisplay.classList.remove('hidden');
-    avatarDisplay.style.background = authUiState.avatar.color;
-    avatarDisplay.style.borderRadius = authUiState.avatar.shape === 'circle' ? '50%' : '8px';
+    avatarDisplay.style.background = avatar.color;
+    avatarDisplay.style.borderRadius = avatar.shape === 'circle' ? '50%' : '8px';
     avatarDisplay.style.cursor = 'default';
 }
 
-async function syncAuthState(renderAfter = true) {
+async function syncAuthState(_renderAfter = true) {
     if (!supabase) {
-        authUiState.initialized = true;
-        authUiState.user = null;
-        authUiState.avatar = null;
-        if (renderAfter) {
-            renderApp();
-        }
+        store.dispatch({ type: 'AUTH_INITIALIZED', user: null, avatar: null });
         return;
     }
 
@@ -1584,23 +1997,22 @@ async function syncAuthState(renderAfter = true) {
         }
         const user = data.session?.user ?? null;
 
-        authUiState.initialized = true;
         if (user) {
             await upsertProfileFromAuth(user);
         }
-        authUiState.user = user
+        const resolvedUser = user
             ? { id: user.id, username: await loadProfileUsername(user.id, user.user_metadata?.username) }
             : null;
-        authUiState.avatar = user ? await loadAvatarData(user.id) : null;
+        const resolvedAvatar = user ? await loadAvatarData(user.id) : null;
+        store.dispatch({ type: 'AUTH_INITIALIZED', user: resolvedUser, avatar: resolvedAvatar });
+        if (resolvedUser) {
+            await refreshNotifications(false);
+        } else {
+            store.dispatch({ type: 'NOTIFICATIONS_CLEAR' });
+        }
     } catch (error) {
         console.error('Failed to sync auth UI', error);
-        authUiState.initialized = true;
-        authUiState.user = null;
-        authUiState.avatar = null;
-    }
-
-    if (renderAfter) {
-        renderApp();
+        store.dispatch({ type: 'AUTH_INITIALIZED', user: null, avatar: null });
     }
 }
 
@@ -1610,18 +2022,18 @@ async function loadAvatarData(userId: string): Promise<{ color: string; shape: s
     }
 
     const { data: avatar } = await supabase
-        .from('avatars')
-        .select('*')
+        .from('user_avatars')
+        .select('color, avatar_defs(shape)')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
     if (!avatar) {
         return null;
     }
 
     return {
-        color: avatar.avatar_color ?? '',
-        shape: avatar.avatar_shape ?? 'square',
+        color: avatar.color ?? '',
+        shape: avatar.avatar_defs?.shape ?? 'square',
     };
 }
 
@@ -1633,8 +2045,8 @@ async function loadProfileUsername(userId: string, fallbackUsername?: string | n
     const { data: profile } = await supabase
         .from('profiles')
         .select('username')
-        .eq('id', userId)
-        .single();
+        .eq('user_id', userId)
+        .maybeSingle();
 
     return normalizeUsernameValue(profile?.username) ?? normalizeUsernameValue(fallbackUsername);
 }
@@ -1654,7 +2066,7 @@ async function upsertProfileFromAuth(user: {
     }
 
     await supabase.from('profiles').upsert({
-        id: user.id,
+        user_id: user.id,
         username,
         country,
     });
@@ -1672,12 +2084,11 @@ export function navigate(target: Partial<AppRoute> | string) {
     }
 
     syncStateFromRoute();
-    renderApp();
 }
 
 function syncStateFromRoute() {
-    state.route = readRoute();
-    state.view = state.route.view;
+    const route = readRoute();
+    store.dispatch({ type: 'SET_VIEW', view: route.view, route });
 }
 
 function normalizeGameKey(game: string): string {
@@ -1692,19 +2103,14 @@ function normalizeGameKey(game: string): string {
 
 async function startRealtimeRoom(gameType: string) {
     try {
-        const token = randomToken();
-        const playerId = token;
         const created = await createRoom({
             gameType,
-            playerId,
-            token,
         });
 
         navigate({
             view: 'room',
             game: gameType,
             room: created.roomCode,
-            token: created.token,
             mock: false,
         });
     } catch (error) {
@@ -1719,8 +2125,7 @@ async function handleQuickPlay(gameType: string) {
     }
 
     if (!supportsRealtimeQuickPlay(gameType)) {
-        quickPlayState.errorMessage = t(state.lang, 'play.queue.unsupported');
-        renderView();
+        store.dispatch({ type: 'QUICK_PLAY_ERROR', message: t(store.getState().lang, 'play.queue.unsupported') });
         return;
     }
 
@@ -1729,31 +2134,19 @@ async function handleQuickPlay(gameType: string) {
     clearQuickPlayRealtime();
     clearActiveQueueClock();
     clearMatchedCountdown();
-    quickPlayState.loading = true;
-    quickPlayState.errorMessage = null;
-    quickPlayState.activeGame = gameType;
-    quickPlayState.ticket = null;
-    quickPlayState.startedAtMs = null;
-    quickPlayState.leaving = false;
-    quickPlayState.matchedCountdown = null;
-    renderView();
-    updateActiveQueueBar();
+    store.dispatch({ type: 'QUICK_PLAY_LOADING', gameType });
 
     try {
         const identity = getLobbyIdentity();
         const ticket = await enqueueMatchmaking({
             gameType,
-            playerId: identity.playerId,
             username: identity.username ?? undefined,
-            token: identity.token,
+            clientSessionId: identity.playerId,
         });
         if (!isCurrentQuickPlayGeneration(generation)) {
             return;
         }
-        quickPlayState.ticket = ticket;
-        quickPlayState.loading = false;
-        quickPlayState.startedAtMs = Date.now();
-        renderView();
+        store.dispatch({ type: 'QUICK_PLAY_STARTED', ticket, startedAtMs: Date.now() });
         handleQuickPlayTicketUpdate(ticket, generation);
     } catch (error) {
         if (!isCurrentQuickPlayGeneration(generation)) {
@@ -1761,9 +2154,7 @@ async function handleQuickPlay(gameType: string) {
         }
         const message = toErrorMessage(error, 'Failed to join matchmaking queue');
         resetQuickPlayState();
-        quickPlayState.errorMessage = message;
-        renderView();
-        updateActiveQueueBar();
+        store.dispatch({ type: 'QUICK_PLAY_ERROR', message });
     }
 }
 
@@ -1771,15 +2162,14 @@ function handleQuickPlayTicketUpdate(ticket: MatchmakingResponse, generation = q
     if (!isCurrentQuickPlayGeneration(generation)) {
         return;
     }
-    if (quickPlayState.ticket && quickPlayState.ticket.ticketId !== ticket.ticketId) {
+    if (store.getState().quickPlay.ticket && store.getState().quickPlay.ticket!.ticketId !== ticket.ticketId) {
         return;
     }
 
-    const wasNewQueue = quickPlayState.ticket?.ticketId !== ticket.ticketId || !quickPlayState.startedAtMs;
-    quickPlayState.ticket = ticket;
-    quickPlayState.activeGame = ticket.gameType;
+    const wasNewQueue = store.getState().quickPlay.ticket?.ticketId !== ticket.ticketId || !store.getState().quickPlay.startedAtMs;
+    store.dispatch({ type: 'QUICK_PLAY_TICKET_UPDATE', ticket });
     if (wasNewQueue && ticket.status === 'WAITING') {
-        quickPlayState.startedAtMs = Date.now();
+        store.dispatch({ type: 'QUICK_PLAY_STARTED', ticket, startedAtMs: Date.now() });
     }
     if (ticket.status === 'MATCHED' && ticket.roomCode) {
         startMatchedCountdown(ticket, generation);
@@ -1789,13 +2179,10 @@ function handleQuickPlayTicketUpdate(ticket: MatchmakingResponse, generation = q
         clearQuickPlayPolling();
         clearQuickPlayRealtime();
         clearActiveQueueClock();
-        renderView();
-        updateActiveQueueBar();
         return;
     }
     subscribeQuickPlayRealtime(ticket.gameType, ticket.ticketId, generation);
     startActiveQueueClock();
-    updateActiveQueueBar();
     scheduleQuickPlayPoll(ticket.ticketId, generation);
 }
 
@@ -1807,19 +2194,16 @@ function scheduleQuickPlayPoll(ticketId: string, generation = quickPlayGeneratio
         }
         try {
             const nextTicket = await getMatchmakingTicket(ticketId);
-            if (!isCurrentQuickPlayGeneration(generation) || quickPlayState.ticket?.ticketId !== ticketId) {
+            if (!isCurrentQuickPlayGeneration(generation) || store.getState().quickPlay.ticket?.ticketId !== ticketId) {
                 return;
             }
             handleQuickPlayTicketUpdate(nextTicket, generation);
-            renderView();
         } catch (error) {
-            if (!isCurrentQuickPlayGeneration(generation) || quickPlayState.ticket?.ticketId !== ticketId) {
+            if (!isCurrentQuickPlayGeneration(generation) || store.getState().quickPlay.ticket?.ticketId !== ticketId) {
                 return;
             }
-            quickPlayState.errorMessage = toErrorMessage(error, 'Failed to refresh matchmaking queue');
+            store.dispatch({ type: 'QUICK_PLAY_ERROR', message: toErrorMessage(error, 'Failed to refresh matchmaking queue') });
             clearQuickPlayPolling();
-            renderView();
-            updateActiveQueueBar();
         }
     }, 1500);
 }
@@ -1833,27 +2217,21 @@ function startMatchedCountdown(ticket: MatchmakingResponse, generation = quickPl
     clearQuickPlayRealtime();
     clearActiveQueueClock();
 
-    quickPlayState.ticket = ticket;
-    quickPlayState.activeGame = ticket.gameType;
-    quickPlayState.leaving = false;
-    quickPlayState.errorMessage = null;
+    store.dispatch({ type: 'QUICK_PLAY_TICKET_UPDATE', ticket });
     if (matchedCountdownTimer !== null) {
-        updateActiveQueueBar();
         return;
     }
 
-    quickPlayState.matchedCountdown = 3;
-    updateActiveQueueBar();
+    store.dispatch({ type: 'QUICK_PLAY_MATCHED', countdown: 3 });
 
     matchedCountdownTimer = window.setInterval(() => {
-        if (!isCurrentQuickPlayGeneration(generation) || quickPlayState.ticket?.ticketId !== ticket.ticketId) {
+        if (!isCurrentQuickPlayGeneration(generation) || store.getState().quickPlay.ticket?.ticketId !== ticket.ticketId) {
             clearMatchedCountdown();
             return;
         }
 
-        const next = (quickPlayState.matchedCountdown ?? 0) - 1;
-        quickPlayState.matchedCountdown = Math.max(next, 0);
-        updateActiveQueueBar();
+        const next = (store.getState().quickPlay.matchedCountdown ?? 0) - 1;
+        store.dispatch({ type: 'QUICK_PLAY_TICK', countdown: Math.max(next, 0) });
 
         if (next > 0) {
             return;
@@ -1865,65 +2243,32 @@ function startMatchedCountdown(ticket: MatchmakingResponse, generation = quickPl
             view: 'room',
             game: ticket.gameType,
             room: ticket.roomCode,
-            token: ticket.token,
             mock: false,
         });
     }, 1000);
 }
 
 async function cancelQuickPlay() {
-    const ticket = quickPlayState.ticket;
+    const ticket = store.getState().quickPlay.ticket;
     if (!ticket) {
         resetQuickPlayState();
-        renderView();
-        updateActiveQueueBar();
         return;
     }
 
-    quickPlayState.leaving = true;
-    quickPlayState.errorMessage = null;
-    updateActiveQueueBar();
+    store.dispatch({ type: 'QUICK_PLAY_LEAVING', value: true });
 
     try {
         await cancelMatchmakingTicket(ticket.ticketId);
     } catch (error) {
-        quickPlayState.leaving = false;
-        quickPlayState.errorMessage = toErrorMessage(error, 'Failed to cancel matchmaking queue');
-        renderView();
-        updateActiveQueueBar();
+        store.dispatch({ type: 'QUICK_PLAY_LEAVING', value: false });
+        store.dispatch({ type: 'QUICK_PLAY_ERROR', message: toErrorMessage(error, 'Failed to cancel matchmaking queue') });
         return;
     }
 
     resetQuickPlayState();
-    renderView();
-    updateActiveQueueBar();
-    void cancelQuickPlayWithSupabase(ticket);
 }
 
-async function cancelQuickPlayWithSupabase(ticket: MatchmakingResponse): Promise<boolean> {
-    if (!supabase) {
-        return false;
-    }
-
-    try {
-        const { data, error } = await supabase.rpc('cancel_matchmaking_ticket', {
-            ticket_id_input: ticket.ticketId,
-            session_token_input: ticket.token,
-        });
-
-        if (error) {
-            console.warn('Supabase matchmaking cancel failed after API cancel', error);
-            return false;
-        }
-
-        return data === true;
-    } catch (error) {
-        console.warn('Supabase matchmaking cancel threw after API cancel', error);
-        return false;
-    }
-}
-
-function subscribeQuickPlayRealtime(gameType: string, ticketId: string, generation = quickPlayGeneration) {
+function subscribeQuickPlayRealtime(_gameType: string, ticketId: string, generation = quickPlayGeneration) {
     if (!supabase || quickPlayRealtimeChannel) {
         return;
     }
@@ -1936,7 +2281,7 @@ function subscribeQuickPlayRealtime(gameType: string, ticketId: string, generati
                 event: '*',
                 schema: 'public',
                 table: 'matchmaking_tickets',
-                filter: `game_type=eq.${gameType}`,
+                filter: `id=eq.${ticketId}`,
             },
             () => {
                 scheduleRealtimeTicketRefresh(ticketId, generation);
@@ -1946,7 +2291,7 @@ function subscribeQuickPlayRealtime(gameType: string, ticketId: string, generati
 }
 
 function scheduleRealtimeTicketRefresh(ticketId: string, generation = quickPlayGeneration) {
-    if (!isCurrentQuickPlayGeneration(generation) || quickPlayState.ticket?.ticketId !== ticketId) {
+    if (!isCurrentQuickPlayGeneration(generation) || store.getState().quickPlay.ticket?.ticketId !== ticketId) {
         return;
     }
     if (quickPlayRealtimeRefreshTimer !== null) {
@@ -1959,16 +2304,15 @@ function scheduleRealtimeTicketRefresh(ticketId: string, generation = quickPlayG
         }
         try {
             const nextTicket = await getMatchmakingTicket(ticketId);
-            if (!isCurrentQuickPlayGeneration(generation) || quickPlayState.ticket?.ticketId !== ticketId) {
+            if (!isCurrentQuickPlayGeneration(generation) || store.getState().quickPlay.ticket?.ticketId !== ticketId) {
                 return;
             }
             handleQuickPlayTicketUpdate(nextTicket, generation);
         } catch (error) {
-            if (!isCurrentQuickPlayGeneration(generation) || quickPlayState.ticket?.ticketId !== ticketId) {
+            if (!isCurrentQuickPlayGeneration(generation) || store.getState().quickPlay.ticket?.ticketId !== ticketId) {
                 return;
             }
-            quickPlayState.errorMessage = toErrorMessage(error, 'Failed to refresh matchmaking queue');
-            updateActiveQueueBar();
+            store.dispatch({ type: 'QUICK_PLAY_ERROR', message: toErrorMessage(error, 'Failed to refresh matchmaking queue') });
         }
     }, 250);
 }
@@ -1984,7 +2328,7 @@ function updateActiveQueueBar() {
     const host = document.getElementById('activeQueueHost');
     if (!host) return;
     host.innerHTML = renderActiveQueueBar();
-    applyI18n(host, state.lang);
+    applyI18n(host, store.getState().lang);
     document.querySelector<HTMLButtonElement>('button[data-action="active-queue-leave"]')?.addEventListener('click', () => {
         void cancelQuickPlay();
     });
@@ -2038,8 +2382,14 @@ function readCasinoValueMap(publicState: Record<string, unknown> | null): Record
     return valueMap as Record<string, number[]>;
 }
 
-function randomToken(): string {
-    return `player-${Math.random().toString(36).slice(2, 8)}`;
+function getMockClientId(): string {
+    const key = 'bodegadk.mockClientId';
+    const existing = window.sessionStorage.getItem(key);
+    if (existing) return existing;
+
+    const generated = `mock-${Math.random().toString(36).slice(2, 8)}`;
+    window.sessionStorage.setItem(key, generated);
+    return generated;
 }
 
 function formatQueueDuration(seconds: number): string {
@@ -2050,10 +2400,10 @@ function formatQueueDuration(seconds: number): string {
 }
 
 function formatGameName(gameType: string): string {
-    if (gameType === 'snyd') return t(state.lang, 'game.cheat');
-    if (gameType === KRIG_GAME_ID) return t(state.lang, 'game.krig');
-    if (gameType === 'casino') return t(state.lang, 'game.casino');
-    if (gameType === HIGHCARD_GAME_ID) return t(state.lang, 'game.highcard');
+    if (gameType === 'snyd') return t(store.getState().lang, 'game.cheat');
+    if (gameType === KRIG_GAME_ID) return t(store.getState().lang, 'game.krig');
+    if (gameType === 'casino') return t(store.getState().lang, 'game.casino');
+    if (gameType === HIGHCARD_GAME_ID) return t(store.getState().lang, 'game.highcard');
     return gameType;
 }
 
@@ -2114,7 +2464,7 @@ function flashLobbyCopyFeedback() {
     lobbyCopyFeedbackTimer = window.setTimeout(() => {
         lobbyRoomUiState.copiedShareValue = false;
         lobbyCopyFeedbackTimer = null;
-        if (state.view === 'lobby') {
+        if (store.getState().view === 'lobby') {
             renderView();
         }
     }, 1600);
@@ -2137,7 +2487,7 @@ function rememberActiveLobby(route: AppRoute) {
 
 function resolveActiveLobbyRoute(): AppRoute | null {
     const route = activeLobbyState.route;
-    if (!route?.room || !route.token) {
+    if (!route?.room) {
         return null;
     }
     return { ...route, view: 'lobby' };
@@ -2148,7 +2498,7 @@ function clearActiveLobby() {
 }
 
 function restartActiveLobbySession(route: AppRoute) {
-    if (!route.room || !route.token) {
+    if (!route.room) {
         return;
     }
 
@@ -2156,14 +2506,13 @@ function restartActiveLobbySession(route: AppRoute) {
     ensureRoomSession(
         route.game ?? FALLBACK_LOBBY_GAME_ID,
         route.room,
-        route.token,
         route.mock,
     );
 }
 
 async function leavePreservedLobbyBeforeTransition(targetRoomCode?: string | null) {
     const activeLobby = resolveActiveLobbyRoute();
-    if (!activeLobby?.room || !activeLobby.token) {
+    if (!activeLobby?.room) {
         return;
     }
     if (targetRoomCode && activeLobby.room === targetRoomCode) {
@@ -2171,7 +2520,7 @@ async function leavePreservedLobbyBeforeTransition(targetRoomCode?: string | nul
     }
 
     try {
-        await leaveRoom({ roomCode: activeLobby.room, token: activeLobby.token });
+        await leaveRoom({ roomCode: activeLobby.room });
     } catch (error) {
         console.warn('[lobby] failed to leave preserved lobby before transition', error);
     } finally {
@@ -2211,11 +2560,13 @@ function syncActiveLobbySessionState() {
 }
 
 function getLobbyIdentity() {
-    const authenticatedUserId = authUiState.user?.id?.trim();
+    const authenticatedUserId = store.getState().auth.user?.id?.trim();
+    if (!authenticatedUserId) {
+        window.location.href = '/login';
+    }
     return {
-        playerId: authenticatedUserId || randomToken(),
-        username: authUiState.user?.username?.trim() || null,
-        token: randomToken(),
+        playerId: authenticatedUserId || '',
+        username: store.getState().auth.user?.username?.trim() || null,
     };
 }
 
@@ -2252,8 +2603,8 @@ function readLobbyPlayers(value: unknown, hostPlayerId: string | null, selfPlaye
                 playerId: record.playerId,
                 username: typeof record.username === 'string' && record.username.trim()
                     ? record.username.trim()
-                    : (record.playerId === selfPlayerId && authUiState.user?.username?.trim()
-                        ? authUiState.user.username.trim()
+                    : (record.playerId === selfPlayerId && store.getState().auth.user?.username?.trim()
+                        ? store.getState().auth.user!.username!.trim()
                     : formatPlayerDisplayName(record.playerId)),
             };
         })
@@ -2268,7 +2619,6 @@ function readLobbyPlayers(value: unknown, hostPlayerId: string | null, selfPlaye
 
 window.addEventListener('popstate', () => {
     syncStateFromRoute();
-    renderApp();
 });
 
 if (isSupabaseConfigured && supabase) {
@@ -2280,13 +2630,9 @@ if (isSupabaseConfigured && supabase) {
             } | null;
         } | null;
         const currentSession = session as AuthSession;
-        authUiState.initialized = true;
-        authUiState.user = currentSession?.user ? { id: currentSession.user.id, username: null } : null;
+        store.dispatch({ type: 'AUTH_INITIALIZED', user: currentSession?.user ? { id: currentSession.user.id, username: null } : null, avatar: null });
         if (!currentSession?.user) {
-            authUiState.avatar = null;
-            void syncActiveLobbyParticipantProfile().finally(() => {
-                renderApp();
-            });
+            void syncActiveLobbyParticipantProfile();
             return;
         }
 
@@ -2299,19 +2645,14 @@ if (isSupabaseConfigured && supabase) {
                     currentSession.user!.id,
                     currentSession.user?.user_metadata?.username
                 );
-                authUiState.user = { id: currentSession.user!.id, username };
-                authUiState.avatar = avatar;
+                store.dispatch({ type: 'AUTH_INITIALIZED', user: { id: currentSession.user!.id, username }, avatar });
                 await syncActiveLobbyParticipantProfile();
-                renderApp();
             })
             .catch(() => {
-                authUiState.user = { id: currentSession.user!.id, username: null };
-                authUiState.avatar = null;
-                renderApp();
+                store.dispatch({ type: 'AUTH_INITIALIZED', user: { id: currentSession.user!.id, username: null }, avatar: null });
             });
     });
 }
 void syncAuthState();
 
 syncStateFromRoute();
-renderApp();

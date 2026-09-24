@@ -3,6 +3,7 @@ import { buildPlayerNameMap } from './player-display.js';
 import type { GameAdapter, RoomBootstrap, RoomSessionState, RoomTransport, UiIntent } from './types.js';
 import { createWebSocketTransport } from './transport/ws-client.js';
 import { createMockServerTransport } from '../net/mock-server.js';
+import { getAccessTokenOrRedirect } from '../net/api.js';
 import { createDefaultCasinoValueMap, parseServerMessage, type ClientToServerMessage } from '../net/protocol.js';
 
 type SessionOptions<TPublic extends Record<string, unknown>, TPrivate extends Record<string, unknown>, TViewModel> = {
@@ -56,13 +57,16 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         store.dispatch({ type: 'SET_CONNECTION', connection: 'connecting' });
 
         transport.connect({
-            onOpen() {
+            async onOpen() {
                 store.dispatch({ type: 'SET_CONNECTION', connection: 'connected' });
+                const accessToken = options.bootstrap.useMock
+                    ? (options.bootstrap.mockClientId ?? options.bootstrap.roomCode)
+                    : await getAccessTokenOrRedirect();
                 transport?.send({
                     type: 'CONNECT',
                     payload: {
                         roomCode: options.bootstrap.roomCode,
-                        token: options.bootstrap.token,
+                        accessToken,
                         game: options.bootstrap.game,
                         setup: options.bootstrap.game.toLowerCase() === 'casino'
                             ? {
@@ -161,9 +165,12 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         const publicState = nextState.publicState;
         const faceUpCards = readStringRecord(publicState?.currentFaceUpCards);
         const lastTrick = readRecord(publicState?.lastTrick);
-        const battleRound = typeof lastTrick?.trickNumber === 'number' ? lastTrick.trickNumber : null;
+        // Each server presentation event gets its own id — use it as the animation trigger key.
+        const battleRound = typeof publicState?.presentationEventId === 'number' ? publicState.presentationEventId : null;
         const hasVisibleReveal = Object.values(faceUpCards).some((card) => typeof card === 'string' && card.length > 0);
         const presentation = nextState.krigPresentation;
+        // outcome === 'TIE' means war was just declared and players must flip their war card.
+        const isTieDeclared = lastTrick?.outcome === 'TIE';
 
         if (!hasVisibleReveal || battleRound === null) {
             if (presentation.phase !== 'idle' || presentation.activeBattleRound !== null) {
@@ -185,6 +192,7 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         }
 
         clearKrigTimers();
+
         dispatch({
             type: 'SET_KRIG_PRESENTATION',
             presentation: {
@@ -197,27 +205,42 @@ export function createGameRoomSession<TPublic extends Record<string, unknown>, T
         krigRevealTimer = setTimeout(() => {
             const current = store.getState();
             if (current.krigPresentation.activeBattleRound !== battleRound) return;
-            dispatch({
-                type: 'SET_KRIG_PRESENTATION',
-                presentation: {
-                    phase: 'result',
-                    activeBattleRound: battleRound,
-                    completedBattleRound: current.krigPresentation.completedBattleRound,
-                },
-            });
 
-            krigResultTimer = setTimeout(() => {
-                const latest = store.getState();
-                if (latest.krigPresentation.activeBattleRound !== battleRound) return;
+            if (isTieDeclared) {
+                // War declared: show tied cards face-up with flip button available.
+                // Stays in krig-reveal until war flip resolves (new presentationEventId).
                 dispatch({
                     type: 'SET_KRIG_PRESENTATION',
                     presentation: {
-                        phase: 'idle',
-                        activeBattleRound: null,
-                        completedBattleRound: battleRound,
+                        phase: 'krig-reveal',
+                        activeBattleRound: battleRound,
+                        completedBattleRound: current.krigPresentation.completedBattleRound,
                     },
                 });
-            }, 2000);
+            } else {
+                // Normal battle or war flip resolved: show result, then idle.
+                dispatch({
+                    type: 'SET_KRIG_PRESENTATION',
+                    presentation: {
+                        phase: 'result',
+                        activeBattleRound: battleRound,
+                        completedBattleRound: current.krigPresentation.completedBattleRound,
+                    },
+                });
+
+                krigResultTimer = setTimeout(() => {
+                    const latest = store.getState();
+                    if (latest.krigPresentation.activeBattleRound !== battleRound) return;
+                    dispatch({
+                        type: 'SET_KRIG_PRESENTATION',
+                        presentation: {
+                            phase: 'idle',
+                            activeBattleRound: null,
+                            completedBattleRound: battleRound,
+                        },
+                    });
+                }, 2000);
+            }
         }, 1200);
     }
 }

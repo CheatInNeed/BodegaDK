@@ -27,7 +27,7 @@ public abstract class FemAction extends GameAction {
         }
     }
 
-    /** Take the entire discard pile (must immediately meld or lose 50 pts). */
+    /** Take the entire discard pile. */
     public static class TakeDiscardPile extends FemAction {
         public TakeDiscardPile(String playerId) {
             super(playerId);
@@ -61,24 +61,6 @@ public abstract class FemAction extends GameAction {
         public String cardCode() { return cardCode; }
     }
 
-    /** Swap a real card for a joker in a meld, reclaiming the joker. */
-    public static class SwapJoker extends FemAction {
-        private final String meldId;
-        private final String jokerCode;
-        private final String realCardCode;
-
-        public SwapJoker(String playerId, String meldId, String jokerCode, String realCardCode) {
-            super(playerId);
-            this.meldId = meldId;
-            this.jokerCode = jokerCode;
-            this.realCardCode = realCardCode;
-        }
-
-        public String meldId() { return meldId; }
-        public String jokerCode() { return jokerCode; }
-        public String realCardCode() { return realCardCode; }
-    }
-
     /** Discard one card to end the turn. */
     public static class Discard extends FemAction {
         private final String cardCode;
@@ -89,24 +71,5 @@ public abstract class FemAction extends GameAction {
         }
 
         public String cardCode() { return cardCode; }
-    }
-
-    /** During grab phase, claim the discarded card to extend an existing meld. */
-    public static class ClaimDiscard extends FemAction {
-        private final String meldId;
-
-        public ClaimDiscard(String playerId, String meldId) {
-            super(playerId);
-            this.meldId = meldId;
-        }
-
-        public String meldId() { return meldId; }
-    }
-
-    /** During grab phase, decline to claim the discarded card. */
-    public static class PassGrab extends FemAction {
-        public PassGrab(String playerId) {
-            super(playerId);
-        }
     }
 }
