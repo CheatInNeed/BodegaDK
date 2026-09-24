@@ -47,6 +47,23 @@ public class WebPushNotificationService {
         ));
     }
 
+    public int sendToUser(String userId, PushPayload payload) {
+        if (!enabled() || userId == null || userId.isBlank()) {
+            return 0;
+        }
+
+        int sent = 0;
+        for (StoredPushSubscription subscription : subscriptionStore.findActiveByUserId(userId)) {
+            try {
+                sendToEndpoint(subscription.endpoint(), payload);
+                sent += 1;
+            } catch (IllegalStateException ignored) {
+                // A stale or rejected subscription should not block the domain action that triggered notification fan-out.
+            }
+        }
+        return sent;
+    }
+
     public void sendToEndpoint(String endpoint, PushPayload payload) {
         if (!enabled()) {
             throw new IllegalStateException("Push notifications are not configured");

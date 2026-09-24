@@ -26,7 +26,9 @@ import {
     enablePushNotifications,
     readPushStatus,
     registerPwaServiceWorker,
+    resolvePushRecipientUserId,
     sendTestPush,
+    syncPushSubscriptionIdentity,
     type PushStatus,
 } from './pwa.js';
 import {
@@ -403,6 +405,10 @@ function renderView() {
             </div>
           </div>
           <p class="card-desc push-install-hint" id="pushInstallHint" data-i18n="settings.push.installHint" hidden></p>
+          <div class="push-recipient-row">
+            <span data-i18n="settings.push.recipientLabel"></span>
+            <code id="pushRecipientId"></code>
+          </div>
           <p class="card-desc push-feedback" id="pushFeedback" aria-live="polite"></p>
         </article>
       </section>
@@ -1068,6 +1074,7 @@ async function refreshPushSettingsCard() {
     const bodyEl = document.getElementById('pushStatusBody');
     const deviceEl = document.getElementById('pushDeviceLabel');
     const hintEl = document.getElementById('pushInstallHint') as HTMLParagraphElement | null;
+    const recipientEl = document.getElementById('pushRecipientId');
     const enableBtn = document.getElementById('pushEnableBtn') as HTMLButtonElement | null;
     const disableBtn = document.getElementById('pushDisableBtn') as HTMLButtonElement | null;
     const testBtn = document.getElementById('pushTestBtn') as HTMLButtonElement | null;
@@ -1080,11 +1087,20 @@ async function refreshPushSettingsCard() {
     titleEl.textContent = t(state.lang, message.titleKey);
     bodyEl.textContent = t(state.lang, message.bodyKey);
     deviceEl.textContent = status.platformLabel;
+    if (recipientEl) {
+        recipientEl.textContent = resolvePushRecipientUserId(authUiState.user?.id ?? null);
+    }
     enableBtn.disabled = !status.supported || !status.configured || status.subscribed || status.permission === 'denied';
     disableBtn.disabled = !status.subscribed;
     testBtn.disabled = !status.subscribed;
     if (hintEl) {
         hintEl.hidden = !(status.coarsePointer && !status.standalone);
+    }
+    if (status.subscribed) {
+        await syncPushSubscriptionIdentity({
+            userId: authUiState.user?.id ?? null,
+            username: authUiState.user?.username ?? null,
+        }).catch(() => undefined);
     }
 }
 

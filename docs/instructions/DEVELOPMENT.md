@@ -198,6 +198,19 @@ viser at serveren mangler nøgler. `npm run server:local` bruger in-memory
 subscription storage; full-stack/Docker bruger Flyway-tabellen
 `public.push_subscriptions`.
 
+Friend-request notifications can be tested after one device has enabled push.
+If Supabase auth is unavailable, Settings shows a `Local test recipient` value
+such as `guest:<device-id>`. Use that value as `recipientUserId`:
+
+``` bash
+curl -X POST http://localhost:8080/friends/requests \
+  -H "Content-Type: application/json" \
+  -d '{"senderUserId":"sender-1","senderUsername":"Alice","recipientUserId":"guest:paste-local-test-recipient-here"}'
+```
+
+The response includes `notifiedDevices`, which is the count of recipient
+subscriptions that accepted the push delivery.
+
 ------------------------------------------------------------------------
 
 ## 3) Kør Full Stack (prod-like via Docker)

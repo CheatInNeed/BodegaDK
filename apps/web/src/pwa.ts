@@ -12,6 +12,7 @@ export type PushStatus = {
     standalone: boolean;
     coarsePointer: boolean;
     platformLabel: string;
+    recipientUserId: string;
     reason: string | null;
 };
 
@@ -87,6 +88,18 @@ export async function enablePushNotifications(input: { userId?: string | null; u
     return readPushStatus();
 }
 
+export async function syncPushSubscriptionIdentity(input: { userId?: string | null; username?: string | null }): Promise<void> {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        return;
+    }
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+        return;
+    }
+    await saveSubscription(subscription, input);
+}
+
 export async function disablePushNotifications(): Promise<PushStatus> {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
@@ -136,6 +149,7 @@ function createBaseStatus(): PushStatus {
         standalone: isStandaloneDisplay(),
         coarsePointer: window.matchMedia('(pointer: coarse)').matches,
         platformLabel: resolvePlatformLabel(),
+        recipientUserId: resolvePushRecipientUserId(null),
         reason: supported ? null : 'unsupported-browser',
     };
 }
@@ -150,6 +164,7 @@ async function fetchPushConfig(): Promise<PushConfigResponse> {
 
 async function saveSubscription(subscription: PushSubscription, input: { userId?: string | null; username?: string | null }) {
     const payload = subscription.toJSON() as PushSubscriptionPayload;
+    const deviceId = getDeviceId();
     const response = await fetch(`${resolveApiBaseUrl()}/push/subscriptions`, {
         method: 'POST',
         headers: {
@@ -157,9 +172,9 @@ async function saveSubscription(subscription: PushSubscription, input: { userId?
         },
         body: JSON.stringify({
             subscription: payload,
-            deviceId: getDeviceId(),
+            deviceId,
             deviceLabel: resolvePlatformLabel(),
-            userId: input.userId ?? null,
+            userId: resolvePushRecipientUserId(input.userId ?? null),
             username: input.username ?? null,
             userAgent: navigator.userAgent,
         }),
@@ -168,6 +183,14 @@ async function saveSubscription(subscription: PushSubscription, input: { userId?
     if (!response.ok) {
         throw new Error(await readErrorMessage(response, 'Failed to save push subscription'));
     }
+}
+
+export function resolvePushRecipientUserId(authUserId?: string | null): string {
+    const normalized = authUserId?.trim();
+    if (normalized) {
+        return normalized;
+    }
+    return `guest:${getDeviceId()}`;
 }
 
 async function deleteSubscription(subscription: PushSubscription) {

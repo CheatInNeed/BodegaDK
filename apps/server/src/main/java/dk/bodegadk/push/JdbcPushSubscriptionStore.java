@@ -62,6 +62,20 @@ public class JdbcPushSubscriptionStore implements PushSubscriptionStore {
     }
 
     @Override
+    public List<StoredPushSubscription> findActiveByUserId(String userId) {
+        return jdbcTemplate.query(
+                """
+                select endpoint, p256dh_key, auth_key, user_id, username, device_id, device_label, user_agent, created_at, last_seen_at
+                from public.push_subscriptions
+                where user_id = ? and active = true
+                order by last_seen_at desc
+                """,
+                mapper(),
+                userId
+        );
+    }
+
+    @Override
     public List<StoredPushSubscription> activeSubscriptions() {
         return jdbcTemplate.query(
                 """

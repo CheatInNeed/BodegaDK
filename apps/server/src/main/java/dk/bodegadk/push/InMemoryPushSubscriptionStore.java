@@ -19,6 +19,13 @@ public class InMemoryPushSubscriptionStore implements PushSubscriptionStore {
     }
 
     @Override
+    public List<StoredPushSubscription> findActiveByUserId(String userId) {
+        return subscriptions.values().stream()
+                .filter(subscription -> userId != null && userId.equals(subscription.userId()))
+                .toList();
+    }
+
+    @Override
     public List<StoredPushSubscription> activeSubscriptions() {
         return subscriptions.values().stream().toList();
     }

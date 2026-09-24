@@ -310,6 +310,43 @@ server configuration.
 
 ------------------------------------------------------------------------
 
+# REST API (Friends)
+
+## POST /friends/requests
+
+Creates a pending friend request and sends a Web Push notification to the
+recipient's active subscribed devices when push is configured.
+
+### Request
+
+``` json
+{
+  "senderUserId": "supabase-user-id",
+  "senderUsername": "Alice",
+  "recipientUserId": "supabase-user-id"
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true,
+  "requestId": "uuid",
+  "senderUserId": "supabase-user-id",
+  "senderUsername": "Alice",
+  "recipientUserId": "supabase-user-id",
+  "status": "PENDING",
+  "notifiedDevices": 1
+}
+```
+
+`notifiedDevices` counts successful Web Push deliveries. The friend request is
+still created when push is not configured or the recipient has no active device
+subscriptions.
+
+------------------------------------------------------------------------
+
 # WebSocket
 
 Endpoint:

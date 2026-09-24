@@ -1152,6 +1152,26 @@ select.input {
     gap: var(--s2);
 }
 
+.push-recipient-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s2);
+    align-items: center;
+    color: var(--color-muted);
+    font-family: var(--font-ui);
+    font-size: 14px;
+}
+
+.push-recipient-row code {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text-strong);
+    background: rgba(255, 255, 255, 0.04);
+}
+
 @media (max-width: 1100px) {
     .home-card-wide {
         grid-column: span 12;

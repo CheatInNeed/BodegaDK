@@ -36,6 +36,16 @@ export type JoinRoomResponse = {
 
 export type RoomActionResponse = { ok: boolean };
 
+export type FriendRequestResponse = {
+    ok: boolean;
+    requestId: string;
+    senderUserId: string;
+    senderUsername: string | null;
+    recipientUserId: string;
+    status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
+    notifiedDevices: number;
+};
+
 export type MatchmakingResponse = {
     ticketId: string;
     gameType: string;
@@ -191,6 +201,22 @@ export async function cancelMatchmakingTicket(ticketId: string): Promise<void> {
 
     const suffix = details ? `: ${details}` : '';
     throw new Error(`Failed to cancel matchmaking ticket (${response.status})${suffix}`);
+}
+
+export async function sendFriendRequest(input: {
+    senderUserId: string;
+    senderUsername?: string | null;
+    recipientUserId: string;
+}): Promise<FriendRequestResponse> {
+    const response = await fetch(`${resolveApiBaseUrl()}/friends/requests`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(input),
+    });
+
+    return parseJsonResponse<FriendRequestResponse>(response, 'Failed to send friend request');
 }
 
 async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {

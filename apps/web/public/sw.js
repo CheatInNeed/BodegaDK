@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bodegadk-shell-v1';
+const CACHE_NAME = 'bodegadk-shell-v2';
 const APP_SHELL = [
     '/',
     '/index.html',
@@ -36,16 +36,13 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws')) return;
     if (url.pathname === '/app-config.js') return;
 
+    if (url.pathname.startsWith('/dist/') || url.pathname === '/styles.css' || url.pathname === '/manifest.webmanifest') {
+        event.respondWith(networkFirst(request));
+        return;
+    }
+
     if (request.mode === 'navigate') {
-        event.respondWith(
-            fetch(request)
-                .then((response) => {
-                    const copy = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
-                    return response;
-                })
-                .catch(() => caches.match('/index.html'))
-        );
+        event.respondWith(networkFirst(request, '/index.html'));
         return;
     }
 
@@ -112,4 +109,16 @@ function readPushPayload(data, fallback) {
             body: data.text(),
         };
     }
+}
+
+function networkFirst(request, fallbackKey) {
+    return fetch(request)
+        .then((response) => {
+            if (response.ok) {
+                const copy = response.clone();
+                caches.open(CACHE_NAME).then((cache) => cache.put(fallbackKey || request, copy));
+            }
+            return response;
+        })
+        .catch(() => caches.match(fallbackKey || request));
 }

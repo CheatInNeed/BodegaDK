@@ -8,6 +8,8 @@ public interface PushSubscriptionStore {
 
     Optional<StoredPushSubscription> findActiveByEndpoint(String endpoint);
 
+    List<StoredPushSubscription> findActiveByUserId(String userId);
+
     List<StoredPushSubscription> activeSubscriptions();
 
     boolean deleteByEndpoint(String endpoint);
