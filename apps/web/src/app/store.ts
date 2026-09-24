@@ -139,17 +139,20 @@ export function createAppStore(initial: AppState) {
 function reducer(state: AppState, action: AppAction): AppState {
     switch (action.type) {
         case 'AUTH_INITIALIZED':
+            if (state.auth.initialized && state.auth.user === action.user && state.auth.avatar === action.avatar) return state;
             return { ...state, auth: { initialized: true, user: action.user, avatar: action.avatar } };
         case 'AUTH_SIGNED_OUT':
             return { ...state, auth: { initialized: true, user: null, avatar: null } };
 
         case 'SET_LANG':   return { ...state, lang: action.lang };
         case 'SET_THEME':  return { ...state, theme: action.theme };
-        case 'SET_VIEW':   return { ...state, view: action.view, route: action.route };
+        case 'SET_VIEW':
+            if (state.view === action.view && state.route.game === action.route.game && state.route.room === action.route.room && state.route.mock === action.route.mock) return state;
+            return { ...state, view: action.view, route: action.route };
         case 'TOGGLE_SIDEBAR': return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
 
-        case 'NOTIFICATIONS_OPEN':    return { ...state, notifications: { ...state.notifications, open: true } };
-        case 'NOTIFICATIONS_CLOSE':   return { ...state, notifications: { ...state.notifications, open: false } };
+        case 'NOTIFICATIONS_OPEN':    if (state.notifications.open) return state; return { ...state, notifications: { ...state.notifications, open: true } };
+        case 'NOTIFICATIONS_CLOSE':   if (!state.notifications.open) return state; return { ...state, notifications: { ...state.notifications, open: false } };
         case 'NOTIFICATIONS_LOADING': return { ...state, notifications: { ...state.notifications, loading: true, errorMessage: null } };
         case 'NOTIFICATIONS_LOADED':  return { ...state, notifications: { ...state.notifications, loading: false, items: action.items, unreadCount: action.unreadCount } };
         case 'NOTIFICATIONS_ERROR':   return { ...state, notifications: { ...state.notifications, loading: false, errorMessage: action.message } };

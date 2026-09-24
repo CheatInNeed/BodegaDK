@@ -1957,7 +1957,6 @@ function applyAuthUI() {
             avatarDisplay.style.background = '';
         }
         notificationsBtn?.classList.add('hidden');
-        store.dispatch({ type: 'NOTIFICATIONS_CLOSE' });
         return;
     }
 
