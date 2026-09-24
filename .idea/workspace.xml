@@ -4,35 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="finished call sites, updated documentation,">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/SecurityConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/config/WebMvcConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/PushSubscriptionStoreConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/PushSubscriptionStoreConfiguration.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/FriendController.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/PushController.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/rest/PushController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcFriendsStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcFriendsStore.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/FriendRequest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/FriendRequestService.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/FriendRequestStore.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/FriendRequestStoreConfiguration.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/InMemoryFriendRequestStore.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/social/JdbcFriendRequestStore.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/resources/db/migration/V5__push_subscriptions.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/resources/db/migration/V6__friend_requests.sql" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/FemEnginePortAdapterTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/FemEnginePortAdapterTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/social/FriendRequestServiceTest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/i18n.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/i18n.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/net/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/net/api.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/pwa.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/pwa.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/PROTOCOL.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/run-local-env.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/run-local-env.mjs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/supabase/migrations/202604231200_friend_requests.sql" beforeDir="false" />
-    </list>
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="finished call sites, updated documentation," />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -51,7 +23,7 @@
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="database-overhaul" />
+        <entry key="$PROJECT_DIR$" value="feature/push_notifications" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -149,7 +121,7 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "git-widget-placeholder": "feature/push__notifications",
+    "git-widget-placeholder": "dev",
     "ignore.virus.scanning.warn.message": "true",
     "javascript.preferred.runtime.type.id": "node",
     "last_opened_file_path": "/Users/ivanviemoescuevas/IdeaProjects/BodegaDK",
@@ -329,7 +301,15 @@
       <option name="project" value="LOCAL" />
       <updated>1777398726761</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="Merged dev into this, and should work with notifications now...">
+      <option name="closed" value="true" />
+      <created>1790255661632</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1790255661632</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -383,7 +363,8 @@
     <MESSAGE value="Added safe secrets to the local scripts" />
     <MESSAGE value="script updates" />
     <MESSAGE value="finished call sites, updated documentation," />
-    <option name="LAST_COMMIT_MESSAGE" value="finished call sites, updated documentation," />
+    <MESSAGE value="Merged dev into this, and should work with notifications now..." />
+    <option name="LAST_COMMIT_MESSAGE" value="Merged dev into this, and should work with notifications now..." />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>
