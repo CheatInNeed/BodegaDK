@@ -2,6 +2,7 @@ package dk.bodegadk.push;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dk.bodegadk.metrics.BodegaMetrics;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 import org.apache.http.HttpResponse;
@@ -23,12 +24,15 @@ public class WebPushNotificationService {
     private final PushProperties properties;
     private final PushSubscriptionStore subscriptionStore;
     private final ObjectMapper objectMapper;
+    private final BodegaMetrics metrics;
 
     public WebPushNotificationService(
             PushProperties properties,
             PushSubscriptionStore subscriptionStore,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            BodegaMetrics metrics
     ) {
+        this.metrics = metrics;
         this.properties = properties;
         this.subscriptionStore = subscriptionStore;
         this.objectMapper = objectMapper;
@@ -63,9 +67,11 @@ public class WebPushNotificationService {
             try {
                 sendToEndpoint(subscription.endpoint(), payload);
                 sent += 1;
+                metrics.push("sent");
             } catch (IllegalStateException exception) {
                 // A stale or rejected subscription should not block the domain action that triggered notification fan-out.
                 log.warn("Push notification to user {} failed: {}", userId, describe(exception));
+                metrics.push("failed");
             }
         }
         return sent;
@@ -96,6 +102,7 @@ public class WebPushNotificationService {
             if (statusCode == HTTP_GONE || statusCode == HTTP_NOT_FOUND) {
                 log.info("Removing expired push subscription for user {} (push service answered {})", subscription.userId(), statusCode);
                 subscriptionStore.deleteByEndpoint(endpoint);
+                metrics.push("expired");
             }
             if (statusCode >= 400) {
                 throw new IllegalStateException("Push service rejected notification with status " + statusCode);

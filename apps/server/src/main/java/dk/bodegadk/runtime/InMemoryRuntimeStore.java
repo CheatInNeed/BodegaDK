@@ -454,6 +454,11 @@ public class InMemoryRuntimeStore {
         maxPlayersByGame.put(normalizeGameType(gameType), maxPlayers);
     }
 
+    /** Number of rooms currently held in memory with the given status (used by metrics). */
+    public long countRooms(RoomStatus status) {
+        return rooms.values().stream().filter(room -> room.status == status).count();
+    }
+
     public void submit(String roomCode, Runnable command) {
         ExecutorService executor = roomExecutors.computeIfAbsent(roomCode, key -> Executors.newSingleThreadExecutor());
         // executor.submit() stores exceptions in a Future nobody reads, so without this catch a

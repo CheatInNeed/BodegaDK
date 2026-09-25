@@ -2,7 +2,9 @@ package dk.bodegadk.ws;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import dk.bodegadk.metrics.BodegaMetrics;
 import dk.bodegadk.runtime.GameLoopService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
 import dk.bodegadk.runtime.MatchHistoryStore;
 import dk.bodegadk.runtime.RoomMetadataStore;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -43,6 +46,7 @@ class GameWsHandlerLoggingTest {
     private MatchHistoryStore matchHistoryStore;
     private WebSocketSession session;
     private GameWsHandler handler;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -69,7 +73,9 @@ class GameWsHandlerLoggingTest {
         when(session.getId()).thenReturn("ws-1");
         when(session.isOpen()).thenReturn(true);
 
-        handler = new GameWsHandler(new ObjectMapper(), runtimeStore, gameLoopService, roomMetadataStore, matchHistoryStore, jwtDecoder);
+        meterRegistry = new SimpleMeterRegistry();
+        handler = new GameWsHandler(new ObjectMapper(), runtimeStore, gameLoopService, roomMetadataStore, matchHistoryStore, jwtDecoder,
+                new BodegaMetrics(meterRegistry));
         handler.afterConnectionEstablished(session);
         handler.handleTextMessage(session, new TextMessage(
                 "{\"type\":\"CONNECT\",\"payload\":{\"roomCode\":\"" + ROOM + "\",\"accessToken\":\"token\"}}"));
@@ -91,6 +97,33 @@ class GameWsHandlerLoggingTest {
         verify(session, timeout(2000)).sendMessage(messageContaining("action failed on server"));
         assertTrue(output.getAll().contains("Game action PLAY_CARDS failed"));
         assertTrue(output.getAll().contains("engine bug"));
+        assertEquals(1, actionCount("crash"));
+        assertEquals(1, handler.connectedPlayerCount());
+    }
+
+    @Test
+    void rejectedConnectIsCountedByReason() {
+        WebSocketSession stranger = mock(WebSocketSession.class);
+        when(stranger.getId()).thenReturn("ws-2");
+        when(stranger.isOpen()).thenReturn(true);
+
+        handler.afterConnectionEstablished(stranger);
+        handler.handleTextMessage(stranger, new TextMessage("{\"type\":\"CONNECT\",\"payload\":{\"roomCode\":\"NOPE\",\"accessToken\":\"token\"}}"));
+
+        assertEquals(1.0, meterRegistry.get("bodegadk.ws.connect.rejected").tag("reason", "room_not_found").counter().count());
+    }
+
+    private long actionCount(String outcome) {
+        // The timer is recorded in a finally block on the room thread, just after the reply is sent, so poll briefly.
+        long deadline = System.currentTimeMillis() + 2000;
+        while (System.currentTimeMillis() < deadline) {
+            var timer = meterRegistry.find("bodegadk.game.action").tag("outcome", outcome).tag("game", "snyd").timer();
+            if (timer != null && timer.count() > 0) {
+                return timer.count();
+            }
+            Thread.onSpinWait();
+        }
+        return 0;
     }
 
     @Test
@@ -104,6 +137,9 @@ class GameWsHandlerLoggingTest {
 
         verify(session, timeout(2000)).sendMessage(messageContaining("GAME_FINISHED"));
         assertTrue(output.getAll().contains("Failed to save match history"));
+        assertEquals(1.0, meterRegistry.get("bodegadk.match.history.failures").counter().count());
+        assertEquals(1.0, meterRegistry.get("bodegadk.games.finished").tag("game", "snyd").counter().count());
+        assertEquals(1, actionCount("ok"));
     }
 
     private static WebSocketMessage<?> messageContaining(String text) {

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.logging.LogContext;
+import dk.bodegadk.metrics.BodegaMetrics;
+import io.micrometer.core.instrument.Timer;
 import dk.bodegadk.runtime.GameLoopService;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
 import dk.bodegadk.runtime.MatchmakingService;
@@ -41,17 +43,24 @@ public class GameWsHandler extends TextWebSocketHandler {
     private final RoomMetadataStore roomMetadataStore;
     private final MatchHistoryStore matchHistoryStore;
     private final JwtDecoder jwtDecoder;
+    private final BodegaMetrics metrics;
 
     private final ConcurrentMap<String, WebSocketSession> sessionsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ConnectionBinding> bindingsById = new ConcurrentHashMap<>();
 
-    public GameWsHandler(ObjectMapper objectMapper, InMemoryRuntimeStore runtimeStore, GameLoopService gameLoopService, RoomMetadataStore roomMetadataStore, MatchHistoryStore matchHistoryStore, JwtDecoder jwtDecoder) {
+    public GameWsHandler(ObjectMapper objectMapper, InMemoryRuntimeStore runtimeStore, GameLoopService gameLoopService, RoomMetadataStore roomMetadataStore, MatchHistoryStore matchHistoryStore, JwtDecoder jwtDecoder, BodegaMetrics metrics) {
         this.objectMapper = objectMapper;
         this.runtimeStore = runtimeStore;
         this.gameLoopService = gameLoopService;
         this.roomMetadataStore = roomMetadataStore;
         this.matchHistoryStore = matchHistoryStore;
         this.jwtDecoder = jwtDecoder;
+        this.metrics = metrics;
+    }
+
+    /** Sockets that completed CONNECT and are bound to a room (exported as a gauge). */
+    public long connectedPlayerCount() {
+        return bindingsById.values().stream().filter(ConnectionBinding::connected).count();
     }
 
     @Override
@@ -137,6 +146,7 @@ public class GameWsHandler extends TextWebSocketHandler {
                     .with(LogContext.ROOM_CODE, expired.roomCode())
                     .with(LogContext.PLAYER_ID, expired.playerId())) {
                 log.info("Heartbeat timeout: closing player session");
+                metrics.heartbeatTimeout();
                 closeSessionByToken(expired.token(), "HEARTBEAT_TIMEOUT");
                 publishRoomMutation(expired.mutation());
             }
@@ -173,6 +183,7 @@ public class GameWsHandler extends TextWebSocketHandler {
         try (LogContext context = LogContext.open().with(LogContext.ROOM_CODE, LogContext.sanitize(roomCode))) {
             if (roomCode.isBlank() || accessToken.isBlank()) {
                 log.warn("CONNECT rejected: missing roomCode or accessToken");
+                metrics.connectRejected("missing_fields");
                 sendError(session, "BAD_MESSAGE: invalid envelope or type");
                 closeQuietly(session);
                 return;
@@ -183,6 +194,7 @@ public class GameWsHandler extends TextWebSocketHandler {
                 jwt = jwtDecoder.decode(accessToken);
             } catch (JwtException exception) {
                 log.warn("CONNECT rejected: invalid access token ({})", exception.getMessage());
+                metrics.connectRejected("invalid_token");
                 sendError(session, "AUTH_REQUIRED: invalid access token");
                 closeQuietly(session);
                 return;
@@ -190,6 +202,7 @@ public class GameWsHandler extends TextWebSocketHandler {
             String userId = jwt.getSubject();
             if (userId == null || userId.isBlank()) {
                 log.warn("CONNECT rejected: access token has no subject");
+                metrics.connectRejected("invalid_token");
                 sendError(session, "AUTH_REQUIRED: invalid access token");
                 closeQuietly(session);
                 return;
@@ -199,12 +212,14 @@ public class GameWsHandler extends TextWebSocketHandler {
             RoomMetadataStore.StoredRoom storedRoom = roomMetadataStore.room(roomCode).orElse(null);
             if (storedRoom == null) {
                 log.warn("CONNECT rejected: room not found");
+                metrics.connectRejected("room_not_found");
                 sendError(session, "SESSION_NOT_READY: session validation unavailable");
                 closeQuietly(session);
                 return;
             }
             if (storedRoom.participants().stream().noneMatch(player -> userId.equals(player.playerId()))) {
                 log.warn("CONNECT rejected: user is not a participant of the room");
+                metrics.connectRejected("not_participant");
                 sendError(session, "SESSION_NOT_READY: session validation unavailable");
                 closeQuietly(session);
                 return;
@@ -218,6 +233,7 @@ public class GameWsHandler extends TextWebSocketHandler {
             Optional<String> roomGameType = runtimeStore.roomGameType(roomCode);
             if (roomGameType.isEmpty()) {
                 log.warn("CONNECT rejected: room has no game type in runtime memory");
+                metrics.connectRejected("room_not_ready");
                 sendError(session, "SESSION_NOT_READY: session validation unavailable");
                 closeQuietly(session);
                 return;
@@ -225,6 +241,7 @@ public class GameWsHandler extends TextWebSocketHandler {
             if (!requestedGame.isBlank() && !roomGameType.get().equalsIgnoreCase(requestedGame)) {
                 log.warn("CONNECT rejected: client asked for game {} but room plays {}",
                         LogContext.sanitize(requestedGame), roomGameType.get());
+                metrics.connectRejected("game_mismatch");
                 sendError(session, "BAD_MESSAGE: invalid envelope or type");
                 closeQuietly(session);
                 return;
@@ -232,6 +249,7 @@ public class GameWsHandler extends TextWebSocketHandler {
             Optional<String> connectError = gameLoopService.handleConnect(roomCode, inbound.payload);
             if (connectError.isPresent()) {
                 log.warn("CONNECT rejected by game engine: {}", connectError.get());
+                metrics.connectRejected("engine_rejected");
                 sendError(session, connectError.get());
                 closeQuietly(session);
                 return;
@@ -240,6 +258,7 @@ public class GameWsHandler extends TextWebSocketHandler {
             Optional<InMemoryRuntimeStore.PlayerSession> resolved = runtimeStore.resolveConnect(roomCode, token);
             if (resolved.isEmpty()) {
                 log.warn("CONNECT rejected: runtime session could not be resolved");
+                metrics.connectRejected("session_unresolved");
                 sendError(session, "SESSION_NOT_READY: session validation unavailable");
                 closeQuietly(session);
                 return;
@@ -298,13 +317,22 @@ public class GameWsHandler extends TextWebSocketHandler {
         runtimeStore.submit(binding.roomCode, () -> {
             // The room worker runs on another thread, so the log tags must be set again here.
             try (LogContext ignored = logContext(actorSession.getId(), binding).with(LogContext.REQUEST_ID, command.requestId())) {
+                Timer.Sample timer = metrics.startTimer();
+                String game = runtimeStore.roomGameType(binding.roomCode).orElse(null);
+                String outcome = BodegaMetrics.OUTCOME_OK;
                 try {
                     log.debug("Handling game action {}", actionType);
                     GameLoopService.LoopResult result = gameLoopService.handleAction(command);
+                    if (result == null || result.isError()) {
+                        outcome = BodegaMetrics.OUTCOME_REJECTED;
+                    }
                     publishResult(actorSession.getId(), binding.roomCode, inbound.type, result);
                 } catch (RuntimeException exception) {
+                    outcome = BodegaMetrics.OUTCOME_CRASH;
                     log.error("Game action {} failed", actionType, exception);
                     sendError(sessionsById.get(actorSession.getId()), "RULES_NOT_AVAILABLE: action failed on server");
+                } finally {
+                    metrics.recordGameAction(timer, game, outcome);
                 }
             }
         });
@@ -335,13 +363,16 @@ public class GameWsHandler extends TextWebSocketHandler {
             }
         }
 
+        String game = runtimeStore.roomGameType(roomCode).orElse(null);
         if ("START_GAME".equals(actionType)) {
             log.info("Game started");
+            metrics.gameStarted(game);
             roomMetadataStore.updateRoomStatus(roomCode, InMemoryRuntimeStore.RoomStatus.IN_GAME);
         }
 
         if (result.finished()) {
             log.info("Game finished (winner={})", result.winnerPlayerId());
+            metrics.gameFinished(game);
             ObjectNode payload = objectMapper.createObjectNode();
             payload.put("winnerPlayerId", result.winnerPlayerId());
             try {
@@ -349,6 +380,7 @@ public class GameWsHandler extends TextWebSocketHandler {
             } catch (RuntimeException exception) {
                 // Players should still see the result even if saving match history fails.
                 log.error("Failed to save match history", exception);
+                metrics.matchHistoryFailure();
             }
             broadcastToRoom(roomCode, "GAME_FINISHED", payload);
         }
