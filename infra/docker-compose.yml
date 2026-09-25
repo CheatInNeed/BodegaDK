@@ -1,7 +1,15 @@
+x-logging: &default-logging
+  # Rotate container logs so they cannot fill the host disk (max 3 x 10 MB per container).
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   nginx:
     image: nginx:alpine
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
     volumes:
@@ -14,8 +22,11 @@ services:
     build:
       context: ../apps/server
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL:?SPRING_DATASOURCE_URL is required}
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME:?SPRING_DATASOURCE_USERNAME is required}
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD is required}
       - SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER:?SUPABASE_JWT_ISSUER is required}
+      # Set BODEGADK_LOG_LEVEL=DEBUG in .env.deploy to see every request and game action.
+      - LOGGING_LEVEL_DK_BODEGADK=${BODEGADK_LOG_LEVEL:-INFO}

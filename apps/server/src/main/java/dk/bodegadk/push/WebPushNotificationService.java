@@ -6,6 +6,8 @@ import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 import org.apache.http.HttpResponse;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Security;
@@ -14,6 +16,7 @@ import java.util.NoSuchElementException;
 
 @Service
 public class WebPushNotificationService {
+    private static final Logger log = LoggerFactory.getLogger(WebPushNotificationService.class);
     private static final int HTTP_GONE = 410;
     private static final int HTTP_NOT_FOUND = 404;
 
@@ -31,6 +34,9 @@ public class WebPushNotificationService {
         this.objectMapper = objectMapper;
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
             Security.addProvider(new BouncyCastleProvider());
+        }
+        if (!properties.enabled()) {
+            log.info("Web push is disabled: VAPID keys are not configured");
         }
     }
 
@@ -57,8 +63,9 @@ public class WebPushNotificationService {
             try {
                 sendToEndpoint(subscription.endpoint(), payload);
                 sent += 1;
-            } catch (IllegalStateException ignored) {
+            } catch (IllegalStateException exception) {
                 // A stale or rejected subscription should not block the domain action that triggered notification fan-out.
+                log.warn("Push notification to user {} failed: {}", userId, describe(exception));
             }
         }
         return sent;
@@ -87,6 +94,7 @@ public class WebPushNotificationService {
             HttpResponse response = pushService.send(notification);
             int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode == HTTP_GONE || statusCode == HTTP_NOT_FOUND) {
+                log.info("Removing expired push subscription for user {} (push service answered {})", subscription.userId(), statusCode);
                 subscriptionStore.deleteByEndpoint(endpoint);
             }
             if (statusCode >= 400) {
@@ -122,6 +130,11 @@ public class WebPushNotificationService {
                 now,
                 now
         );
+    }
+
+    private static String describe(Exception exception) {
+        Throwable cause = exception.getCause();
+        return cause == null ? exception.getMessage() : exception.getMessage() + ": " + cause;
     }
 
     private String clean(String value) {

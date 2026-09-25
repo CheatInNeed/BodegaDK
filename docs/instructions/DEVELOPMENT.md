@@ -404,4 +404,16 @@ og at du har kørt:
 npm run web:build
 ```
 
+### Læs server-logs
+
+Lokalt (`npm run server:local`) logger serveren på DEBUG, så du ser hver
+REST-request og hver game action i terminalen. I Docker:
+
+``` bash
+cd infra && docker compose logs -f server
+```
+
+Se `docs/instructions/LOGGING.md` for hvad logs indeholder, log levels og
+hvordan man følger ét room eller én request.
+
 ------------------------------------------------------------------------

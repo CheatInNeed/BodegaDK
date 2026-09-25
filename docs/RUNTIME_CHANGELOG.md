@@ -1,5 +1,36 @@
 # Runtime Changelog
 
+## 2026-09-25 -- Server logging (observability phase 1)
+
+### What changed
+- **Room task crashes are no longer silent**: `InMemoryRuntimeStore.submit` now
+  logs exceptions from room worker tasks. Before, `executor.submit` stored them
+  in an unread `Future`, so a crashing engine left the room looking frozen with
+  nothing in the logs.
+- **Crashing game actions answer the player**: `GameWsHandler` catches
+  unexpected exceptions from a game action, logs them with a stack trace, and
+  sends the actor `ERROR` with `RULES_NOT_AVAILABLE: action failed on server`
+  (existing error prefix, no protocol change).
+- **Match results survive a history write failure**: if
+  `recordCompletedMatch` throws, the error is logged and `GAME_FINISHED` is
+  still broadcast. Before, the players never received the result.
+- **WebSocket lifecycle logging**: connect, CONNECT rejections with reason,
+  disconnects, heartbeat timeouts, transport errors, invalid messages, game
+  start/finish and room close.
+- **Push logging**: failed push sends are logged as WARN instead of ignored;
+  expired subscriptions and "push disabled" are logged at INFO.
+- **Request IDs and log tags**: new `dk.bodegadk.logging` package.
+  `RequestIdFilter` tags every REST request and returns `X-Request-Id`;
+  `LogContext` adds `req`, `room` and `player` tags to log lines;
+  `UnexpectedErrorLoggingResolver` logs unhandled REST exceptions with the
+  request ID (the 500 response body is unchanged).
+- **Infra**: nginx forwards `X-Request-Id: $request_id` to the server; Docker
+  logs rotate at 3 x 10 MB; `BODEGADK_LOG_LEVEL` sets the server log level.
+
+### Why
+The server previously wrote no application logs at all, and several failures
+were swallowed without a trace. See `docs/instructions/LOGGING.md`.
+
 ## 2026-04-29 -- Supabase V1 Platform, Friends, Challenges, Notifications
 
 ### What changed

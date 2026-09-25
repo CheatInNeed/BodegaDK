@@ -12,6 +12,15 @@ spring:
 server:
   port: 8080
 
+logging:
+  level:
+    # Our own code. Override at runtime with LOGGING_LEVEL_DK_BODEGADK=DEBUG.
+    dk.bodegadk: INFO
+  pattern:
+    # Prints the LogContext (MDC) tags on every line, e.g. "req=4f1c… room=ABCD player=9b2e…".
+    # Each tag is left out when it is not set, so plain startup lines stay short.
+    correlation: "%replace(req=%X{requestId} ){'^req= $', ''}%replace(room=%X{roomCode} ){'^room= $', ''}%replace(player=%X{playerId} ){'^player= $', ''}"
+
 bodegadk:
   push:
     public-key: ${BODEGADK_VAPID_PUBLIC_KEY:}
