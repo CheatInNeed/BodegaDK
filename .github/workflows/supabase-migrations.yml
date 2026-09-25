@@ -89,7 +89,7 @@ jobs:
 
       - name: Dry-run migration deploy
         if: steps.migrations.outputs.has_migrations == 'true'
-        run: supabase db push --linked --dry-run
+        run: supabase db push --linked --dry-run --include-all
 
       - name: Apply migrations
         if: steps.migrations.outputs.has_migrations == 'true'
