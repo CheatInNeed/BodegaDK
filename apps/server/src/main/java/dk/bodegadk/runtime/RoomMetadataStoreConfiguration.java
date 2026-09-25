@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dk.bodegadk.push.WebPushNotificationService;
 
 @Configuration
 public class RoomMetadataStoreConfiguration {
@@ -39,8 +40,12 @@ public class RoomMetadataStoreConfiguration {
     }
 
     @Bean
-    FriendsStore friendsStore(JdbcTemplate jdbcTemplate, NotificationsStore notificationsStore) {
-        return new JdbcFriendsStore(jdbcTemplate, notificationsStore);
+    FriendsStore friendsStore(
+            JdbcTemplate jdbcTemplate,
+            NotificationsStore notificationsStore,
+            WebPushNotificationService pushNotificationService
+    ) {
+        return new JdbcFriendsStore(jdbcTemplate, notificationsStore, pushNotificationService);
     }
 
     @Bean

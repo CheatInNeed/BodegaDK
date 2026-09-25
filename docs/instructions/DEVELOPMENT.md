@@ -199,6 +199,28 @@ Supabase public config og JWT issuer bliver sat automatisk af npm scripts.
 Database credentials skal stadig sættes eksplicit via shell env eller
 `.env.local`, fordi de er private secrets.
 
+### PWA og push lokalt
+
+PWA service workers virker på `localhost`, så install/status-flow kan testes
+fra `http://localhost:5173`.
+
+For at oprette rigtige push subscriptions og sende testnotifikationer skal
+serveren have VAPID-nøgler:
+
+``` bash
+export BODEGADK_VAPID_PUBLIC_KEY="base64url-public-key"
+export BODEGADK_VAPID_PRIVATE_KEY="base64url-private-key"
+export BODEGADK_VAPID_SUBJECT="mailto:admin@example.com"
+```
+
+Uden disse nøgler returnerer `GET /push/config` `enabled: false`, og Settings
+viser at serveren mangler nøgler. Push subscriptions gemmes i Supabase-tabellen
+`public.push_subscriptions`.
+
+Friend-request push notifications can be tested by logging in as the recipient
+in one installed app/browser, enabling push in Settings, then logging in as
+another user and sending a friend request from Profile using `Send anmodning`.
+
 ------------------------------------------------------------------------
 
 ## 3) Kør Full Stack (prod-like via Docker)

@@ -143,6 +143,7 @@ apps/web/
     i18n.ts
     app/
       router.ts
+      store.ts
     game-room/
       types.ts
       store.ts

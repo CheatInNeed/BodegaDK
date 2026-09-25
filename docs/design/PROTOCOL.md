@@ -202,6 +202,105 @@ Annullerer en quick-play ticket.
 
 ------------------------------------------------------------------------
 
+# REST API (PWA / Push)
+
+## GET /push/config
+
+Returns whether the backend is configured for Web Push.
+
+### Response
+
+``` json
+{
+  "enabled": true,
+  "publicKey": "base64url-vapid-public-key"
+}
+```
+
+If VAPID keys are not configured, `enabled` is `false` and `publicKey` is
+`null`.
+
+------------------------------------------------------------------------
+
+## POST /push/subscriptions
+
+Stores or refreshes the current browser/device push subscription.
+
+### Request
+
+``` json
+{
+  "subscription": {
+    "endpoint": "https://push-service.example/subscription-id",
+    "expirationTime": null,
+    "keys": {
+      "p256dh": "base64url-key",
+      "auth": "base64url-auth-secret"
+    }
+  },
+  "username": "Alice",
+  "deviceId": "client-generated-device-id",
+  "deviceLabel": "Desktop browser",
+  "userAgent": "browser user agent"
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+------------------------------------------------------------------------
+
+## POST /push/subscriptions/unsubscribe
+
+Marks a push subscription inactive.
+
+### Request
+
+``` json
+{
+  "endpoint": "https://push-service.example/subscription-id",
+  "deviceId": "client-generated-device-id"
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+------------------------------------------------------------------------
+
+## POST /push/test
+
+Sends a test notification to an existing active subscription. Requires VAPID
+server configuration.
+
+### Request
+
+``` json
+{
+  "endpoint": "https://push-service.example/subscription-id"
+}
+```
+
+### Response
+
+``` json
+{
+  "ok": true
+}
+```
+
+------------------------------------------------------------------------
+
 ## GET /me/matches
 
 Returns recent completed matches for the authenticated user.
@@ -314,7 +413,9 @@ Each item uses the same friendship shape as `GET /friends`.
 
 ## POST /friends/request
 
-Sends a friend request by exact username.
+Sends a friend request by exact username. The backend also emits a
+`friend.request.received` in-app notification and sends a Web Push notification
+to the addressee's active push subscriptions when push is configured.
 
 Requires `Authorization: Bearer <supabase access token>`.
 
