@@ -1,5 +1,34 @@
 # Runtime Changelog
 
+## 2026-09-25 -- Health checks, metrics and monitoring stack (observability phases 2-3)
+
+### What changed
+- **Spring Boot 3.3.3 → 3.5.16** (3.3 was out of OSS support; 3.4+ has
+  native JSON logging).
+- **Actuator on internal port 8081**: `/actuator/health` (with database),
+  `/actuator/health/liveness`, `/actuator/health/readiness`,
+  `/actuator/prometheus`. Not proxied by nginx; `GET /health` on 8080 is
+  unchanged.
+- **Metrics**: REST/JVM/database pool metrics from Spring Boot, plus BodegaDK
+  metrics for connected players, rooms by status, game actions (by game and
+  ok/rejected/crash, with timings), games started/finished, refused
+  WebSocket CONNECTs by reason, heartbeat timeouts, match history write
+  failures and push outcomes.
+- **Docker**: the server image includes `curl`; compose healthcheck on
+  readiness; nginx starts only when the server is healthy; the server logs
+  ECS JSON in Docker.
+- **nginx**: JSON access log with `request_id`, status and timings.
+- **Monitoring profile** (`infra/monitoring/`, `COMPOSE_PROFILES=monitoring`):
+  Prometheus with alert rules (visible only, no notifications yet), Loki,
+  Grafana Alloy and Grafana with a provisioned "BodegaDK Overview" dashboard.
+  Grafana/Prometheus bind to 127.0.0.1 only.
+- **CI**: new `infra-config` job validates compose, nginx, Prometheus rules
+  (with unit tests), Loki, Alloy and dashboard JSON.
+
+### Why
+See `docs/decisions/0002-observability-stack.md` and
+`docs/devops/observability.md`.
+
 ## 2026-09-25 -- Server logging (observability phase 1)
 
 ### What changed

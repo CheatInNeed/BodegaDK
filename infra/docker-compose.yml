@@ -16,7 +16,9 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ../apps/web/public:/usr/share/nginx/html:ro
     depends_on:
-      - server
+      server:
+        # Start nginx only when the server reports ready, so players never hit a half-started backend (502).
+        condition: service_healthy
 
   server:
     build:
@@ -30,3 +32,87 @@ services:
       - SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER:?SUPABASE_JWT_ISSUER is required}
       # Set BODEGADK_LOG_LEVEL=DEBUG in .env.deploy to see every request and game action.
       - LOGGING_LEVEL_DK_BODEGADK=${BODEGADK_LOG_LEVEL:-INFO}
+      # One JSON object per log line (Elastic Common Schema), so Loki can filter on level/room/requestId.
+      # Read by hand with: docker compose logs server --no-log-prefix | jq -r '.message'
+      - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
+    healthcheck:
+      # Actuator on the internal management port 8081. "Ready" includes the database connection.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8081/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
+
+  # --- Monitoring stack (optional) -------------------------------------------------------------
+  # Starts only with the "monitoring" profile, e.g. COMPOSE_PROFILES=monitoring in .env.deploy.
+  # See docs/devops/observability.md.
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      # Host-local only; reach it through an SSH tunnel.
+      - "127.0.0.1:9090:9090"
+
+  loki:
+    image: grafana/loki:3.7.8
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+
+  alloy:
+    image: grafana/alloy:v1.19.2
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["run", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Read access to Docker so Alloy can find the server/nginx containers and read their logs.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      # Set GRAFANA_ADMIN_PASSWORD in .env.deploy. The fallback only works because Grafana is host-local.
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/bodegadk-overview.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      # Host-local only; reach it through an SSH tunnel: ssh -L 3000:localhost:3000 <host>
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+
+volumes:
+  prometheus-data:
+  loki-data:
+  alloy-data:
+  grafana-data:

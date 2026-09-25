@@ -256,12 +256,16 @@ infra/
   docker-compose.yml
   nginx/
     nginx.conf
+  monitoring/          optional Prometheus/Loki/Alloy/Grafana stack
+    prometheus/  loki/  alloy/  grafana/
 ```
 
 Services:
 
 - `nginx`: static web assets plus reverse proxy
-- `server`: Spring Boot backend
+- `server`: Spring Boot backend (app on 8080, internal Actuator health/metrics on 8081)
+- `prometheus`, `loki`, `alloy`, `grafana`: monitoring, only with the
+  `monitoring` compose profile; see `docs/devops/observability.md`
 
 Database ownership and migration strategy:
 

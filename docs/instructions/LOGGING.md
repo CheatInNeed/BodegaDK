@@ -7,10 +7,15 @@ How the Spring server writes logs, how to read them, and the rules for adding ne
 | Where | Command |
 |---|---|
 | Local (`npm run server:local`) | Logs print in the terminal. The `local` profile shows DEBUG lines. |
-| Docker (`infra/`) | `docker compose logs -f server` |
-| Only errors | `docker compose logs server \| grep -E "ERROR\|WARN"` |
-| One room | `docker compose logs server \| grep "room=ABCD"` |
-| One REST request | `docker compose logs server \| grep "req=<id>"` (the ID is in the `X-Request-Id` response header) |
+| Docker (`infra/`) | `docker compose logs -f server --no-log-prefix \| jq -r '"\(.["@timestamp"]) \(.log.level) \(.message)"'` |
+| Only errors | `docker compose logs server --no-log-prefix \| jq -c 'select(.log.level=="ERROR" or .log.level=="WARN")'` |
+| One room | `docker compose logs server --no-log-prefix \| jq -c 'select(.roomCode=="ABCD")'` |
+| One REST request | `docker compose logs server --no-log-prefix \| jq -c 'select(.requestId=="<id>")'` (the ID is in the `X-Request-Id` response header) |
+| Grafana | Explore → Loki, see `docs/devops/observability.md` |
+
+In Docker the server logs **JSON** (one object per line, Elastic Common Schema), so tools like Loki can
+filter by field. The tags become fields: `requestId`, `roomCode`, `playerId`, `wsSession`. Locally
+(`npm run server:local`) logs stay plain text.
 
 Container logs rotate at 3 x 10 MB per container (see `infra/docker-compose.yml`).
 
@@ -65,6 +70,5 @@ Production shows INFO and above. To turn on DEBUG in Docker, set `BODEGADK_LOG_L
 
 ## What is not covered yet
 
-- JSON log output for log collectors (planned together with the monitoring stack; native in Spring Boot 3.4+)
-- Health checks and metrics (Spring Boot Actuator, planned)
 - Browser-side error reporting
+- Alert notifications (rules exist; see `docs/devops/observability.md`)

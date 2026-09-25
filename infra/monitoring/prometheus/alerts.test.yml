@@ -1,0 +1,54 @@
+# Unit tests for alerts.yml. Run: promtool test rules alerts.test.yml (CI does this).
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  - name: server down fires after one minute
+    interval: 15s
+    input_series:
+      - series: 'up{job="bodegadk-server", instance="server:8081"}'
+        values: "1 1 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: BodegaServerDown
+        exp_alerts: []
+      - eval_time: 105s
+        alertname: BodegaServerDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: bodegadk-server
+              instance: server:8081
+            exp_annotations:
+              summary: "BodegaDK server is not answering Prometheus"
+              description: "The server has not responded on :8081/actuator/prometheus for 1 minute. Check `docker compose ps` and the server logs."
+
+  - name: one crashing krig action fires immediately
+    interval: 15s
+    input_series:
+      - series: 'bodegadk_game_action_seconds_count{game="krig", outcome="crash"}'
+        values: "0 0 1 1 1"
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: BodegaGameActionCrashed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              game: krig
+            exp_annotations:
+              summary: "A krig game action crashed on the server"
+              description: "Search the server logs for 'Game action' with level ERROR to find the room and stack trace."
+
+  - name: healthy traffic does not fire the error-rate alert
+    interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="bodegadk-server", status="200", uri="/rooms"}'
+        values: "0+100x10"
+      - series: 'http_server_requests_seconds_count{job="bodegadk-server", status="500", uri="/rooms"}'
+        values: "0+1x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: BodegaHighServerErrorRate
+        exp_alerts: []
