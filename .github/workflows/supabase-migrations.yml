@@ -93,4 +93,4 @@ jobs:
 
       - name: Apply migrations
         if: steps.migrations.outputs.has_migrations == 'true'
-        run: supabase db push --linked
+        run: supabase db push --linked --include-all
