@@ -486,7 +486,7 @@ export async function getAccessTokenOrRedirect(): Promise<string> {
     return accessToken;
 }
 
-async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+export async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
     const accessToken = await getAccessTokenOrRedirect();
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${accessToken}`);
@@ -566,7 +566,7 @@ function extractErrorMessage(body: unknown): string {
     return JSON.stringify(body).slice(0, 500);
 }
 
-function resolveApiBaseUrl(): string {
+export function resolveApiBaseUrl(): string {
     if (window.location.port === '5173') {
         return 'http://localhost:8080';
     }

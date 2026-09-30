@@ -127,6 +127,7 @@ class FemEnginePortAdapterTest {
         // Melds are only legal from round two onwards.
         knownState.setFirstRound(false);
         knownState.setPhase(GameState.Phase.PLAYING);
+        knownState.setFirstRound(false);
         store.saveGameState(roomCode, knownState);
 
         // Lay a meld of H3, H4, H5
