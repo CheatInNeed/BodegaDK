@@ -40,6 +40,14 @@ public interface RoomMetadataStore {
 
     void markRoomAbandoned(String roomCode);
 
+    default boolean createRoomAndJoinHost(String roomCode, String hostUserId,
+            RoomVisibility visibility, String gameType,
+            InMemoryRuntimeStore.RoomStatus status, String username) {
+        createRoom(roomCode, hostUserId, visibility, gameType, status);
+        upsertParticipant(roomCode, hostUserId, username);
+        return true;
+    }
+
     enum RoomVisibility {
         PUBLIC,
         PRIVATE,

@@ -7,7 +7,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,6 +47,35 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     }
 
     @Override
+    public boolean createRoomAndJoinHost(String roomCode, String hostUserId,
+            RoomVisibility visibility, String gameType,
+            InMemoryRuntimeStore.RoomStatus status, String username) {
+        int rows = jdbcTemplate.update(
+                """
+                WITH new_room AS (
+                    INSERT INTO public.rooms (room_code, game_id, host_user_id, status, visibility)
+                    VALUES (?, public.resolve_game_id(?), ?::uuid, ?, ?)
+                    ON CONFLICT (room_code) DO NOTHING
+                    RETURNING id
+                )
+                INSERT INTO public.room_players (room_id, user_id, status, username_snapshot)
+                SELECT id, ?::uuid, 'JOINED', ?
+                FROM new_room
+                ON CONFLICT (room_id, user_id) DO UPDATE
+                SET status = 'JOINED', username_snapshot = EXCLUDED.username_snapshot
+                """,
+                roomCode,
+                gameType,
+                hostUserId,
+                status.name(),
+                visibility.name(),
+                hostUserId,
+                username
+        );
+        return rows > 0;
+    }
+
+    @Override
     public Optional<StoredRoom> room(String roomCode) {
         List<StoredRoom> rooms = jdbcTemplate.query(
                 """
@@ -61,12 +93,17 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
 
     @Override
     public List<StoredRoom> publicRooms() {
-        return jdbcTemplate.query(
+        Map<String, StoredRoom> rooms = new LinkedHashMap<>();
+        jdbcTemplate.query(
                 """
                 select rooms.room_code, rooms.host_user_id::text as host_user_id, rooms.visibility,
-                       games.slug as game_type, rooms.status
+                       games.slug as game_type, rooms.status,
+                       rp.user_id::text as player_id, rp.username_snapshot as player_username
                 from public.rooms
                 join public.games on games.id = rooms.game_id
+                left join public.room_players rp
+                    on rp.room_id = rooms.id
+                   and rp.status in ('JOINED', 'READY')
                 where rooms.visibility = 'PUBLIC' and rooms.status = 'LOBBY'
                   and exists (
                       select 1
@@ -77,11 +114,24 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
                   )
                 order by rooms.created_at asc, rooms.room_code asc
                 """,
-                (rs, rowNum) -> {
+                (rs) -> {
                     String roomCode = rs.getString("room_code");
-                    return mapRoom(rs, loadParticipants(roomCode));
+                    rooms.computeIfAbsent(roomCode, k -> {
+                        try {
+                            return mapRoom(rs, new ArrayList<>());
+                        } catch (SQLException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                    String playerId = rs.getString("player_id");
+                    if (playerId != null) {
+                        rooms.get(roomCode).participants().add(
+                                new InMemoryRuntimeStore.PlayerSummary(playerId, rs.getString("player_username"))
+                        );
+                    }
                 }
         );
+        return new ArrayList<>(rooms.values());
     }
 
     @Override

@@ -3,6 +3,7 @@ package dk.bodegadk.rest;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dk.bodegadk.auth.AuthSupport;
 import dk.bodegadk.auth.AuthenticatedUser;
+import dk.bodegadk.runtime.DatabaseCacheService;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
 import dk.bodegadk.runtime.MatchmakingService;
 import dk.bodegadk.runtime.RoomMetadataStore;
@@ -27,16 +28,19 @@ public class RoomController {
     private final InMemoryRuntimeStore runtimeStore;
     private final RoomMetadataStore roomMetadataStore;
     private final GameWsHandler gameWsHandler;
+    private final DatabaseCacheService cacheService;
 
-    public RoomController(InMemoryRuntimeStore runtimeStore, RoomMetadataStore roomMetadataStore, GameWsHandler gameWsHandler) {
+    public RoomController(InMemoryRuntimeStore runtimeStore, RoomMetadataStore roomMetadataStore,
+                          GameWsHandler gameWsHandler, DatabaseCacheService cacheService) {
         this.runtimeStore = runtimeStore;
         this.roomMetadataStore = roomMetadataStore;
         this.gameWsHandler = gameWsHandler;
+        this.cacheService = cacheService;
     }
 
     @GetMapping
     public List<RoomListItemResponse> publicRooms() {
-        return roomMetadataStore.publicRooms().stream()
+        return cacheService.getRooms().stream()
                 .map(room -> new RoomListItemResponse(
                         room.roomCode(),
                         room.hostPlayerId(),
@@ -49,7 +53,6 @@ public class RoomController {
     }
 
     @PostMapping
-    @Transactional
     public CreateRoomResponse createRoom(Authentication authentication, @RequestBody(required = false) CreateRoomRequest request) {
         AuthenticatedUser user = AuthSupport.requireUser(authentication);
         String playerId = user.userId();
@@ -58,20 +61,18 @@ public class RoomController {
         String normalizedGame = request == null ? null : request.gameType();
 
         String roomCode;
+        boolean created;
         do {
             roomCode = runtimeStore.generateRoomCode();
-        } while (roomMetadataStore.roomExists(roomCode));
-        roomMetadataStore.createRoom(
-                roomCode,
-                playerId,
-                RoomMetadataStore.RoomVisibility.fromPrivateFlag(isPrivate),
-                normalizedGame,
-                InMemoryRuntimeStore.RoomStatus.LOBBY
-        );
+            created = roomMetadataStore.createRoomAndJoinHost(
+                    roomCode, playerId,
+                    RoomMetadataStore.RoomVisibility.fromPrivateFlag(isPrivate),
+                    normalizedGame, InMemoryRuntimeStore.RoomStatus.LOBBY, username);
+        } while (!created);
+
         runtimeStore.mirrorRoom(roomCode, normalizedGame, isPrivate, playerId, InMemoryRuntimeStore.RoomStatus.LOBBY);
         String token = MatchmakingService.runtimeToken(roomCode, playerId);
         runtimeStore.joinRoom(roomCode, playerId, username, token);
-        roomMetadataStore.upsertParticipant(roomCode, playerId, username);
 
         return runtimeStore.roomSnapshot(roomCode)
                 .map(room -> new CreateRoomResponse(room.roomCode(), playerId, room.hostPlayerId(), room.isPrivate(), room.selectedGame(), room.status().name()))

@@ -36,7 +36,8 @@ function parseConfig() {
     const supabaseAnonKey = process.env.LOAD_SUPABASE_ANON_KEY || process.env.PUBLIC_SUPABASE_ANON_KEY;
     const email = process.env.LOAD_EMAIL;
     const password = process.env.LOAD_PASSWORD;
-    const steps = (process.env.LOAD_STEPS || '1')
+    const steps = (process.env.LOAD_STEPS || '1, 5, 10, 25, 50, 100')
+    // const steps = (process.env.LOAD_STEPS || '100, 500, 1000, 5000, 10000')
         .split(',')
         .map((s) => Number(s.trim()))
         .filter((n) => n > 0);
@@ -94,17 +95,30 @@ async function timedFetch(url, options) {
     const start = performance.now();
     let ok = true;
     let status = 0;
+    let error = null;
     try {
         const res = await fetch(url, options);
         status = res.status;
         ok = res.ok;
-        // Consume body to fully complete the request
-        await res.text();
-    } catch {
+        const body = await res.text();
+        if (!ok) {
+            error = extractError(status, body);
+        }
+    } catch (err) {
         ok = false;
+        error = err.message || 'Unknown network error';
     }
     const elapsed = performance.now() - start;
-    return { ok, status, elapsed };
+    return { ok, status, elapsed, error };
+}
+
+function extractError(status, body) {
+    try {
+        const json = JSON.parse(body);
+        return json.message || json.error || `${status}: ${body.slice(0, 200)}`;
+    } catch {
+        return `${status}: ${body.slice(0, 200)}`;
+    }
 }
 
 /**
@@ -132,6 +146,7 @@ async function lobbyFlow(baseUrl, token) {
         const start = performance.now();
         let ok = true;
         let status = 0;
+        let error = null;
         try {
             const res = await fetch(`${baseUrl}/rooms`, {
                 method: 'POST',
@@ -144,13 +159,15 @@ async function lobbyFlow(baseUrl, token) {
                 const body = await res.json();
                 roomCode = body.roomCode || body.code || null;
             } else {
-                await res.text();
+                const body = await res.text();
+                error = extractError(status, body);
             }
-        } catch {
+        } catch (err) {
             ok = false;
+            error = err.message || 'Unknown network error';
         }
         const elapsed = performance.now() - start;
-        results.push({ endpoint: 'POST /rooms', ok, status, elapsed });
+        results.push({ endpoint: 'POST /rooms', ok, status, elapsed, error });
     }
 
     // 5. POST /rooms/{code}/leave
@@ -235,10 +252,15 @@ function computeStats(results) {
     const endpoints = {};
     for (const r of results) {
         if (!endpoints[r.endpoint]) {
-            endpoints[r.endpoint] = { total: 0, errors: 0, latencies: [], statusCodes: {} };
+            endpoints[r.endpoint] = { total: 0, errors: 0, latencies: [], statusCodes: {}, errorReasons: {} };
         }
         endpoints[r.endpoint].total++;
-        if (!r.ok) endpoints[r.endpoint].errors++;
+        if (!r.ok) {
+            endpoints[r.endpoint].errors++;
+            if (r.error) {
+                endpoints[r.endpoint].errorReasons[r.error] = (endpoints[r.endpoint].errorReasons[r.error] || 0) + 1;
+            }
+        }
         endpoints[r.endpoint].latencies.push(r.elapsed);
         const code = r.status || 'ERR';
         endpoints[r.endpoint].statusCodes[code] = (endpoints[r.endpoint].statusCodes[code] || 0) + 1;
@@ -250,6 +272,11 @@ function computeStats(results) {
         ep.p50 = percentile(ep.latencies, 50);
         ep.p95 = percentile(ep.latencies, 95);
         ep.p99 = percentile(ep.latencies, 99);
+        // Keep only top 3 error reasons by count
+        ep.topErrors = Object.entries(ep.errorReasons)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 3)
+            .map(([reason, count]) => ({ reason, count }));
     }
 
     return { total, errors, errorRate, p50, p95, p99, statusCodes, endpoints };
@@ -279,6 +306,9 @@ function printStepSummary(concurrency, stats) {
     for (const [name, ep] of Object.entries(stats.endpoints)) {
         if (ep.errors > 0) {
             console.log(`         ${name}: ${formatStatusCodes(ep.statusCodes)}`);
+            for (const { reason, count } of ep.topErrors) {
+                console.log(`           → ${count}× ${reason}`);
+            }
         }
     }
 }
@@ -332,7 +362,7 @@ async function writeResults(stepResults, config) {
             endpoints: Object.fromEntries(
                 Object.entries(stats.endpoints).map(([name, ep]) => [
                     name,
-                    { total: ep.total, errors: ep.errors, errorRate: ep.errorRate, statusCodes: ep.statusCodes, p50: ep.p50, p95: ep.p95, p99: ep.p99 },
+                    { total: ep.total, errors: ep.errors, errorRate: ep.errorRate, statusCodes: ep.statusCodes, topErrors: ep.topErrors, p50: ep.p50, p95: ep.p95, p99: ep.p99 },
                 ]),
             ),
         })),
@@ -377,6 +407,18 @@ async function writeResults(stepResults, config) {
                 `| ${name} | ${ep.total} | ${ep.errors} | ${ep.errorRate.toFixed(2)}% | ${codes} | ${ep.p50.toFixed(2)} | ${ep.p95.toFixed(2)} | ${ep.p99.toFixed(2)} |`,
             );
         }
+
+        // Error reasons for this step
+        const hasErrors = Object.values(stats.endpoints).some((ep) => ep.topErrors.length > 0);
+        if (hasErrors) {
+            mdLines.push('', '**Error reasons:**', '');
+            for (const [name, ep] of Object.entries(stats.endpoints)) {
+                for (const { reason, count } of ep.topErrors) {
+                    mdLines.push(`- **${name}**: ${count}× \`${reason}\``);
+                }
+            }
+        }
+
         mdLines.push('');
     }
 
