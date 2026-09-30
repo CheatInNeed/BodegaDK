@@ -79,9 +79,9 @@ Every pull request and every push to `dev` and `master` runs
 | --- | --- |
 | `Web (TypeScript)` | `npm ci` and `npm run web:build` (compiles the client with `tsc`) |
 | `Server (Spring Boot)` | `mvn -B verify` in `apps/server`, so the full unit test suite runs |
-| `Docker build` | Builds the server image from `apps/server/Dockerfile` |
+| `Docker build` | Builds the server and web images (`apps/server/Dockerfile`, `apps/web/Dockerfile`) |
 
-No secrets are needed. The web build falls back to the public Supabase defaults
+No secrets are needed for pull requests. The web build falls back to the public Supabase defaults
 in `scripts/run-local-env.mjs`, and the server tests are Mockito-based and never
 touch a database.
 
@@ -110,6 +110,19 @@ cd apps/server && mvn -B verify
 - **Adding a job?** New jobs are not required automatically. Add them under
   Settings → Rules → the `CI ruleset` → "Require status checks to pass" after
   they have run once.
+
+## Continuous Delivery
+
+A merge into `dev` also runs three more jobs after the checks pass:
+
+| Job | What it does |
+| --- | --- |
+| `Docker build` | Additionally pushes both images to `ghcr.io/cheatinneed/` tagged with the short commit SHA |
+| `Supabase migrations` | Applies pending `supabase/migrations/` to the shared Supabase project |
+| `Deploy to dev server` | Pulls that SHA on http://130.225.170.77, checks that `/api/health` reports it, and rolls back if not |
+
+See [docs/instructions/SERVER_GUIDE.md](docs/instructions/SERVER_GUIDE.md)
+for the one-time setup and manual rollback.
 
 ## Branch Deploy Helpers
 
