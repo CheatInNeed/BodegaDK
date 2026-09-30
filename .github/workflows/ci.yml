@@ -15,7 +15,15 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded PR runs are cancelled; runs on dev/master finish, so a newer
+  # merge can never abort a deploy halfway through.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Images are published and deployed only for merges into dev.
+  DEPLOY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+  SERVER_IMAGE: ghcr.io/cheatinneed/bodegadk-server
+  WEB_IMAGE: ghcr.io/cheatinneed/bodegadk-web
 
 jobs:
   web:
@@ -70,10 +78,159 @@ jobs:
   docker:
     name: Docker build
     runs-on: ubuntu-latest
-    needs: server
+    needs: [web, server]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Compute image tag
+        id: tag
+        run: echo "image_tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Build server image
-        run: docker build -t bodegadk-server:ci apps/server
+        run: >
+          docker build
+          --build-arg APP_VERSION=${{ steps.tag.outputs.image_tag }}
+          -t "$SERVER_IMAGE:${{ steps.tag.outputs.image_tag }}"
+          apps/server
+
+      - name: Build web image
+        run: >
+          docker build
+          -f apps/web/Dockerfile
+          -t "$WEB_IMAGE:${{ steps.tag.outputs.image_tag }}"
+          .
+
+      - name: Log in to GitHub Container Registry
+        if: env.DEPLOY == 'true'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # One immutable tag per commit (what gets deployed) plus a moving
+      # "dev" tag that always points at the newest build.
+      - name: Push images
+        if: env.DEPLOY == 'true'
+        run: |
+          tag="${{ steps.tag.outputs.image_tag }}"
+          for image in "$SERVER_IMAGE" "$WEB_IMAGE"; do
+            docker tag "$image:$tag" "$image:dev"
+            docker push "$image:$tag"
+            docker push "$image:dev"
+          done
+
+  migrate:
+    name: Supabase migrations
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    # Shared with supabase-migrations.yml, which still handles master.
+    concurrency:
+      group: supabase-shared-db
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify required secrets
+        run: |
+          for key in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required secret: $key"
+              exit 1
+            fi
+          done
+
+      - name: Link hosted Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      # Applies only migrations that are not yet in the remote history.
+      - name: Apply migrations
+        run: supabase db push --linked --include-all
+
+  deploy:
+    name: Deploy to dev server
+    runs-on: ubuntu-latest
+    needs: [docker, migrate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    permissions:
+      contents: read
+      packages: read
+    environment:
+      name: dev
+      url: http://130.225.170.77
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    env:
+      DEPLOY_HOST: 130.225.170.77
+      DEPLOY_USER: user
+      DEPLOY_DIR: bodegadk-deploy
+      IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
+      # Short-lived job token; the host uses it for one `docker login` and logs out.
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "::error::Missing required secret: DEPLOY_SSH_KEY"
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # Pinned host key: the job refuses to talk to anything else.
+          cp infra/deploy/known_hosts ~/.ssh/known_hosts
+
+      - name: Copy deploy files
+        run: >
+          scp -o BatchMode=yes
+          infra/docker-compose.yml infra/deploy/deploy.sh
+          "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/"
+
+      - name: Pull and restart containers
+        run: >
+          printf '%s' "$GHCR_TOKEN"
+          | ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST"
+          "GHCR_USER=$GITHUB_ACTOR bash $DEPLOY_DIR/deploy.sh $IMAGE_TAG"
+
+      - name: Smoke test
+        id: smoke
+        run: |
+          for attempt in $(seq 1 30); do
+            body="$(curl -fsS --max-time 5 "http://$DEPLOY_HOST/api/health" || true)"
+            echo "attempt $attempt: ${body:-no response}"
+            if printf '%s' "$body" | grep -q "\"version\":\"$IMAGE_TAG\""; then
+              echo "Version $IMAGE_TAG is live."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::$IMAGE_TAG did not become healthy within 150 seconds"
+          exit 1
+
+      - name: Roll back to previous version
+        if: failure() && steps.smoke.outcome == 'failure'
+        run: >
+          printf '%s' "$GHCR_TOKEN"
+          | ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST"
+          "GHCR_USER=$GITHUB_ACTOR bash $DEPLOY_DIR/deploy.sh --rollback"

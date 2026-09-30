@@ -1,9 +1,11 @@
 name: Supabase Migrations
 
+# dev is migrated by the CD pipeline in ci.yml (migrate job) right before it
+# deploys, so schema and server code roll out in order. This workflow keeps
+# handling master and manual runs.
 on:
   push:
     branches:
-      - dev
       - master
     paths:
       - "supabase/migrations/**"
@@ -89,8 +91,8 @@ jobs:
 
       - name: Dry-run migration deploy
         if: steps.migrations.outputs.has_migrations == 'true'
-        run: supabase db push --linked --dry-run
+        run: supabase db push --linked --dry-run --include-all
 
       - name: Apply migrations
         if: steps.migrations.outputs.has_migrations == 'true'
-        run: supabase db push --linked
+        run: supabase db push --linked --include-all

@@ -1,9 +1,65 @@
 # BodegaDK Server Guide (Debian)
 
-Last updated: 2026-04-29
+Last updated: 2026-09-30
 
 This guide deploys BodegaDK on a Debian host with Docker, nginx, the Spring
 server, and the canonical Supabase Postgres database.
+
+## Automatic Deploys (CD)
+
+Every merge into `dev` is deployed automatically by
+`.github/workflows/ci.yml`. Pull requests only run the checks; nothing is
+deployed until the change is merged.
+
+```text
+PR -> Web (TypeScript) + Server (Spring Boot) + Docker build   (required checks)
+merge to dev -> same checks on the merge commit
+  -> push bodegadk-server and bodegadk-web images to ghcr.io (tag = short SHA)
+  -> Supabase migrations (supabase db push)
+  -> deploy: copy compose file + infra/deploy/deploy.sh to the host over SSH,
+     pull that tag, restart the containers
+  -> smoke test: GET /api/health must report the new SHA as "version"
+  -> on failure: roll back to the previously deployed tag
+```
+
+The host builds nothing; it only pulls images that CI built and tested.
+Deploy runs are listed under the `dev` environment in the repository's
+Deployments view.
+
+### One-time setup
+
+On the host (`~/bodegadk-deploy/` is the deploy directory):
+
+```bash
+mkdir -p ~/bodegadk-deploy
+cp -p ~/BodegaDK/.env.deploy ~/bodegadk-deploy/.env.deploy
+```
+
+`.env.deploy` holds `SPRING_DATASOURCE_*` (and optionally
+`SUPABASE_JWT_ISSUER` and `BODEGADK_VAPID_*`). It never leaves the host.
+
+A dedicated deploy key pair: the public key goes into
+`~/.ssh/authorized_keys` on the host, the private key into the GitHub
+repository secret `DEPLOY_SSH_KEY`. The host key is pinned in
+`infra/deploy/known_hosts`; update it if the server is reinstalled.
+
+The Supabase secrets (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`,
+`SUPABASE_DB_PASSWORD`) are shared with `supabase-migrations.yml`.
+
+### Deploying a specific version or rolling back by hand
+
+```bash
+bash ~/bodegadk-deploy/deploy.sh <short-sha>
+bash ~/bodegadk-deploy/deploy.sh --rollback
+```
+
+Public images need no login. If the GHCR packages are private, run
+`docker login ghcr.io` with a token that has `read:packages` first.
+
+## Manual Setup And Fallback Deploy
+
+The steps below set up a host from scratch and build the images on the host
+itself. Use them for a new server or when GitHub Actions is unavailable.
 
 ## 1. Connect To Server
 
@@ -87,11 +143,13 @@ From repo root:
 npm run deploy:update
 ```
 
-`deploy:update` performs:
+`deploy:update` builds both images on the host with
+`infra/docker-compose.build.yml` and starts them:
 
-- `npm install`
-- `npm run web:build`
-- `cd infra && (docker compose up -d --build || docker-compose up -d --build)`
+- `cd infra && docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`
+  (falls back to `docker-compose`)
+
+The images are tagged `local`, so `/api/health` reports `"version":"local"`.
 
 ## 8. Verify Deployment
 
@@ -104,7 +162,8 @@ curl -i http://localhost/api/health
 Expected health response:
 
 - HTTP `200`
-- body includes `{"status":"ok"}`
+- body includes `"status":"ok"` and `"version"` (the deployed short SHA, or
+  `local` for a host build)
 
 Authenticated APIs require a Supabase access token:
 
@@ -157,7 +216,24 @@ Install Docker and relogin.
 
 ### `docker compose` not found
 
-Install `docker-compose-plugin`.
+Install `docker-compose-plugin`. The current host only has the standalone
+`docker-compose` v1; `deploy.sh` and `deploy:update` fall back to it.
+
+### CD Deploy Fails At "Copy deploy files" Or "Pull and restart containers"
+
+- `Permission denied (publickey)`: `DEPLOY_SSH_KEY` does not match a key in
+  the host's `~/.ssh/authorized_keys`.
+- `Host key verification failed`: the server was reinstalled; refresh
+  `infra/deploy/known_hosts` with `ssh-keyscan -t ed25519 <server-ip>`.
+- `No such file or directory` for `bodegadk-deploy`: run the one-time setup.
+
+### CD Smoke Test Fails
+
+The job rolls back automatically. Inspect the failed version on the host:
+
+```bash
+docker logs infra_server_1 --tail 100
+```
 
 ### `permission denied /var/run/docker.sock`
 
@@ -191,6 +267,6 @@ Rebuild without cache:
 
 ```bash
 cd infra
-docker compose build --no-cache server
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.build.yml build --no-cache server
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d
 ```

@@ -182,6 +182,31 @@ Mitigation:
 
 ------------------------------------------------------------------------
 
+### Web Push Subscription Exposure
+
+Description:
+
+An attacker obtains a stored Push API endpoint and its encryption material.
+
+Impact:
+
+-   Possible unauthorized notification attempts if server-side controls are
+    bypassed
+-   User trust damage through spammy or misleading notifications
+-   Exposure of device/browser metadata stored with the subscription
+
+Mitigation:
+
+-   Treat push endpoints and keys as sensitive capability data
+-   Store VAPID private keys only in environment/secret storage
+-   Require user gesture and browser permission before subscribing
+-   Support unsubscribe/revocation through `/push/subscriptions/unsubscribe`
+-   Delete or deactivate subscriptions when push services return `404` or `410`
+-   Keep notification payloads minimal and avoid private game state in push
+    bodies
+
+------------------------------------------------------------------------
+
 ### Denial of Service (DoS)
 
 Description:

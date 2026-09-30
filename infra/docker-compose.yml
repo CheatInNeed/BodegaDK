@@ -1,21 +1,30 @@
+# Runs prebuilt images from GHCR. CI pushes one tag per commit on dev
+# (the short SHA); the CD job sets IMAGE_TAG to that SHA before `up`.
+# To build the images locally instead, add docker-compose.build.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 services:
   nginx:
-    image: nginx:alpine
+    image: ghcr.io/cheatinneed/bodegadk-web:${IMAGE_TAG:-dev}
     restart: unless-stopped
     ports:
       - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ../apps/web/public:/usr/share/nginx/html:ro
     depends_on:
       - server
 
   server:
-    build:
-      context: ../apps/server
+    image: ghcr.io/cheatinneed/bodegadk-server:${IMAGE_TAG:-dev}
     restart: unless-stopped
     environment:
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL:?SPRING_DATASOURCE_URL is required}
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME:?SPRING_DATASOURCE_USERNAME is required}
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD is required}
       - SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER:?SUPABASE_JWT_ISSUER is required}
+      - BODEGADK_VAPID_PUBLIC_KEY=${BODEGADK_VAPID_PUBLIC_KEY:-}
+      - BODEGADK_VAPID_PRIVATE_KEY=${BODEGADK_VAPID_PRIVATE_KEY:-}
+      - BODEGADK_VAPID_SUBJECT=${BODEGADK_VAPID_SUBJECT:-mailto:admin@bodegadk.local}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 40s

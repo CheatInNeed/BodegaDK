@@ -1,5 +1,6 @@
 package dk.bodegadk.runtime;
 
+import dk.bodegadk.push.WebPushNotificationService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,14 +13,24 @@ import java.util.Map;
 public class JdbcFriendsStore implements FriendsStore {
     private final JdbcTemplate jdbcTemplate;
     private final NotificationsStore notificationsStore;
+    private final WebPushNotificationService pushNotificationService;
 
     public JdbcFriendsStore(JdbcTemplate jdbcTemplate) {
-        this(jdbcTemplate, null);
+        this(jdbcTemplate, null, null);
     }
 
     public JdbcFriendsStore(JdbcTemplate jdbcTemplate, NotificationsStore notificationsStore) {
+        this(jdbcTemplate, notificationsStore, null);
+    }
+
+    public JdbcFriendsStore(
+            JdbcTemplate jdbcTemplate,
+            NotificationsStore notificationsStore,
+            WebPushNotificationService pushNotificationService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.notificationsStore = notificationsStore;
+        this.pushNotificationService = pushNotificationService;
     }
 
     @Override
@@ -277,6 +288,7 @@ public class JdbcFriendsStore implements FriendsStore {
                         "action", "profile"
                 )
         );
+        sendFriendRequestPush(friendship);
     }
 
     private void notifyFriendAccepted(FriendshipSummary friendship) {
@@ -293,5 +305,31 @@ public class JdbcFriendsStore implements FriendsStore {
                         "action", "profile"
                 )
         );
+    }
+
+    private void sendFriendRequestPush(FriendshipSummary friendship) {
+        if (pushNotificationService == null) {
+            return;
+        }
+        String requesterName = displayName(friendship.requester());
+        pushNotificationService.sendToUser(
+                friendship.addressee().userId(),
+                new WebPushNotificationService.PushPayload(
+                        "New friend request",
+                        requesterName + " sent you a friend request.",
+                        "/?view=profile",
+                        "friend-request-" + friendship.id()
+                )
+        );
+    }
+
+    private String displayName(FriendUser user) {
+        if (user.displayName() != null && !user.displayName().isBlank()) {
+            return user.displayName().trim();
+        }
+        if (user.username() != null && !user.username().isBlank()) {
+            return user.username().trim();
+        }
+        return "Someone";
     }
 }
