@@ -1,5 +1,6 @@
 package dk.bodegadk.rest;
 
+import dk.bodegadk.runtime.DatabaseCacheService;
 import dk.bodegadk.runtime.LeaderboardQueryStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -18,7 +19,7 @@ class LeaderboardControllerTest {
     @Test
     void leaderboardUsesAuthenticatedUserAndDefaults() {
         CapturingStore store = new CapturingStore();
-        LeaderboardController controller = new LeaderboardController(store);
+        LeaderboardController controller = new LeaderboardController(store, new DatabaseCacheService(null, null, store));
 
         LeaderboardQueryStore.LeaderboardPage response = controller.leaderboard(authentication("user-1"), "snyd", null, null);
 
@@ -32,7 +33,7 @@ class LeaderboardControllerTest {
     @Test
     void leaderboardPassesModeAndLimit() {
         CapturingStore store = new CapturingStore();
-        LeaderboardController controller = new LeaderboardController(store);
+        LeaderboardController controller = new LeaderboardController(store, new DatabaseCacheService(null, null, store));
 
         controller.leaderboard(authentication("user-1"), "snyd", "standard", 50);
 
@@ -42,7 +43,8 @@ class LeaderboardControllerTest {
 
     @Test
     void leaderboardRejectsMissingGame() {
-        LeaderboardController controller = new LeaderboardController(new CapturingStore());
+        CapturingStore store = new CapturingStore();
+        LeaderboardController controller = new LeaderboardController(store, new DatabaseCacheService(null, null, store));
 
         assertThrows(
                 ResponseStatusException.class,
@@ -52,7 +54,8 @@ class LeaderboardControllerTest {
 
     @Test
     void leaderboardMapsUnknownGameToNotFound() {
-        LeaderboardController controller = new LeaderboardController(new CapturingStore(true));
+        CapturingStore store = new CapturingStore(true);
+        LeaderboardController controller = new LeaderboardController(store, new DatabaseCacheService(null, null, store));
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,

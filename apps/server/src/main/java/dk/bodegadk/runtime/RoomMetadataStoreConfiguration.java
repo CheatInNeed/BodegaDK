@@ -15,8 +15,9 @@ public class RoomMetadataStoreConfiguration {
     }
 
     @Bean
-    MatchHistoryStore matchHistoryStore(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
-        return new JdbcMatchHistoryStore(jdbcTemplate, objectMapper);
+    MatchHistoryStore matchHistoryStore(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper,
+                                        DatabaseCacheService cacheService) {
+        return new JdbcMatchHistoryStore(jdbcTemplate, objectMapper, cacheService);
     }
 
     @Bean

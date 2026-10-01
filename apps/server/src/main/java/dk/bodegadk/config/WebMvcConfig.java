@@ -8,53 +8,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/rooms")
+        registry.addMapping("/**")
                 .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "POST", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/rooms/**")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "POST", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/health")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/matchmaking/queue")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("POST", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/matchmaking/queue/**")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "DELETE", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/me/matches")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/me/stats")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/leaderboard")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/push/**")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "POST", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/friends/**")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "POST", "DELETE", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/notifications/**")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "POST", "OPTIONS")
-                .allowedHeaders("*");
-        registry.addMapping("/challenges/**")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "POST", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*");
     }
 }
