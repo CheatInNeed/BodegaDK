@@ -1,9 +1,11 @@
 name: Supabase Migrations
 
+# dev is migrated by the CD pipeline in ci.yml (migrate job) right before it
+# deploys, so schema and server code roll out in order. This workflow keeps
+# handling master and manual runs.
 on:
   push:
     branches:
-      - dev
       - master
     paths:
       - "supabase/migrations/**"

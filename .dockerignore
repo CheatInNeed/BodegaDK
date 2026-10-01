@@ -1,0 +1,15 @@
+# Build context for apps/web/Dockerfile (repository root).
+.git
+.github
+.idea
+.ai
+**/node_modules
+apps/server
+apps/web/public/dist
+apps/web/public/app-config.js
+docs
+supabase
+.env
+.env.*
+**/.env
+**/.env.*

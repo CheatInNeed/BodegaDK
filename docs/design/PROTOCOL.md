@@ -30,6 +30,21 @@ Base path (prod via nginx): /api/
 
 Base path (dev): http://localhost:8080/
 
+## GET /health
+
+Public liveness check.
+
+``` json
+{
+  "status": "ok",
+  "version": "25690fd"
+}
+```
+
+`version` is the short commit SHA baked into the server image by CI (`local`
+for a host build, `dev` when running from source). The CD pipeline polls it to
+confirm that a deploy is live.
+
 Room status values:
 
 - `LOBBY`: players can join and configure the room
