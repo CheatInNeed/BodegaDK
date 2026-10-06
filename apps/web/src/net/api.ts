@@ -493,10 +493,24 @@ export async function authenticatedFetch(input: RequestInfo | URL, init: Request
     return fetch(input, { ...init, headers });
 }
 
+let loginRedirectStartedAt = 0;
+
 function redirectToLogin() {
-    if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+    // The auth pages themselves never bounce.
+    const path = window.location.pathname;
+    if (path === '/login' || path === '/signup') {
+        return;
     }
+    // Assigning location.href again aborts the navigation that is already
+    // pending, so several failing requests in a row must only redirect once.
+    // Time-based rather than a permanent flag: a page restored by the back
+    // button keeps its JS state and must be able to redirect again.
+    const now = Date.now();
+    if (now - loginRedirectStartedAt < 2000) {
+        return;
+    }
+    loginRedirectStartedAt = now;
+    window.location.href = '/login';
 }
 
 export class ApiError extends Error {

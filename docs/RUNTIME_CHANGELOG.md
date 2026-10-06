@@ -1,5 +1,25 @@
 # Runtime Changelog
 
+## 2026-10-06 -- Logged-out navigation fixes (web client)
+
+### What changed
+- **No more retry loop without a session**: `?view=lobby-browser` and
+  `?view=leaderboard` load their list once per visit. A failed load shows its
+  error instead of starting a new load on every render; opening the view
+  again (or the refresh button / game switch) retries.
+- **One redirect to `/login`**: authenticated requests without a session
+  redirect a single time, and never from `/login` or `/signup`. Previously
+  each failing request re-assigned `location.href`, which kept aborting the
+  pending navigation so the page never left.
+- **Path-only navigation re-renders**: `navigate('/login')`, `/signup`,
+  `/custom` and the browser back button now render the target page even when
+  the app view in the store is unchanged (for example home -> `/signup`).
+
+### Why
+Logged-out visitors (every visitor on a fresh environment such as
+production) got a spinning Lobby/Leaderboard and could not open the sign-up
+page from the top bar.
+
 ## 2026-09-25 -- Health checks, metrics and monitoring stack (observability phases 2-3)
 
 ### What changed
