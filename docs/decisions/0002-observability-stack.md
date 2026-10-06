@@ -56,8 +56,14 @@ Constraints:
 - The monitoring containers use roughly 0.5–1 GB RAM extra on the host. They
   run only when the `monitoring` profile is enabled.
 - The server image now includes `curl` for the Docker healthcheck, and nginx
-  waits for the server to be healthy (database reachable) before starting.
-  A deploy while the database is down fails loudly instead of serving 502s.
+  waits for the server to be healthy before starting. The Docker healthcheck
+  uses Actuator *liveness*, not *readiness*: since deploys became automatic
+  (CD with smoke test and rollback), a database outage must not make
+  `deploy.sh` fail before the rollback logic runs. Database health is
+  monitored through readiness, metrics and logs instead.
+- The CD job copies `infra/monitoring/` to the deploy host with
+  `docker-compose.yml`, and image publishing waits for the `infra-config`
+  CI checks.
 - Metrics are per server instance. If we scale out (Redis-backed rooms), gauges
   like `bodegadk_rooms` must be summed across instances in queries (they
   already use `sum(...)`).

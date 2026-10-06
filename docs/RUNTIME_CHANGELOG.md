@@ -15,8 +15,10 @@
   WebSocket CONNECTs by reason, heartbeat timeouts, match history write
   failures and push outcomes.
 - **Docker**: the server image includes `curl`; compose healthcheck on
-  readiness; nginx starts only when the server is healthy; the server logs
-  ECS JSON in Docker.
+  Actuator liveness; nginx starts only when the server is healthy; the server
+  logs ECS JSON in Docker.
+- **CD integration**: the deploy job also copies `infra/monitoring/` to the
+  host, and images are only published after the `infra-config` checks pass.
 - **nginx**: JSON access log with `request_id`, status and timings.
 - **Monitoring profile** (`infra/monitoring/`, `COMPOSE_PROFILES=monitoring`):
   Prometheus with alert rules (visible only, no notifications yet), Loki,

@@ -43,9 +43,12 @@ so none of this is reachable from the internet.
 
 The old `GET /health` on 8080 still answers `{"status":"ok"}` for existing scripts.
 
-Docker calls the readiness URL every 10 seconds. `docker compose ps` shows `healthy`/`unhealthy`, and
-nginx only starts once the server is healthy. If the database is unreachable during a deploy, the
-deploy fails loudly instead of serving 502 errors.
+Docker calls the **liveness** URL every 10 seconds. `docker compose ps` shows `healthy`/`unhealthy`, and
+nginx only starts once the server is healthy, so players don't get 502 errors while Spring is starting.
+The database is deliberately left out of the Docker check: deploys are automatic (CD job in
+`.github/workflows/ci.yml`), and a short Supabase outage must not block `deploy.sh` before the CD smoke
+test and rollback can run. Database problems show up on `readiness`, in the "Database connection pool"
+panel, and in the logs.
 
 Check by hand:
 
@@ -86,20 +89,25 @@ Prometheus, Loki, Alloy and Grafana are in `infra/docker-compose.yml` under the 
 
 ### Turn it on
 
-Add to `.env.deploy` on the host:
+Add to `.env.deploy` on the deploy host (`~/bodegadk-deploy/.env.deploy`, the file `deploy.sh` reads):
 
 ```bash
 COMPOSE_PROFILES=monitoring
 GRAFANA_ADMIN_PASSWORD=<choose a strong password>
 ```
 
-Then deploy as usual (`npm run deploy:update`). Docker Compose reads `COMPOSE_PROFILES` and starts the
-monitoring containers too. To start only the monitoring part on a running host:
+The next CD deploy (a merge into `dev`) then starts the monitoring containers too: the CD job copies
+`docker-compose.yml` and `infra/monitoring/` to the host, and `deploy.sh` loads `.env.deploy`, so
+`docker compose pull`/`up` see `COMPOSE_PROFILES`. To start the monitoring part right away on the host:
 
 ```bash
-cd infra
-docker compose --profile monitoring up -d prometheus loki alloy grafana
+cd ~/bodegadk-deploy
+set -a; . ./.env.deploy; set +a
+COMPOSE_PROJECT_NAME=infra IMAGE_TAG="$(cat .current-tag)" \
+  docker compose --profile monitoring up -d prometheus loki alloy grafana
 ```
+
+A local full stack built from source (`npm run deploy:update`) also honors `COMPOSE_PROFILES`.
 
 Extra memory on the host: about 0.5–1 GB.
 

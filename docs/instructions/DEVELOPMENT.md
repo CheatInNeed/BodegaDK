@@ -229,8 +229,11 @@ Fra repo root:
 
 ``` bash
 cd infra
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build
 ```
+
+`docker-compose.yml` alene henter færdige images fra GHCR (bygget af CI);
+`docker-compose.build.yml` bygger dem lokalt fra kildekoden i stedet.
 
 Åbn: - http://localhost (nginx)
 

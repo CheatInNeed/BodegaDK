@@ -6,12 +6,18 @@ COPY . .
 RUN mvn -B -DskipTests package
 
 FROM eclipse-temurin:21-jre AS runtime
+LABEL org.opencontainers.image.source=https://github.com/CheatInNeed/BodegaDK
 WORKDIR /app
 
 # curl is used by the Docker healthcheck (infra/docker-compose.yml).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Commit SHA from CI, reported by GET /health so deploys can be verified.
+# Declared after the apt layer so a new SHA does not invalidate the curl install cache.
+ARG APP_VERSION=dev
+ENV BODEGADK_VERSION=${APP_VERSION}
 
 # Spring Boot Maven output is target/*.jar (not build/libs/*.jar).
 COPY --from=build /build/target/*.jar app.jar

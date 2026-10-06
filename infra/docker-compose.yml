@@ -1,3 +1,8 @@
+# Runs prebuilt images from GHCR. CI pushes one tag per commit on dev
+# (the short SHA); the CD job sets IMAGE_TAG to that SHA before `up`.
+# To build the images locally instead, add docker-compose.build.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+
 x-logging: &default-logging
   # Rotate container logs so they cannot fill the host disk (max 3 x 10 MB per container).
   driver: json-file
@@ -7,22 +12,18 @@ x-logging: &default-logging
 
 services:
   nginx:
-    image: nginx:alpine
+    image: ghcr.io/cheatinneed/bodegadk-web:${IMAGE_TAG:-dev}
     restart: unless-stopped
     logging: *default-logging
     ports:
       - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ../apps/web/public:/usr/share/nginx/html:ro
     depends_on:
       server:
-        # Start nginx only when the server reports ready, so players never hit a half-started backend (502).
+        # Start nginx only once the server process is up, so players never hit a half-started backend (502).
         condition: service_healthy
 
   server:
-    build:
-      context: ../apps/server
+    image: ghcr.io/cheatinneed/bodegadk-server:${IMAGE_TAG:-dev}
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -30,14 +31,19 @@ services:
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME:?SPRING_DATASOURCE_USERNAME is required}
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD is required}
       - SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER:?SUPABASE_JWT_ISSUER is required}
+      - BODEGADK_VAPID_PUBLIC_KEY=${BODEGADK_VAPID_PUBLIC_KEY:-}
+      - BODEGADK_VAPID_PRIVATE_KEY=${BODEGADK_VAPID_PRIVATE_KEY:-}
+      - BODEGADK_VAPID_SUBJECT=${BODEGADK_VAPID_SUBJECT:-mailto:admin@bodegadk.local}
       # Set BODEGADK_LOG_LEVEL=DEBUG in .env.deploy to see every request and game action.
       - LOGGING_LEVEL_DK_BODEGADK=${BODEGADK_LOG_LEVEL:-INFO}
       # One JSON object per log line (Elastic Common Schema), so Loki can filter on level/room/requestId.
       # Read by hand with: docker compose logs server --no-log-prefix | jq -r '.message'
       - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
     healthcheck:
-      # Actuator on the internal management port 8081. "Ready" includes the database connection.
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8081/actuator/health/readiness"]
+      # Liveness on the internal management port 8081: the server process is up and answering.
+      # The database is deliberately not part of this check, so a short Supabase outage cannot block a
+      # deploy before CI's smoke test/rollback runs. Database status: /actuator/health/readiness and Grafana.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8081/actuator/health/liveness"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -45,6 +51,7 @@ services:
 
   # --- Monitoring stack (optional) -------------------------------------------------------------
   # Starts only with the "monitoring" profile, e.g. COMPOSE_PROFILES=monitoring in .env.deploy.
+  # The CD job copies infra/monitoring/ next to this file on the deploy host.
   # See docs/devops/observability.md.
 
   prometheus:

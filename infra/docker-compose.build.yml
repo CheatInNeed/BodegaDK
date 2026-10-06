@@ -1,0 +1,16 @@
+# Local/manual override: build both images from source instead of pulling
+# them from GHCR. Used by `npm run deploy:update`.
+services:
+  nginx:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        - PUBLIC_SUPABASE_URL=${PUBLIC_SUPABASE_URL:-}
+        - PUBLIC_SUPABASE_ANON_KEY=${PUBLIC_SUPABASE_ANON_KEY:-}
+
+  server:
+    build:
+      context: ../apps/server
+      args:
+        - APP_VERSION=${IMAGE_TAG:-dev}

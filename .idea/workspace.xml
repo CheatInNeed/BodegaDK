@@ -3,6 +3,9 @@
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
+  <component name="BackgroundAgentGlobalSettings">
+    <option name="selectedModelId" value="auto" />
+  </component>
   <component name="ChangeListManager">
     <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Minor things">
       <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
@@ -16,6 +19,7 @@
     <persistenceIdMap>
       <entry key="_/Users/alex/WebstormProjects/BodegaDK" value="3C4WxYrhQF8Ooqah2ksVJ0CjBUJ" />
       <entry key="_/Users/peterroland/Library/CloudStorage/OneDrive-DanmarksTekniskeUniversitet/DTU/4_Semester/62595_Full_stack_development/BodegaDK" value="3ATq15ONpesXwkLXmSD166wfQI8" />
+      <entry key="_C:/Users/aske/Documents/GitHub/BodegaDK" value="3Jk8lTz6KmQNhz0fx6JAqJzd9OQ" />
       <entry key="_C:/Users/lille/WebstormProjects/BodegaDK" value="3Cz5lx1ZkjQl7oymrnbvyPN9j5J" />
     </persistenceIdMap>
   </component>
@@ -112,6 +116,21 @@
   &quot;associatedIndex&quot;: 7
 }</component>
   <component name="ProjectId" id="3ATq15ONpesXwkLXmSD166wfQI8" />
+  <component name="ProjectSessionTemplates">
+    <option name="panelTemplate">
+      <template>
+        <option name="modeId" value="Agent" />
+        <option name="model">
+          <model>
+            <option name="modelType" value="builtin_id" />
+            <option name="modelValue" value="auto" />
+          </model>
+        </option>
+        <option name="targetType" value="BACKGROUND" />
+        <option name="worktreeMode" value="WORKSPACE" />
+      </template>
+    </option>
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />

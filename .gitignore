@@ -23,6 +23,10 @@ project_dump.txt
 apps/web/.env
 apps/web/.env.local
 
+# Load test results (keep local)
+tests/load/results/*.json
+tests/load/results/*.md
+
 # Local IDE state
 .ai/*
 .idea/*
