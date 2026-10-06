@@ -1,5 +1,67 @@
 # Runtime Changelog
 
+## 2026-09-25 -- Health checks, metrics and monitoring stack (observability phases 2-3)
+
+### What changed
+- **Spring Boot 3.3.3 → 3.5.16** (3.3 was out of OSS support; 3.4+ has
+  native JSON logging).
+- **Actuator on internal port 8081**: `/actuator/health` (with database),
+  `/actuator/health/liveness`, `/actuator/health/readiness`,
+  `/actuator/prometheus`. Not proxied by nginx; `GET /health` on 8080 is
+  unchanged.
+- **Metrics**: REST/JVM/database pool metrics from Spring Boot, plus BodegaDK
+  metrics for connected players, rooms by status, game actions (by game and
+  ok/rejected/crash, with timings), games started/finished, refused
+  WebSocket CONNECTs by reason, heartbeat timeouts, match history write
+  failures and push outcomes.
+- **Docker**: the server image includes `curl`; compose healthcheck on
+  Actuator liveness; nginx starts only when the server is healthy; the server
+  logs ECS JSON in Docker.
+- **CD integration**: the deploy job also copies `infra/monitoring/` to the
+  host, and images are only published after the `infra-config` checks pass.
+- **nginx**: JSON access log with `request_id`, status and timings.
+- **Monitoring profile** (`infra/monitoring/`, `COMPOSE_PROFILES=monitoring`):
+  Prometheus with alert rules (visible only, no notifications yet), Loki,
+  Grafana Alloy and Grafana with a provisioned "BodegaDK Overview" dashboard.
+  Grafana/Prometheus bind to 127.0.0.1 only.
+- **CI**: new `infra-config` job validates compose, nginx, Prometheus rules
+  (with unit tests), Loki, Alloy and dashboard JSON.
+
+### Why
+See `docs/decisions/0002-observability-stack.md` and
+`docs/devops/observability.md`.
+
+## 2026-09-25 -- Server logging (observability phase 1)
+
+### What changed
+- **Room task crashes are no longer silent**: `InMemoryRuntimeStore.submit` now
+  logs exceptions from room worker tasks. Before, `executor.submit` stored them
+  in an unread `Future`, so a crashing engine left the room looking frozen with
+  nothing in the logs.
+- **Crashing game actions answer the player**: `GameWsHandler` catches
+  unexpected exceptions from a game action, logs them with a stack trace, and
+  sends the actor `ERROR` with `RULES_NOT_AVAILABLE: action failed on server`
+  (existing error prefix, no protocol change).
+- **Match results survive a history write failure**: if
+  `recordCompletedMatch` throws, the error is logged and `GAME_FINISHED` is
+  still broadcast. Before, the players never received the result.
+- **WebSocket lifecycle logging**: connect, CONNECT rejections with reason,
+  disconnects, heartbeat timeouts, transport errors, invalid messages, game
+  start/finish and room close.
+- **Push logging**: failed push sends are logged as WARN instead of ignored;
+  expired subscriptions and "push disabled" are logged at INFO.
+- **Request IDs and log tags**: new `dk.bodegadk.logging` package.
+  `RequestIdFilter` tags every REST request and returns `X-Request-Id`;
+  `LogContext` adds `req`, `room` and `player` tags to log lines;
+  `UnexpectedErrorLoggingResolver` logs unhandled REST exceptions with the
+  request ID (the 500 response body is unchanged).
+- **Infra**: nginx forwards `X-Request-Id: $request_id` to the server; Docker
+  logs rotate at 3 x 10 MB; `BODEGADK_LOG_LEVEL` sets the server log level.
+
+### Why
+The server previously wrote no application logs at all, and several failures
+were swallowed without a trace. See `docs/instructions/LOGGING.md`.
+
 ## 2026-04-29 -- Supabase V1 Platform, Friends, Challenges, Notifications
 
 ### What changed

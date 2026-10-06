@@ -257,9 +257,12 @@ infra/
   docker-compose.build.yml   # override: build the images from source
   deploy/
     deploy.sh                # run on the host by the CD job
-    known_hosts              # pinned SSH host key of the deploy server
+    known_hosts              # pinned SSH host keys of the deploy servers
+    environments/            # public per-environment settings (dev, production)
   nginx/
     nginx.conf
+  monitoring/          optional Prometheus/Loki/Alloy/Grafana stack
+    prometheus/  loki/  alloy/  grafana/
 ```
 
 Services:
@@ -267,6 +270,9 @@ Services:
 - `nginx`: image from `apps/web/Dockerfile` (compiled client and
   `nginx.conf` baked in), static web assets plus reverse proxy
 - `server`: image from `apps/server/Dockerfile`, Spring Boot backend
+  (app on 8080, internal Actuator health/metrics on 8081)
+- `prometheus`, `loki`, `alloy`, `grafana`: monitoring, only with the
+  `monitoring` compose profile; see `docs/devops/observability.md`
 
 Database ownership and migration strategy:
 
@@ -290,9 +296,16 @@ is the canonical Supabase Postgres project and is not replaced by a local
 deploy fallback.
 
 Delivery: GitHub Actions builds and tests every pull request. Each merge into
-`dev` builds both images once, pushes them to GHCR tagged with the commit SHA,
-applies Supabase migrations and deploys that tag to the VM over SSH. The VM
-never builds code. See `docs/instructions/SERVER_GUIDE.md`.
+`dev` or `master` builds both images, pushes them to GHCR tagged with the
+commit SHA, applies Supabase migrations and deploys that tag to a VM over SSH.
+The VMs never build code.
+
+- `dev` deploys automatically to the test VM (130.225.170.77).
+- `master` deploys to the production VM (130.225.170.69) after a reviewer
+  approves the job.
+
+Each environment has its own VM and its own Supabase project. See
+`docs/instructions/SERVER_GUIDE.md`.
 
 Required backend environment:
 

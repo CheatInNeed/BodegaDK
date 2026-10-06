@@ -2,18 +2,30 @@
 # (the short SHA); the CD job sets IMAGE_TAG to that SHA before `up`.
 # To build the images locally instead, add docker-compose.build.yml:
 #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+
+x-logging: &default-logging
+  # Rotate container logs so they cannot fill the host disk (max 3 x 10 MB per container).
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   nginx:
     image: ghcr.io/cheatinneed/bodegadk-web:${IMAGE_TAG:-dev}
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
     depends_on:
-      - server
+      server:
+        # Start nginx only once the server process is up, so players never hit a half-started backend (502).
+        condition: service_healthy
 
   server:
     image: ghcr.io/cheatinneed/bodegadk-server:${IMAGE_TAG:-dev}
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL:?SPRING_DATASOURCE_URL is required}
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME:?SPRING_DATASOURCE_USERNAME is required}
@@ -22,9 +34,92 @@ services:
       - BODEGADK_VAPID_PUBLIC_KEY=${BODEGADK_VAPID_PUBLIC_KEY:-}
       - BODEGADK_VAPID_PRIVATE_KEY=${BODEGADK_VAPID_PRIVATE_KEY:-}
       - BODEGADK_VAPID_SUBJECT=${BODEGADK_VAPID_SUBJECT:-mailto:admin@bodegadk.local}
+      # Set BODEGADK_LOG_LEVEL=DEBUG in .env.deploy to see every request and game action.
+      - LOGGING_LEVEL_DK_BODEGADK=${BODEGADK_LOG_LEVEL:-INFO}
+      # One JSON object per log line (Elastic Common Schema), so Loki can filter on level/room/requestId.
+      # Read by hand with: docker compose logs server --no-log-prefix | jq -r '.message'
+      - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      # Liveness on the internal management port 8081: the server process is up and answering.
+      # The database is deliberately not part of this check, so a short Supabase outage cannot block a
+      # deploy before CI's smoke test/rollback runs. Database status: /actuator/health/readiness and Grafana.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8081/actuator/health/liveness"]
       interval: 10s
       timeout: 3s
       retries: 3
-      start_period: 40s
+      start_period: 60s
+
+  # --- Monitoring stack (optional) -------------------------------------------------------------
+  # Starts only with the "monitoring" profile, e.g. COMPOSE_PROFILES=monitoring in .env.deploy.
+  # The CD job copies infra/monitoring/ next to this file on the deploy host.
+  # See docs/devops/observability.md.
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      # Host-local only; reach it through an SSH tunnel.
+      - "127.0.0.1:9090:9090"
+
+  loki:
+    image: grafana/loki:3.7.8
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+
+  alloy:
+    image: grafana/alloy:v1.19.2
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["run", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Read access to Docker so Alloy can find the server/nginx containers and read their logs.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      # Set GRAFANA_ADMIN_PASSWORD in .env.deploy. The fallback only works because Grafana is host-local.
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/bodegadk-overview.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      # Host-local only; reach it through an SSH tunnel: ssh -L 3000:localhost:3000 <host>
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+
+volumes:
+  prometheus-data:
+  loki-data:
+  alloy-data:
+  grafana-data:

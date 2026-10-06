@@ -2,10 +2,13 @@ package dk.bodegadk.push;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dk.bodegadk.metrics.BodegaMetrics;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 import org.apache.http.HttpResponse;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Security;
@@ -14,23 +17,30 @@ import java.util.NoSuchElementException;
 
 @Service
 public class WebPushNotificationService {
+    private static final Logger log = LoggerFactory.getLogger(WebPushNotificationService.class);
     private static final int HTTP_GONE = 410;
     private static final int HTTP_NOT_FOUND = 404;
 
     private final PushProperties properties;
     private final PushSubscriptionStore subscriptionStore;
     private final ObjectMapper objectMapper;
+    private final BodegaMetrics metrics;
 
     public WebPushNotificationService(
             PushProperties properties,
             PushSubscriptionStore subscriptionStore,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            BodegaMetrics metrics
     ) {
+        this.metrics = metrics;
         this.properties = properties;
         this.subscriptionStore = subscriptionStore;
         this.objectMapper = objectMapper;
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
             Security.addProvider(new BouncyCastleProvider());
+        }
+        if (!properties.enabled()) {
+            log.info("Web push is disabled: VAPID keys are not configured");
         }
     }
 
@@ -57,8 +67,11 @@ public class WebPushNotificationService {
             try {
                 sendToEndpoint(subscription.endpoint(), payload);
                 sent += 1;
-            } catch (IllegalStateException ignored) {
+                metrics.push("sent");
+            } catch (IllegalStateException exception) {
                 // A stale or rejected subscription should not block the domain action that triggered notification fan-out.
+                log.warn("Push notification to user {} failed: {}", userId, describe(exception));
+                metrics.push("failed");
             }
         }
         return sent;
@@ -87,7 +100,9 @@ public class WebPushNotificationService {
             HttpResponse response = pushService.send(notification);
             int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode == HTTP_GONE || statusCode == HTTP_NOT_FOUND) {
+                log.info("Removing expired push subscription for user {} (push service answered {})", subscription.userId(), statusCode);
                 subscriptionStore.deleteByEndpoint(endpoint);
+                metrics.push("expired");
             }
             if (statusCode >= 400) {
                 throw new IllegalStateException("Push service rejected notification with status " + statusCode);
@@ -122,6 +137,11 @@ public class WebPushNotificationService {
                 now,
                 now
         );
+    }
+
+    private static String describe(Exception exception) {
+        Throwable cause = exception.getCause();
+        return cause == null ? exception.getMessage() : exception.getMessage() + ": " + cause;
     }
 
     private String clean(String value) {

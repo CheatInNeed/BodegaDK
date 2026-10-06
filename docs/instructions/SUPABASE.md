@@ -30,7 +30,11 @@ Current Supabase files in the repo:
 - `supabase/migrations/202604281520_remove_leaderboard_seasons.sql`
 - `supabase/migrations/202604291123_grant_browser_profile_avatar_access.sql`
 - `supabase/migrations/202605041200_room_presence_cleanup.sql`
-- `.github/workflows/supabase-migrations.yml`
+- `.github/workflows/ci.yml` (the deploy job applies migrations)
+- `infra/deploy/environments/*.env` (public Supabase URL and key per environment)
+
+There are two hosted projects: `awdhzmyieafhfpjmzwsh` for dev and
+`glcpevubpmjetewddvil` for production. They share no data or users.
 
 Room/session metadata now lives in Supabase/Postgres, while live
 engine-specific game state still remains inside the Spring runtime.
@@ -109,15 +113,12 @@ Room presence and cleanup uses Supabase RPCs:
   `room_players.updated_at`, so ghost lobbies are hidden even if scheduled
   cleanup is delayed
 
-GitHub Actions applies migrations on:
+GitHub Actions applies migrations in the deploy job of
+`.github/workflows/ci.yml`, right before the new containers start:
 
-- push to `dev`
-- push to `master`
-- manual workflow dispatch
-
-Workflow file:
-
-- `.github/workflows/supabase-migrations.yml`
+- push to `dev`: against the dev project, automatically
+- push to `master`: against the production project, after the deploy job has
+  been approved
 
 Required GitHub secrets:
 
@@ -125,8 +126,13 @@ Required GitHub secrets:
 - `SUPABASE_PROJECT_REF`
 - `SUPABASE_DB_PASSWORD`
 
-The workflow runs `supabase db push --linked --dry-run` and then
-`supabase db push --linked`.
+Dev uses the repository-level secrets; production overrides all three as
+environment secrets on the `production` environment.
+
+The job runs `supabase link` and then `supabase db push --linked
+--include-all`, which applies only migrations missing from that project's
+history. A new migration therefore reaches dev first and production only with
+the next release.
 
 The Spring backend connects to the database at runtime through JDBC, but it
 does not own schema migrations. Hosted Supabase, local Supabase, and any
@@ -203,7 +209,12 @@ Hosted Supabase migrations and web runtime config are separate concerns.
 - `SPRING_DATASOURCE_*` controls the Spring backend connection to the
   canonical Supabase Postgres database
 - `SUPABASE_JWT_ISSUER` controls backend validation of Supabase access tokens;
-  the deploy script defaults it for the current project unless overridden
+  the deploy script defaults it to the dev project, so the production host
+  sets it explicitly in `.env.deploy`
+
+The CD pipeline builds the web image with the public values from
+`infra/deploy/environments/<env>.env`, so dev and production each talk to
+their own Supabase project.
 
 For live deploys, the machine or CI job that runs `npm run web:build` or
 `npm run deploy:update` must provide deployment values either through:

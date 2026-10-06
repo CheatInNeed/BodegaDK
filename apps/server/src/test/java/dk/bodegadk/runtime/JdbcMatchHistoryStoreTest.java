@@ -14,7 +14,6 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,7 +22,8 @@ class JdbcMatchHistoryStoreTest {
     @Test
     void completedMatchCreatesParticipantsAndStatsRows() throws Exception {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-        JdbcMatchHistoryStore store = new JdbcMatchHistoryStore(jdbcTemplate, new ObjectMapper());
+        DatabaseCacheService cacheService = mock(DatabaseCacheService.class);
+        JdbcMatchHistoryStore store = new JdbcMatchHistoryStore(jdbcTemplate, new ObjectMapper(), cacheService);
         String roomId = "11111111-1111-1111-1111-111111111111";
         String gameId = "22222222-2222-2222-2222-222222222222";
         String winnerId = "33333333-3333-3333-3333-333333333333";
@@ -34,20 +34,26 @@ class JdbcMatchHistoryStoreTest {
         when(jdbcTemplate.query(contains("select user_id::text"), any(RowMapper.class), eq(roomId)))
                 .thenReturn(List.of(winnerId, loserId));
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+        when(jdbcTemplate.batchUpdate(anyString(), any(List.class))).thenReturn(new int[]{1, 1});
 
         store.recordCompletedMatch("ROOM1", winnerId, new ObjectMapper().createObjectNode());
 
+        // Source-of-truth writes remain synchronous
         verify(jdbcTemplate).update(contains("update public.rooms"), eq(roomId));
         verify(jdbcTemplate).update(contains("insert into public.matches"), any(Object[].class));
-        verify(jdbcTemplate, times(2)).update(contains("insert into public.match_players"), any(Object[].class));
-        verify(jdbcTemplate, times(2)).update(contains("insert into public.user_game_stats"), any(Object[].class));
-        verify(jdbcTemplate, times(2)).update(contains("insert into public.leaderboard_scores"), any(Object[].class));
+        // match_players is now a single batch call
+        verify(jdbcTemplate).batchUpdate(contains("insert into public.match_players"), any(List.class));
+        // Stats and leaderboard are deferred via cacheService
+        verify(cacheService).enqueueStats(eq(winnerId), eq(gameId), eq("WIN"), eq(null), any());
+        verify(cacheService).enqueueStats(eq(loserId), eq(gameId), eq("LOSS"), eq(null), any());
+        verify(cacheService).enqueueLeaderboard(eq(winnerId), eq(gameId), any(), eq("WIN"));
+        verify(cacheService).enqueueLeaderboard(eq(loserId), eq(gameId), any(), eq("LOSS"));
     }
 
     @Test
     void duplicateCompletedMatchDoesNotDoubleCountStats() throws Exception {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-        JdbcMatchHistoryStore store = new JdbcMatchHistoryStore(jdbcTemplate, new ObjectMapper());
+        JdbcMatchHistoryStore store = new JdbcMatchHistoryStore(jdbcTemplate, new ObjectMapper(), null);
         String roomId = "11111111-1111-1111-1111-111111111111";
         String gameId = "22222222-2222-2222-2222-222222222222";
 

@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemoryRoomMetadataStoreTest {
 
@@ -43,5 +44,23 @@ class InMemoryRoomMetadataStoreTest {
         assertEquals(0, store.waitingTickets("casino").size());
         assertEquals(1, store.waitingTickets("krig").size());
         assertNotEquals(firstTicket, secondTicket);
+    }
+
+    @Test
+    void createRoomAndJoinHostCreatesRoomWithParticipant() {
+        InMemoryRoomMetadataStore store = new InMemoryRoomMetadataStore();
+
+        boolean created = store.createRoomAndJoinHost(
+                "ABCD", "p1", RoomMetadataStore.RoomVisibility.PUBLIC,
+                "casino", InMemoryRuntimeStore.RoomStatus.LOBBY, "alice");
+
+        assertTrue(created);
+        assertTrue(store.roomExists("ABCD"));
+        RoomMetadataStore.StoredRoom room = store.room("ABCD").orElseThrow();
+        assertEquals("p1", room.hostUserId());
+        assertEquals("casino", room.selectedGame());
+        assertEquals(1, room.participants().size());
+        assertEquals("p1", room.participants().getFirst().playerId());
+        assertEquals("alice", room.participants().getFirst().username());
     }
 }

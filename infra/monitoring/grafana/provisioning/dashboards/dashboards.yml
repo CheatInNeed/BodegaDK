@@ -1,0 +1,12 @@
+# Loads every dashboard JSON in /etc/grafana/dashboards (infra/monitoring/grafana/dashboards).
+# Edit dashboards in git, not in the Grafana UI: UI changes are lost on restart.
+apiVersion: 1
+
+providers:
+  - name: bodegadk
+    folder: BodegaDK
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

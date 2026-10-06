@@ -407,4 +407,17 @@ og at du har kørt:
 npm run web:build
 ```
 
+### Læs server-logs
+
+Lokalt (`npm run server:local`) logger serveren på DEBUG, så du ser hver
+REST-request og hver game action i terminalen. I Docker logger serveren JSON:
+
+``` bash
+cd infra && docker compose logs -f server --no-log-prefix | jq -r '.message'
+```
+
+Se `docs/instructions/LOGGING.md` for hvad logs indeholder, log levels og
+hvordan man følger ét room eller én request. Health checks, metrics og
+Grafana-dashboardet er beskrevet i `docs/devops/observability.md`.
+
 ------------------------------------------------------------------------
