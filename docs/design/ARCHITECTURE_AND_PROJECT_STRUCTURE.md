@@ -260,6 +260,8 @@ infra/
     known_hosts              # pinned SSH host key of the deploy server
   nginx/
     nginx.conf
+  monitoring/          optional Prometheus/Loki/Alloy/Grafana stack
+    prometheus/  loki/  alloy/  grafana/
 ```
 
 Services:
@@ -267,6 +269,9 @@ Services:
 - `nginx`: image from `apps/web/Dockerfile` (compiled client and
   `nginx.conf` baked in), static web assets plus reverse proxy
 - `server`: image from `apps/server/Dockerfile`, Spring Boot backend
+  (app on 8080, internal Actuator health/metrics on 8081)
+- `prometheus`, `loki`, `alloy`, `grafana`: monitoring, only with the
+  `monitoring` compose profile; see `docs/devops/observability.md`
 
 Database ownership and migration strategy:
 

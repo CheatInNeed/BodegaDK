@@ -22,6 +22,42 @@ server:
   error:
     include-message: always
 
+management:
+  server:
+    # Actuator runs on its own port. nginx only forwards to 8080, so these endpoints are never public;
+    # Prometheus and the Docker healthcheck reach them inside the Docker network.
+    port: ${MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+      group:
+        readiness:
+          # "Ready" means the server can actually serve players, which needs the database.
+          include: readinessState,db
+  metrics:
+    tags:
+      application: bodegadk
+    distribution:
+      # Enables p50/p95/p99 queries in Prometheus/Grafana for these timers.
+      percentiles-histogram:
+        http.server.requests: true
+        bodegadk.game.action: true
+
+logging:
+  level:
+    # Our own code. Override at runtime with LOGGING_LEVEL_DK_BODEGADK=DEBUG.
+    dk.bodegadk: INFO
+  pattern:
+    # Prints the LogContext (MDC) tags on every line, e.g. "req=4f1c… room=ABCD player=9b2e…".
+    # Each tag is left out when it is not set, so plain startup lines stay short.
+    correlation: "%replace(req=%X{requestId} ){'^req= $', ''}%replace(room=%X{roomCode} ){'^room= $', ''}%replace(player=%X{playerId} ){'^player= $', ''}"
+
 bodegadk:
   # Commit SHA baked into the Docker image by CI; "dev" for local runs.
   version: ${BODEGADK_VERSION:dev}

@@ -1,0 +1,80 @@
+// Grafana Alloy: reads the Docker logs of the server and nginx containers and ships them to Loki.
+
+// Find running containers through the Docker socket.
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "10s"
+}
+
+// Keep only our app containers and label each stream with its compose service name.
+discovery.relabel "app" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "server|nginx"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "app" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.app.output
+  forward_to = [loki.process.app.receiver]
+}
+
+loki.process "app" {
+  // Spring Boot writes one ECS JSON object per line (LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs).
+  stage.match {
+    selector = "{service=\"server\"}"
+
+    stage.json {
+      expressions = {
+        level      = "log.level",
+        request_id = "requestId",
+        room       = "roomCode",
+        player     = "playerId",
+      }
+    }
+
+    // level has few values, so it is a label (fast to filter on).
+    stage.labels {
+      values = { level = "" }
+    }
+
+    // IDs have endless values; structured metadata keeps them searchable without new streams.
+    stage.structured_metadata {
+      values = {
+        request_id = "",
+        room       = "",
+        player     = "",
+      }
+    }
+  }
+
+  // nginx access log (bodegadk_json format in infra/nginx/nginx.conf).
+  stage.match {
+    selector = "{service=\"nginx\"}"
+
+    stage.json {
+      expressions = { request_id = "request_id" }
+    }
+
+    stage.structured_metadata {
+      values = { request_id = "" }
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
