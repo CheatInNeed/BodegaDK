@@ -30,3 +30,7 @@ tests/load/results/*.md
 # Local IDE state
 .ai/*
 .idea/*
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
