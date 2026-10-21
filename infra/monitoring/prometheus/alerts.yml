@@ -40,15 +40,6 @@ groups:
           summary: "A finished game's result could not be saved"
           description: "Players saw the result, but the match is missing from history/leaderboard. Check database connectivity."
 
-      - alert: BodegaHeartbeatTimeoutSpike
-        expr: sum(increase(bodegadk_heartbeat_timeouts_total[5m])) > 20
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Many players are dropping out (heartbeat timeouts)"
-          description: "More than 20 heartbeat timeouts per 5 minutes. Often a network/proxy problem around /ws."
-
       - alert: BodegaJvmMemoryHigh
         # Share of the heap still in use right after garbage collection; near 1 means an OutOfMemoryError is close.
         expr: max(jvm_memory_usage_after_gc{job="bodegadk-server", area="heap"}) > 0.9

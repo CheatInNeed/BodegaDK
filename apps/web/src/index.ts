@@ -70,8 +70,6 @@ const adapters: GenericAdapter[] = [
 ];
 
 const THEME_STORAGE_KEY = 'ui-theme';
-const ROOM_PRESENCE_INTERVAL_MS = 20_000;
-
 const THEMES: Array<{ id: ThemeId; labelKey: string; toneKey: string }> = [
     { id: 'bodega', labelKey: 'theme.bodega.label', toneKey: 'theme.bodega.tone' },
     { id: 'harbor', labelKey: 'theme.harbor.label', toneKey: 'theme.harbor.tone' },
@@ -117,9 +115,6 @@ let quickPlayRealtimeRefreshTimer: number | null = null;
 let activeQueueClockTimer: number | null = null;
 let matchedCountdownTimer: number | null = null;
 let quickPlayGeneration = 0;
-let roomPresenceTimer: number | null = null;
-let roomPresenceKey: string | null = null;
-let roomPresenceInFlight = false;
 let lobbyCopyFeedbackTimer: number | null = null;
 let profileDataCache: Awaited<ReturnType<typeof loadProfileData>> | null = null;
 
@@ -581,7 +576,6 @@ function renderLobbyContent(): string {
     }
 
     const session = ensureRoomSession(route.game ?? FALLBACK_LOBBY_GAME_ID, route.room, route.mock);
-    startRoomPresence(route.room, route.mock);
     const roomState = session?.getState();
     const publicState = toRecord(roomState?.publicState);
     const hostPlayerId = typeof publicState.hostPlayerId === 'string' ? publicState.hostPlayerId : null;
@@ -645,7 +639,6 @@ function renderRoomContent(): string {
     const viewModel = session?.toViewModel({ selfUsername });
 
     if (!roomState || !viewModel) {
-        stopRoomPresence();
         return renderRoomError('Unable to initialize room session');
     }
 
@@ -659,12 +652,6 @@ function renderRoomContent(): string {
     const autoStartKey = `${route.room}|${route.game}`;
     const suppressWinnerBanner = adapter.id === krigAdapter.id && roomPublicState.gamePhase === 'GAME_OVER';
     const hasFinished = !!roomState.winnerPlayerId || status === 'FINISHED' || roomPublicState.gamePhase === 'GAME_OVER';
-
-    if (status === 'IN_GAME' && !hasFinished) {
-        startRoomPresence(route.room, route.mock);
-    } else {
-        stopRoomPresence();
-    }
 
     if (status === 'LOBBY' && supportsLobbyLifecycle(route.game) && route.room) {
         queueMicrotask(() => {
@@ -788,7 +775,6 @@ function ensureRoomSession(
 }
 
 function cleanupRoomSession() {
-    stopRoomPresence();
     clearLobbyCopyFeedback();
     unsubscribeRoomSession?.();
     unsubscribeRoomSession = null;
@@ -807,52 +793,6 @@ function cleanupRoomSessionIfUnneeded() {
         return;
     }
     cleanupRoomSession();
-}
-
-function startRoomPresence(roomCode: string, useMock: boolean) {
-    if (useMock || !supabase) {
-        stopRoomPresence();
-        return;
-    }
-
-    const key = roomCode;
-    if (roomPresenceTimer !== null && roomPresenceKey === key) {
-        return;
-    }
-
-    stopRoomPresence();
-    roomPresenceKey = key;
-    void sendRoomPresence(roomCode);
-    roomPresenceTimer = window.setInterval(() => {
-        void sendRoomPresence(roomCode);
-    }, ROOM_PRESENCE_INTERVAL_MS);
-}
-
-function stopRoomPresence() {
-    if (roomPresenceTimer !== null) {
-        window.clearInterval(roomPresenceTimer);
-        roomPresenceTimer = null;
-    }
-    roomPresenceKey = null;
-    roomPresenceInFlight = false;
-}
-
-async function sendRoomPresence(roomCode: string) {
-    if (!supabase || roomPresenceInFlight) return;
-    roomPresenceInFlight = true;
-
-    try {
-        const { error } = await supabase.rpc('touch_room_presence', {
-            room_code_input: roomCode,
-        });
-        if (error) {
-            console.warn('[room-presence] failed to update room presence', error);
-        }
-    } catch (error) {
-        console.warn('[room-presence] failed to update room presence', error);
-    } finally {
-        roomPresenceInFlight = false;
-    }
 }
 
 function resolveAdapter(game: string): GenericAdapter | undefined {

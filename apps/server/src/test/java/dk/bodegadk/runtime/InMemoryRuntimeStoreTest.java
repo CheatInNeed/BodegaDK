@@ -66,41 +66,6 @@ class InMemoryRuntimeStoreTest {
     }
 
     @Test
-    void expiresConnectedSessionsWithoutHeartbeat() throws InterruptedException {
-        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
-        String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "alice", "token-p1");
-        store.resolveConnect(roomCode, "token-p1");
-
-        Thread.sleep(15);
-
-        var expired = store.sweepExpiredSessions(Duration.ofMillis(5));
-
-        assertEquals(1, expired.size());
-        assertFalse(store.roomExists(roomCode));
-    }
-
-    @Test
-    void disconnectKeepsPlayerInRoomUntilHeartbeatTimeout() throws InterruptedException {
-        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
-        String roomCode = store.createRoom("highcard", false, "p1");
-        store.joinRoom(roomCode, "p1", "alice", "token-p1");
-        store.resolveConnect(roomCode, "token-p1");
-
-        store.disconnect("token-p1");
-
-        assertTrue(store.roomExists(roomCode));
-        assertEquals(1, store.roomSnapshot(roomCode).orElseThrow().participants().size());
-
-        Thread.sleep(15);
-
-        var expired = store.sweepExpiredSessions(Duration.ofMillis(5));
-
-        assertEquals(1, expired.size());
-        assertFalse(store.roomExists(roomCode));
-    }
-
-    @Test
     void krigRoomReturnsToLobbyWhenOpponentLeavesMidMatch() {
         InMemoryRuntimeStore store = new InMemoryRuntimeStore();
         String roomCode = store.createRoom("krig", false, "p1");

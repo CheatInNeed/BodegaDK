@@ -78,7 +78,6 @@ export type ConnectMessage = WsEnvelope<'CONNECT', {
         };
     };
 }>;
-export type HeartbeatMessage = WsEnvelope<'HEARTBEAT', Record<string, never>>;
 export type SelectGameMessage = WsEnvelope<'SELECT_GAME', { game: string }>;
 export type StartGameMessage = WsEnvelope<'START_GAME', Record<string, never>>;
 export type RequestRematchMessage = WsEnvelope<'REQUEST_REMATCH', Record<string, never>>;
@@ -111,7 +110,6 @@ export type FemPassGrabMessage = WsEnvelope<'PASS_GRAB', Record<string, never>>;
 
 export type ClientToServerMessage =
     | ConnectMessage
-    | HeartbeatMessage
     | SelectGameMessage
     | StartGameMessage
     | RequestRematchMessage
@@ -138,7 +136,6 @@ export type StateSnapshotMessage = WsEnvelope<'STATE_SNAPSHOT', {
 
 export type PublicUpdateMessage = WsEnvelope<'PUBLIC_UPDATE', Record<string, unknown>>;
 export type PrivateUpdateMessage = WsEnvelope<'PRIVATE_UPDATE', Record<string, unknown>>;
-export type HeartbeatAckMessage = WsEnvelope<'HEARTBEAT_ACK', { at: string }>;
 export type RoomClosedMessage = WsEnvelope<'ROOM_CLOSED', Record<string, never>>;
 export type ErrorMessage = WsEnvelope<'ERROR', { message: string }>;
 export type GameFinishedMessage = WsEnvelope<'GAME_FINISHED', { winnerPlayerId: string | null }>;
@@ -147,7 +144,6 @@ export type ServerToClientMessage =
     | StateSnapshotMessage
     | PublicUpdateMessage
     | PrivateUpdateMessage
-    | HeartbeatAckMessage
     | RoomClosedMessage
     | ErrorMessage
     | GameFinishedMessage;
@@ -165,7 +161,6 @@ export function parseServerMessage(raw: unknown): ServerToClientMessage | null {
         raw.type === 'STATE_SNAPSHOT'
         || raw.type === 'PUBLIC_UPDATE'
         || raw.type === 'PRIVATE_UPDATE'
-        || raw.type === 'HEARTBEAT_ACK'
         || raw.type === 'ROOM_CLOSED'
         || raw.type === 'ERROR'
         || raw.type === 'GAME_FINISHED'

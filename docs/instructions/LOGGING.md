@@ -38,7 +38,7 @@ java.lang.NullPointerException: ...
 |---|---|---|
 | `ERROR` | Something broke and needs a fix | Game engine threw, match history could not be saved, unexpected REST error |
 | `WARN` | Unusual, but handled | CONNECT rejected, invalid WS message, push notification failed, WS transport error |
-| `INFO` | Important normal events | Player connected/disconnected, game started/finished, heartbeat timeout, room closed |
+| `INFO` | Important normal events | Player connected/disconnected, game started/finished, room closed |
 | `DEBUG` | Detail for troubleshooting | Every REST request with status and duration, every game action, rule rejections ("not your turn") |
 
 Production shows INFO and above. To turn on DEBUG in Docker, set `BODEGADK_LOG_LEVEL=DEBUG` in

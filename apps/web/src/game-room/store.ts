@@ -126,10 +126,6 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
         };
     }
 
-    if (msg.type === 'HEARTBEAT_ACK') {
-        return state;
-    }
-
     if (msg.type === 'ROOM_CLOSED') {
         return {
             ...state,

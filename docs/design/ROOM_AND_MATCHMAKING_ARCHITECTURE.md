@@ -133,8 +133,8 @@ Current persistence boundaries:
 
 - Room metadata is persisted in SQL.
 - Room participants are persisted in SQL.
-- Room participant presence is tracked with `room_players.updated_at`, refreshed
-  by the browser while a signed-in user is in a lobby or active game room.
+- Room participant presence is tracked with `room_players.updated_at`, updated
+  by explicit room lifecycle operations and stale-presence cleanup.
 - Matchmaking tickets are persisted in SQL.
 - Completed matches, match players, profile stats, and leaderboard scores are
   persisted in SQL.
@@ -170,7 +170,7 @@ model when required Supabase datasource settings are missing.
 Still owns:
 
 - Active socket/runtime binding helpers
-- Heartbeats and executor queues
+- Executor queues
 - Live engine state maps
 
 Room metadata operations delegate through `RoomMetadataStore`.

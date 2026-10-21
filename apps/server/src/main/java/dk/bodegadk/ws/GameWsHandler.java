@@ -13,7 +13,6 @@ import dk.bodegadk.runtime.MatchHistoryStore;
 import dk.bodegadk.runtime.RoomMetadataStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -24,7 +23,6 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -35,8 +33,6 @@ import java.util.concurrent.ConcurrentMap;
 @Component
 public class GameWsHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(GameWsHandler.class);
-    private static final Duration HEARTBEAT_TIMEOUT = Duration.ofSeconds(20);
-
     private final ObjectMapper objectMapper;
     private final InMemoryRuntimeStore runtimeStore;
     private final GameLoopService gameLoopService;
@@ -109,11 +105,6 @@ public class GameWsHandler extends TextWebSocketHandler {
             return;
         }
 
-        if ("HEARTBEAT".equals(inbound.type)) {
-            handleHeartbeat(session, binding);
-            return;
-        }
-
         dispatchAction(session, binding, inbound);
     }
 
@@ -136,20 +127,6 @@ public class GameWsHandler extends TextWebSocketHandler {
             log.warn("WS transport error: {}", exception.toString());
             log.debug("WS transport error details", exception);
             closeQuietly(session);
-        }
-    }
-
-    @Scheduled(fixedDelay = 5000)
-    public void sweepStaleConnections() {
-        for (InMemoryRuntimeStore.ExpiredSession expired : runtimeStore.sweepExpiredSessions(HEARTBEAT_TIMEOUT)) {
-            try (LogContext ignored = LogContext.open()
-                    .with(LogContext.ROOM_CODE, expired.roomCode())
-                    .with(LogContext.PLAYER_ID, expired.playerId())) {
-                log.info("Heartbeat timeout: closing player session");
-                metrics.heartbeatTimeout();
-                closeSessionByToken(expired.token(), "HEARTBEAT_TIMEOUT");
-                publishRoomMutation(expired.mutation());
-            }
         }
     }
 
@@ -288,19 +265,6 @@ public class GameWsHandler extends TextWebSocketHandler {
             }
             publishLobbyState(roomCode);
         }
-    }
-
-    private void handleHeartbeat(WebSocketSession session, ConnectionBinding binding) {
-        if (!runtimeStore.touchHeartbeat(binding.token)) {
-            log.warn("Heartbeat rejected: runtime session no longer exists");
-            sendError(session, "SESSION_NOT_READY: session validation unavailable");
-            closeQuietly(session);
-            return;
-        }
-
-        ObjectNode payload = objectMapper.createObjectNode();
-        payload.put("at", Instant.now().toString());
-        sendEnvelope(session, "HEARTBEAT_ACK", payload);
     }
 
     private void dispatchAction(WebSocketSession actorSession, ConnectionBinding binding, InboundMessage inbound) {
@@ -445,21 +409,6 @@ public class GameWsHandler extends TextWebSocketHandler {
             players.add(playerPayload);
         });
         return payload;
-    }
-
-    private void closeSessionByToken(String token, String reason) {
-        for (Map.Entry<String, ConnectionBinding> entry : bindingsById.entrySet()) {
-            ConnectionBinding binding = entry.getValue();
-            if (!binding.connected || !token.equals(binding.token)) {
-                continue;
-            }
-            WebSocketSession session = sessionsById.get(entry.getKey());
-            if (session == null) {
-                continue;
-            }
-            sendError(session, reason);
-            closeQuietly(session, true);
-        }
     }
 
     private void closeExistingSocketForToken(String token, String keepSessionId) {

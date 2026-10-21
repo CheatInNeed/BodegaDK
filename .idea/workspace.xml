@@ -7,8 +7,26 @@
     <option name="selectedModelId" value="auto" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Minor things">
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Dynamic Viewport">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/metrics/BodegaMetrics.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/metrics/BodegaMetrics.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/InMemoryRuntimeStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/InMemoryRuntimeStore.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/metrics/BodegaMetricsTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/metrics/BodegaMetricsTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/InMemoryRuntimeStoreTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/InMemoryRuntimeStoreTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/game-room/store.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/game-room/store.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/game-room/transport/ws-client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/game-room/transport/ws-client.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/net/protocol.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/net/protocol.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/PROTOCOL.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/devops/observability.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/devops/observability.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/instructions/LOGGING.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/LOGGING.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/security/RLS_AUDIT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/security/RLS_AUDIT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/infra/monitoring/grafana/dashboards/bodegadk-overview.json" beforeDir="false" afterPath="$PROJECT_DIR$/infra/monitoring/grafana/dashboards/bodegadk-overview.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/infra/monitoring/prometheus/alerts.yml" beforeDir="false" afterPath="$PROJECT_DIR$/infra/monitoring/prometheus/alerts.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -40,12 +58,12 @@
     &quot;assignee&quot;: &quot;CheatInNeed&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/CheatInNeed/BodegaDK&quot;,
-    &quot;accountId&quot;: &quot;f1440bbb-0109-4eb8-b3f9-f95a5b160bb6&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/CheatInNeed/BodegaDK.git",
+    "accountId": "fb2cbfff-e087-4079-aa4b-2986df684ab5"
   }
-}</component>
+}]]></component>
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
@@ -142,10 +160,12 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
     "copilot.chat.legacySessionMetadata.migrated": "true",
-    "git-widget-placeholder": "feature/push__notifications",
+    "git-widget-placeholder": "dev",
     "ignore.virus.scanning.warn.message": "true",
     "javascript.preferred.runtime.type.id": "node",
+    "kotlin-language-version-configured": "true",
     "last_opened_file_path": "/Users/ivanviemoescuevas/IdeaProjects/BodegaDK",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -194,11 +214,6 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
-    <configuration default="true" type="Application" factoryName="Application">
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
     <configuration name="local:dev" type="js.build_tools.npm" nameIsGenerated="true">
       <package-json value="$PROJECT_DIR$/package.json" />
       <command value="run" />
@@ -231,7 +246,8 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-WS-253.30387.83" />
+        <option value="bundled-jdk-30f59d01ecdd-34e2839f716b-intellij.indexing.shared.core-IU-262.9437.185" />
+        <option value="bundled-js-predefined-d6986cc7102b-4abd2a77f808-JavaScript-IU-262.9437.185" />
       </set>
     </attachedChunks>
   </component>
@@ -345,6 +361,16 @@
             <list>
               <RecentGroup>
                 <option name="FILTER_VALUES">
+                  <option value="origin/dev" />
+                </option>
+              </RecentGroup>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
+                  <option value="origin/master" />
+                </option>
+              </RecentGroup>
+              <RecentGroup>
+                <option name="FILTER_VALUES">
                   <option value="HEAD" />
                 </option>
               </RecentGroup>
@@ -363,7 +389,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="HEAD" />
+                        <option value="origin/dev" />
                       </list>
                     </value>
                   </entry>
