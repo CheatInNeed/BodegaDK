@@ -30,7 +30,7 @@ env:
 
 jobs:
   web:
-    name: Web (TypeScript)
+    name: Web (Vue 3)
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Build writes public/app-config.js and public/dist via tsc.
+      # Type-checks with vue-tsc, then bundles with Vite into dist-vue/.
       # Supabase public config falls back to safe defaults in scripts/run-local-env.mjs,
       # so no secrets are required here.
       - name: Build web client

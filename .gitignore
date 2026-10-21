@@ -11,10 +11,8 @@ project_dump.txt
 .vscode/*
 
 # Build artifacts
-/apps/web/public/dist/
-/apps/web/public/app-config.js
+/apps/web/dist-vue/
 /apps/server/target/
-/dist/*.js
 
 # Local environment config
 .env
