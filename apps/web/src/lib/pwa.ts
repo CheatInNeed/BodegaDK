@@ -1,5 +1,6 @@
 const SERVICE_WORKER_URL = '/sw.js';
 const DEVICE_ID_KEY = 'bodegadk-push-device-id';
+const SERVICE_WORKER_READY_TIMEOUT_MS = 3_000;
 
 export type PushStatus = {
   supported: boolean;
@@ -49,7 +50,7 @@ export async function readPushStatus(fetchFn: typeof fetch = fetch): Promise<Pus
 
   const [config, registration] = await Promise.all([
     fetchPushConfig(fetchFn).catch(() => ({ enabled: false, publicKey: null })),
-    navigator.serviceWorker.ready.catch(() => null),
+    resolveServiceWorkerRegistration(),
   ]);
   const subscription = registration ? await registration.pushManager.getSubscription() : null;
 
@@ -286,4 +287,26 @@ function resolvePlatformLabel(): string {
   if (coarse) return 'Phone/tablet browser';
   if (standalone) return 'Installed desktop app';
   return 'Desktop browser';
+}
+
+async function resolveServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
+  const registered = await registerPwaServiceWorker();
+  if (registered?.active) {
+    return registered;
+  }
+  return withTimeout(navigator.serviceWorker.ready, SERVICE_WORKER_READY_TIMEOUT_MS).catch((error) => {
+    console.warn('[pwa] service worker was not ready while checking push status', error);
+    return registered;
+  });
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(`Timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    promise
+      .then(resolve, reject)
+      .finally(() => window.clearTimeout(timeoutId));
+  });
 }

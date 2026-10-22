@@ -148,7 +148,7 @@ jobs:
     # approve the job, so nothing below touches production before that.
     environment:
       name: ${{ github.ref_name == 'master' && 'production' || 'dev' }}
-      url: http://${{ steps.settings.outputs.host }}
+      url: https://${{ steps.settings.outputs.host }}
     concurrency:
       group: deploy-${{ github.ref_name }}
       cancel-in-progress: false
@@ -223,7 +223,7 @@ jobs:
         id: smoke
         run: |
           for attempt in $(seq 1 30); do
-            body="$(curl -fsS --max-time 5 "http://$DEPLOY_HOST/api/health" || true)"
+            body="$(curl -fsS --max-time 5 "https://$DEPLOY_HOST/api/health" || true)"
             echo "attempt $attempt: ${body:-no response}"
             if printf '%s' "$body" | grep -q "\"version\":\"$IMAGE_TAG\""; then
               echo "Version $IMAGE_TAG is live."
