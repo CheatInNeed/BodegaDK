@@ -10,8 +10,8 @@ LABEL org.opencontainers.image.source=https://github.com/CheatInNeed/BodegaDK
 WORKDIR /app
 
 # curl is used by the Docker healthcheck (infra/docker-compose.yml).
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+RUN apt-get update -o Acquire::Retries=5 \
+    && apt-get install -y --no-install-recommends -o Acquire::Retries=5 curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Commit SHA from CI, reported by GET /health so deploys can be verified.
