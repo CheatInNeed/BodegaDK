@@ -1,5 +1,6 @@
 package dk.bodegadk.runtime;
 
+import dk.bodegadk.push.WebPushNotificationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -7,6 +8,7 @@ import org.springframework.jdbc.core.RowMapper;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -62,6 +64,25 @@ class JdbcFriendsStoreTest {
 
         verify(jdbcTemplate).update("delete from public.friendships where id = ?::uuid", FRIENDSHIP_ID);
         assertEquals("PENDING", result.status());
+    }
+
+    @Test
+    void sendRequestSendsPushToAddressee() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        WebPushNotificationService pushNotificationService = mock(WebPushNotificationService.class);
+        JdbcFriendsStore store = new JdbcFriendsStore(jdbcTemplate, new CapturingNotifications(), pushNotificationService);
+        when(jdbcTemplate.queryForObject(contains("from public.profiles"), eq(String.class), eq("Bob")))
+                .thenReturn(BOB_ID);
+        when(jdbcTemplate.queryForObject(contains("least(friendships.requester_user_id"), any(RowMapper.class), any(Object[].class)))
+                .thenThrow(new EmptyResultDataAccessException(1));
+        when(jdbcTemplate.queryForObject(contains("insert into public.friendships"), eq(String.class), eq(ALICE_ID), eq(BOB_ID)))
+                .thenReturn(FRIENDSHIP_ID);
+        when(jdbcTemplate.queryForObject(contains("where friendships.id"), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(summary("PENDING"));
+
+        store.sendRequest(ALICE_ID, "Bob");
+
+        verify(pushNotificationService).sendToUser(eq(BOB_ID), any(WebPushNotificationService.PushPayload.class));
     }
 
     @Test
@@ -124,5 +145,25 @@ class JdbcFriendsStoreTest {
         FriendsStore.FriendUser requester = new FriendsStore.FriendUser(ALICE_ID, "Alice", null);
         FriendsStore.FriendUser addressee = new FriendsStore.FriendUser(BOB_ID, "Bob", null);
         return new FriendsStore.FriendshipSummary(FRIENDSHIP_ID, status, requester, addressee, Instant.now(), Instant.now());
+    }
+
+    private static class CapturingNotifications implements NotificationsStore {
+        @Override
+        public NotificationPage notifications(String currentUserId, int limit) {
+            return new NotificationPage(List.of(), 0, limit);
+        }
+
+        @Override
+        public NotificationSummary markRead(String currentUserId, String notificationId) {
+            return null;
+        }
+
+        @Override
+        public void markAllRead(String currentUserId) {
+        }
+
+        @Override
+        public void createIfUnreadMissing(String userId, String actorUserId, String type, Map<String, Object> payload) {
+        }
     }
 }

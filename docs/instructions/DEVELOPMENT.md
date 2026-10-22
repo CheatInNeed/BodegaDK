@@ -220,6 +220,8 @@ viser at serveren mangler nøgler. Push subscriptions gemmes i Supabase-tabellen
 Friend-request push notifications can be tested by logging in as the recipient
 in one installed app/browser, enabling push in Settings, then logging in as
 another user and sending a friend request from Profile using `Send anmodning`.
+Challenge push notifications use the same setup: the challenged user must have
+enabled push on their own device before another friend sends a challenge.
 
 ------------------------------------------------------------------------
 

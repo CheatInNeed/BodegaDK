@@ -6,6 +6,8 @@ import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 import org.apache.http.HttpResponse;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Security;
@@ -14,6 +16,7 @@ import java.util.NoSuchElementException;
 
 @Service
 public class WebPushNotificationService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(WebPushNotificationService.class);
     private static final int HTTP_GONE = 410;
     private static final int HTTP_NOT_FOUND = 404;
 
@@ -53,12 +56,18 @@ public class WebPushNotificationService {
         }
 
         int sent = 0;
-        for (StoredPushSubscription subscription : subscriptionStore.findActiveByUserId(userId)) {
+        var subscriptions = subscriptionStore.findActiveByUserId(userId);
+        if (subscriptions.isEmpty()) {
+            LOGGER.info("No active push subscriptions for user {}", userId);
+            return 0;
+        }
+        for (StoredPushSubscription subscription : subscriptions) {
             try {
                 sendToEndpoint(subscription.endpoint(), payload);
                 sent += 1;
-            } catch (IllegalStateException ignored) {
+            } catch (IllegalStateException exception) {
                 // A stale or rejected subscription should not block the domain action that triggered notification fan-out.
+                LOGGER.warn("Failed to send push notification to endpoint {}", subscription.endpoint(), exception);
             }
         }
         return sent;
