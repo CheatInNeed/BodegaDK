@@ -57,7 +57,8 @@ Implemented now:
 - Installable manifest and app icons.
 - Service worker registration and app-shell caching.
 - Push subscription, unsubscribe, and test notification endpoints.
-- JDBC/Flyway persistence for subscriptions, with in-memory fallback for local profile.
+- Supabase/Postgres persistence for subscriptions in `public.push_subscriptions`.
+- Friend request and direct challenge notification fan-out.
 
 Not yet wired to gameplay events:
 
@@ -68,6 +69,11 @@ Not yet wired to gameplay events:
 Friend requests are wired through the authenticated `POST /friends/request`
 flow. `JdbcFriendsStore` creates the in-app notification and calls
 `WebPushNotificationService.sendToUser(...)` for the addressee.
+
+Direct challenges are wired through the authenticated `/challenges` flow.
+`JdbcChallengesStore` creates the in-app notification and calls
+`WebPushNotificationService.sendToUser(...)` for received, accepted, and
+declined challenge events.
 
 Other event notifications should call `WebPushNotificationService.sendToEndpoint(...)`
 or `sendToUser(...)` using the same stored subscriptions.

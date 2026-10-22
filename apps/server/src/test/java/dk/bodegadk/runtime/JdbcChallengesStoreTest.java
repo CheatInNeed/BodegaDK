@@ -1,5 +1,6 @@
 package dk.bodegadk.runtime;
 
+import dk.bodegadk.push.WebPushNotificationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -55,6 +56,25 @@ class JdbcChallengesStoreTest {
     }
 
     @Test
+    void createSendsPushToChallengedUser() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        WebPushNotificationService pushNotificationService = mock(WebPushNotificationService.class);
+        JdbcChallengesStore store = store(jdbcTemplate, new FakeRooms(), new InMemoryRuntimeStore(), pushNotificationService);
+        when(jdbcTemplate.queryForObject(contains("from public.profiles"), eq(String.class), eq("Bob"))).thenReturn(BOB_ID);
+        when(jdbcTemplate.queryForObject(contains("from public.friendships"), eq(Integer.class), eq(ALICE_ID), eq(BOB_ID), eq(ALICE_ID), eq(BOB_ID))).thenReturn(1);
+        when(jdbcTemplate.queryForObject(contains("from public.games"), any(RowMapper.class), eq("snyd")))
+                .thenReturn(new ChallengesStore.GameSummary("44444444-4444-4444-4444-444444444444", "snyd", "Snyd"));
+        when(jdbcTemplate.queryForObject(contains("insert into public.challenges"), eq(String.class), eq(ALICE_ID), eq(BOB_ID), eq("44444444-4444-4444-4444-444444444444"), eq("24")))
+                .thenReturn(CHALLENGE_ID);
+        when(jdbcTemplate.queryForObject(contains("where challenges.id = ?::uuid"), any(RowMapper.class), eq(CHALLENGE_ID)))
+                .thenReturn(summary("PENDING", null, Instant.now().plusSeconds(3600)));
+
+        store.createChallenge(ALICE_ID, "Bob", "snyd");
+
+        verify(pushNotificationService).sendToUser(eq(BOB_ID), any(WebPushNotificationService.PushPayload.class));
+    }
+
+    @Test
     void acceptCreatesPrivateLobbyWithBothParticipants() {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         FakeRooms rooms = new FakeRooms();
@@ -85,7 +105,16 @@ class JdbcChallengesStoreTest {
     }
 
     private JdbcChallengesStore store(JdbcTemplate jdbcTemplate, RoomMetadataStore rooms, InMemoryRuntimeStore runtimeStore) {
-        return new JdbcChallengesStore(jdbcTemplate, new GameCatalogService(), rooms, runtimeStore, new CapturingNotifications());
+        return store(jdbcTemplate, rooms, runtimeStore, null);
+    }
+
+    private JdbcChallengesStore store(
+            JdbcTemplate jdbcTemplate,
+            RoomMetadataStore rooms,
+            InMemoryRuntimeStore runtimeStore,
+            WebPushNotificationService pushNotificationService
+    ) {
+        return new JdbcChallengesStore(jdbcTemplate, new GameCatalogService(), rooms, runtimeStore, new CapturingNotifications(), pushNotificationService);
     }
 
     private ChallengesStore.ChallengeSummary summary(String status, String roomCode, Instant expiresAt) {

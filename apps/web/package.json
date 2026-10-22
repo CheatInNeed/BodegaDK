@@ -1,11 +1,22 @@
 {
   "scripts": {
-    "build": "npx tsc",
-    "watch": "npx tsc --watch",
-    "serve": "python3 -m http.server 5173 --directory public",
-    "dev": "npm run build && npm run serve"
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "watch": "vite",
+    "serve": "vite preview"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "@vitejs/plugin-vue": "^6.0.9",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.4",
+    "vue-tsc": "^2.2.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "pinia": "^2.3.1",
+    "vue": "^3.5.43",
+    "vue-i18n": "^11.4.13",
+    "vue-router": "^4.6.4"
   }
 }

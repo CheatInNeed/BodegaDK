@@ -7,26 +7,18 @@
     <option name="selectedModelId" value="auto" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Dynamic Viewport">
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Supabase apply migration workflow updated to include all">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/metrics/BodegaMetrics.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/metrics/BodegaMetrics.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/InMemoryRuntimeStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/InMemoryRuntimeStore.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/ws/GameWsHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/metrics/BodegaMetricsTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/metrics/BodegaMetricsTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/InMemoryRuntimeStoreTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/InMemoryRuntimeStoreTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/game-room/store.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/game-room/store.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/game-room/transport/ws-client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/game-room/transport/ws-client.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/net/protocol.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/net/protocol.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/RUNTIME_CHANGELOG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/WebPushNotificationService.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/WebPushNotificationService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcChallengesStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcChallengesStore.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/JdbcChallengesStoreTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/JdbcChallengesStoreTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/JdbcFriendsStoreTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/JdbcFriendsStoreTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/pwa.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/pwa.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/design/PROTOCOL.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/devops/observability.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/devops/observability.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/LOGGING.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/LOGGING.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/SUPABASE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/security/RLS_AUDIT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/security/RLS_AUDIT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/infra/monitoring/grafana/dashboards/bodegadk-overview.json" beforeDir="false" afterPath="$PROJECT_DIR$/infra/monitoring/grafana/dashboards/bodegadk-overview.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/infra/monitoring/prometheus/alerts.yml" beforeDir="false" afterPath="$PROJECT_DIR$/infra/monitoring/prometheus/alerts.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/infra/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/infra/docker-compose.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -42,7 +34,8 @@
     </persistenceIdMap>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="384" />
+    <option name="cachedIndexableFilesCount" value="562" />
+    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
@@ -58,12 +51,16 @@
     &quot;assignee&quot;: &quot;CheatInNeed&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/CheatInNeed/BodegaDK.git",
-    "accountId": "fb2cbfff-e087-4079-aa4b-2986df684ab5"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/CheatInNeed/BodegaDK.git&quot;,
+    &quot;accountId&quot;: &quot;4ac8c7e8-2bf5-4b03-bfdd-5b2228ed5a29&quot;
   }
-}]]></component>
+}</component>
+  <component name="KmpPackageLockUpdaterState">{
+  &quot;jsModulesKotlinGradlePluginVersion&quot;: {},
+  &quot;wasmModulesKotlinGradlePluginVersion&quot;: {}
+}</component>
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
@@ -130,6 +127,9 @@
   <component name="ProblemsViewState">
     <option name="selectedTabId" value="CurrentFile" />
   </component>
+  <component name="ProjectCodeStyleSettingsMigration">
+    <option name="version" value="2" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
 }</component>
@@ -155,14 +155,18 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "CidrDebugProfileConversion": "true",
     "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "cidr.known.project.marker": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
     "copilot.chat.legacySessionMetadata.migrated": "true",
-    "git-widget-placeholder": "dev",
+    "git-widget-placeholder": "feature/push__notifications",
     "ignore.virus.scanning.warn.message": "true",
     "javascript.preferred.runtime.type.id": "node",
     "kotlin-language-version-configured": "true",
@@ -176,6 +180,9 @@
     "settings.editor.selected.configurable": "configurable.group.language",
     "ts.external.directory.path": "/Users/ivanviemoescuevas/IdeaProjects/BodegaDK/node_modules/typescript/lib",
     "vue.rearranger.settings.migration": "true"
+  },
+  "keyToStringList": {
+    "stardust.markdown.MarkdownSplitEditorSuppressor:keyList": []
   }
 }]]></component>
   <component name="RecentsManager">
@@ -221,11 +228,7 @@
         <script value="local:dev" />
       </scripts>
       <node-interpreter value="project" />
-      <envs>
-        <env name="SPRING_DATASOURCE_USERNAME" value="bodegadk" />
-        <env name="SPRING_DATASOURCE_PASSWORD" value="bodegadk" />
-        <env name="SPRING_DATASOURCE_URL" value="jdbc:postgresql://localhost:5432/bodegadk" />
-      </envs>
+      <envs />
       <method v="2" />
     </configuration>
     <configuration name="supabase:push" type="js.build_tools.npm" nameIsGenerated="true">
@@ -246,8 +249,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-30f59d01ecdd-34e2839f716b-intellij.indexing.shared.core-IU-262.9437.185" />
-        <option value="bundled-js-predefined-d6986cc7102b-4abd2a77f808-JavaScript-IU-262.9437.185" />
+        <option value="bundled-jdk-30f59d01ecdd-a203e0a19954-intellij.indexing.shared.core-IU-262.10315.125" />
       </set>
     </attachedChunks>
   </component>
@@ -361,16 +363,6 @@
             <list>
               <RecentGroup>
                 <option name="FILTER_VALUES">
-                  <option value="origin/dev" />
-                </option>
-              </RecentGroup>
-              <RecentGroup>
-                <option name="FILTER_VALUES">
-                  <option value="origin/master" />
-                </option>
-              </RecentGroup>
-              <RecentGroup>
-                <option name="FILTER_VALUES">
                   <option value="HEAD" />
                 </option>
               </RecentGroup>
@@ -389,7 +381,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="origin/dev" />
+                        <option value="feature/push_notifications" />
                       </list>
                     </value>
                   </entry>

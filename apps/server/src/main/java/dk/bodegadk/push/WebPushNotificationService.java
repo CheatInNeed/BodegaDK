@@ -63,7 +63,12 @@ public class WebPushNotificationService {
         }
 
         int sent = 0;
-        for (StoredPushSubscription subscription : subscriptionStore.findActiveByUserId(userId)) {
+        var subscriptions = subscriptionStore.findActiveByUserId(userId);
+        if (subscriptions.isEmpty()) {
+            log.info("No active push subscriptions for user {}", userId);
+            return 0;
+        }
+        for (StoredPushSubscription subscription : subscriptions) {
             try {
                 sendToEndpoint(subscription.endpoint(), payload);
                 sent += 1;
