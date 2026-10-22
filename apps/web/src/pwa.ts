@@ -2,6 +2,7 @@ import { authenticatedFetch, resolveApiBaseUrl } from './net/api.js';
 
 const SERVICE_WORKER_URL = '/sw.js';
 const DEVICE_ID_KEY = 'bodegadk-push-device-id';
+const SERVICE_WORKER_READY_TIMEOUT_MS = 3_000;
 
 export type PushStatus = {
     supported: boolean;
@@ -51,7 +52,7 @@ export async function readPushStatus(): Promise<PushStatus> {
 
     const [config, registration] = await Promise.all([
         fetchPushConfig().catch(() => ({ enabled: false, publicKey: null })),
-        navigator.serviceWorker.ready.catch(() => null),
+        resolveServiceWorkerRegistration(),
     ]);
     const subscription = registration ? await registration.pushManager.getSubscription() : null;
 
@@ -61,6 +62,17 @@ export async function readPushStatus(): Promise<PushStatus> {
         subscribed: Boolean(subscription),
         reason: config.enabled && config.publicKey ? null : 'missing-server-config',
     };
+}
+
+async function resolveServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
+    const registered = await registerPwaServiceWorker();
+    if (registered?.active) {
+        return registered;
+    }
+    return withTimeout(navigator.serviceWorker.ready, SERVICE_WORKER_READY_TIMEOUT_MS).catch((error) => {
+        console.warn('[pwa] service worker was not ready while checking push status', error);
+        return registered;
+    });
 }
 
 export async function enablePushNotifications(input: { userId?: string | null; username?: string | null }): Promise<PushStatus> {
@@ -233,6 +245,17 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
     } catch {
         return `${fallback} (${response.status})`;
     }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const timeoutId = window.setTimeout(() => {
+            reject(new Error(`Timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        promise
+            .then(resolve, reject)
+            .finally(() => window.clearTimeout(timeoutId));
+    });
 }
 
 function urlBase64ToUint8Array(value: string): ArrayBuffer {
