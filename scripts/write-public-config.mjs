@@ -1,10 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
-const outputPath = path.resolve(__dirname, '../apps/web/public/app-config.js');
 
 const envFromFiles = await loadEnvFiles([
     path.resolve(repoRoot, '.env.local'),
@@ -18,15 +17,19 @@ const config = {
     supabaseAnonKey: readEnv('PUBLIC_SUPABASE_ANON_KEY', envFromFiles),
 };
 
-const fileContents = `window.__BODEGADK_CONFIG__ = ${JSON.stringify(config, null, 2)};\n`;
-
-await mkdir(path.dirname(outputPath), { recursive: true });
-await writeFile(outputPath, fileContents, 'utf8');
+// Write Vite env vars so the Vue app can read them at build time.
+const viteEnvPath = path.resolve(__dirname, '../apps/web/.env.local');
+const viteEnvContents = [
+    `VITE_SUPABASE_URL=${config.supabaseUrl}`,
+    `VITE_SUPABASE_ANON_KEY=${config.supabaseAnonKey}`,
+    '',
+].join('\n');
+await writeFile(viteEnvPath, viteEnvContents, 'utf8');
 
 const configured = Boolean(config.supabaseUrl && config.supabaseAnonKey);
 const status = configured ? 'configured' : 'disabled (missing PUBLIC_SUPABASE_URL or PUBLIC_SUPABASE_ANON_KEY)';
 
-console.log(`[web-config] Wrote ${outputPath}`);
+console.log(`[web-config] Wrote ${viteEnvPath}`);
 console.log(`[web-config] Supabase auth/profile support is ${status}.`);
 
 function readEnv(key, envFromFiles) {

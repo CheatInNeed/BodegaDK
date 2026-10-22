@@ -2,8 +2,7 @@ import { spawn } from 'node:child_process';
 
 const commands = [
     ['npm', 'run', 'server:local'],
-    ['npm', 'run', 'web:watch'],
-    ['npm', 'run', 'web:serve'],
+    ['npm', 'run', 'web:dev'],
 ];
 
 await runCommand(['npm', 'run', 'web:build']);
