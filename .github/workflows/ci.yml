@@ -30,7 +30,7 @@ env:
 
 jobs:
   web:
-    name: Web (Vue 3)
+    name: Web (TypeScript)
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
