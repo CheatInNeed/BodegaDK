@@ -1,50 +1,94 @@
 # BodegaDK Server Guide (Debian)
 
-Last updated: 2026-09-30
+Last updated: 2026-10-06
 
 This guide deploys BodegaDK on a Debian host with Docker, nginx, the Spring
 server, and the canonical Supabase Postgres database.
 
 ## Automatic Deploys (CD)
 
-Every merge into `dev` is deployed automatically by
-`.github/workflows/ci.yml`. Pull requests only run the checks; nothing is
-deployed until the change is merged.
+There are two environments, each on its own host with its own Supabase
+project. Both are deployed by `.github/workflows/ci.yml`.
+
+| | dev (test) | production |
+| --- | --- | --- |
+| Branch | `dev` | `master` |
+| Host | http://130.225.170.77 | http://130.225.170.69 |
+| Supabase project | `awdhzmyieafhfpjmzwsh` | `glcpevubpmjetewddvil` |
+| Deploy | automatic on merge | after a reviewer approves the job |
+| GitHub environment | `dev` | `production` |
+
+Pull requests only run the checks; nothing is deployed until the change is
+merged.
 
 ```text
 PR -> Web (TypeScript) + Server (Spring Boot) + Docker build   (required checks)
-merge to dev -> same checks on the merge commit
+merge to dev or master -> same checks on the merge commit
   -> push bodegadk-server and bodegadk-web images to ghcr.io (tag = short SHA)
-  -> Supabase migrations (supabase db push)
-  -> deploy: copy compose file + infra/deploy/deploy.sh to the host over SSH,
-     pull that tag, restart the containers
-  -> smoke test: GET /api/health must report the new SHA as "version"
-  -> on failure: roll back to the previously deployed tag
+  -> deploy job (master: waits for "Review deployments" -> Approve)
+       -> Supabase migrations against that environment's project
+       -> copy compose file + infra/deploy/deploy.sh to the host over SSH,
+          pull that tag, restart the containers
+       -> smoke test: GET /api/health must report the new SHA as "version"
+       -> on failure: roll back to the previously deployed tag
 ```
 
-The host builds nothing; it only pulls images that CI built and tested.
-Deploy runs are listed under the `dev` environment in the repository's
-Deployments view.
+The hosts build nothing; they only pull images that CI built and tested.
+Deploy runs are listed per environment in the repository's Deployments view.
 
-### One-time setup
+### Releasing to production
 
-On the host (`~/bodegadk-deploy/` is the deploy directory):
+1. Open a pull request with base `master` and compare `dev`.
+2. Merge it with **Create a merge commit** (not squash or rebase, which make
+   the two branches diverge).
+3. Open the run under Actions; when the deploy job is waiting, click
+   **Review deployments**, tick `production` and **Approve and deploy**.
+
+Migrations run right after the approval, before the new containers start. A
+migration that is not backwards compatible therefore needs a short window
+where the old server runs against the new schema.
+
+### Where the settings live
+
+- `infra/deploy/environments/<env>.env`: public values per environment (host,
+  Supabase URL and publishable key). The web image is built with these, so
+  each environment gets its own web image.
+- GitHub secrets: `DEPLOY_SSH_KEY`, `SUPABASE_ACCESS_TOKEN`,
+  `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`. Production has its own set
+  as **environment secrets** on `production`; dev uses the repository-level
+  secrets with the same names.
+- `~/bodegadk-deploy/.env.deploy` on each host: `SPRING_DATASOURCE_*` for
+  that environment's Supabase project (and optionally `BODEGADK_VAPID_*`,
+  `COMPOSE_PROFILES=monitoring`). It never leaves the host. On production it
+  must also set `SUPABASE_JWT_ISSUER`, because `deploy.sh` otherwise falls
+  back to the dev project's issuer and every login would be rejected.
+- `infra/deploy/known_hosts`: pinned SSH host key of both hosts; update it if
+  a server is reinstalled.
+
+### One-time setup of a host
 
 ```bash
-mkdir -p ~/bodegadk-deploy
-cp -p ~/BodegaDK/.env.deploy ~/bodegadk-deploy/.env.deploy
+sudo apt update && sudo apt install -y docker.io docker-compose curl
+sudo usermod -aG docker "$USER"
+sudo ufw allow 80/tcp
+mkdir -p ~/bodegadk-deploy && chmod 700 ~/bodegadk-deploy
 ```
 
-`.env.deploy` holds `SPRING_DATASOURCE_*` (and optionally
-`SUPABASE_JWT_ISSUER` and `BODEGADK_VAPID_*`). It never leaves the host.
+Create `~/bodegadk-deploy/.env.deploy` (mode `600`):
 
-A dedicated deploy key pair: the public key goes into
-`~/.ssh/authorized_keys` on the host, the private key into the GitHub
-repository secret `DEPLOY_SSH_KEY`. The host key is pinned in
-`infra/deploy/known_hosts`; update it if the server is reinstalled.
+```bash
+export SPRING_DATASOURCE_URL='jdbc:postgresql://<session-pooler-host>:5432/postgres?sslmode=require'
+export SPRING_DATASOURCE_USERNAME='postgres.<project-ref>'
+export SPRING_DATASOURCE_PASSWORD='<database-password>'
+export SUPABASE_JWT_ISSUER='https://<project-ref>.supabase.co/auth/v1'
+```
 
-The Supabase secrets (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`,
-`SUPABASE_DB_PASSWORD`) are shared with `supabase-migrations.yml`.
+Each host has its own deploy key pair: the public key goes into
+`~/.ssh/authorized_keys` on the host, the private key into `DEPLOY_SSH_KEY`
+for that environment.
+
+The `production` GitHub environment has **Required reviewers** enabled and is
+restricted to the `master` branch.
 
 ### Deploying a specific version or rolling back by hand
 
@@ -226,6 +270,16 @@ Install `docker-compose-plugin`. The current host only has the standalone
 - `Host key verification failed`: the server was reinstalled; refresh
   `infra/deploy/known_hosts` with `ssh-keyscan -t ed25519 <server-ip>`.
 - `No such file or directory` for `bodegadk-deploy`: run the one-time setup.
+
+### CD Deploy Fails At "Apply Supabase migrations"
+
+Nothing has been deployed yet at this point.
+
+- `Missing required secret`: the secret is not set for that environment.
+- `403` / `Unauthorized` from `supabase link`: `SUPABASE_ACCESS_TOKEN` cannot
+  access that project (wrong organization, missing permission, or expired).
+- A SQL error: fix the migration in a new pull request. Migrations that
+  already succeeded stay applied; `supabase db push` continues from there.
 
 ### CD Smoke Test Fails
 

@@ -3,6 +3,7 @@ package dk.bodegadk.runtime;
 import dk.bodegadk.push.WebPushNotificationService;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -47,6 +48,7 @@ public class JdbcChallengesStore implements ChallengesStore {
     }
 
     @Override
+    @Transactional
     public ChallengeSummary createChallenge(String challengerUserId, String username, String gameType) {
         expireOldChallenges();
         String targetUsername = normalizeUsername(username);
@@ -77,6 +79,7 @@ public class JdbcChallengesStore implements ChallengesStore {
     }
 
     @Override
+    @Transactional
     public ChallengeAcceptResult acceptChallenge(String challengedUserId, String challengeId) {
         expireOldChallenges();
         ChallengeSummary existing = challengeForParticipant(challengeId, challengedUserId);
@@ -115,6 +118,7 @@ public class JdbcChallengesStore implements ChallengesStore {
     }
 
     @Override
+    @Transactional
     public ChallengeSummary declineChallenge(String challengedUserId, String challengeId) {
         ChallengeSummary existing = challengeForParticipant(challengeId, challengedUserId);
         if (!existing.challenged().userId().equals(challengedUserId)) {
@@ -141,6 +145,7 @@ public class JdbcChallengesStore implements ChallengesStore {
     }
 
     @Override
+    @Transactional
     public ChallengeSummary cancelChallenge(String challengerUserId, String challengeId) {
         ChallengeSummary existing = challengeForParticipant(challengeId, challengerUserId);
         if (!existing.challenger().userId().equals(challengerUserId)) {

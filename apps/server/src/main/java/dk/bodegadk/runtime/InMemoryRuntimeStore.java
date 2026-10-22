@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.server.domain.engine.GameState;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
@@ -28,6 +30,7 @@ import java.util.function.Supplier;
 
 @Component
 public class InMemoryRuntimeStore {
+    private static final Logger log = LoggerFactory.getLogger(InMemoryRuntimeStore.class);
     private static final String DEFAULT_GAME_TYPE = "snyd";
 
     private final SecureRandom random = new SecureRandom();
@@ -451,9 +454,22 @@ public class InMemoryRuntimeStore {
         maxPlayersByGame.put(normalizeGameType(gameType), maxPlayers);
     }
 
+    /** Number of rooms currently held in memory with the given status (used by metrics). */
+    public long countRooms(RoomStatus status) {
+        return rooms.values().stream().filter(room -> room.status == status).count();
+    }
+
     public void submit(String roomCode, Runnable command) {
         ExecutorService executor = roomExecutors.computeIfAbsent(roomCode, key -> Executors.newSingleThreadExecutor());
-        executor.submit(command);
+        // executor.submit() stores exceptions in a Future nobody reads, so without this catch a
+        // crashing task would vanish without a trace and the room would look frozen.
+        executor.submit(() -> {
+            try {
+                command.run();
+            } catch (RuntimeException exception) {
+                log.error("Room task failed in room {}", roomCode, exception);
+            }
+        });
     }
 
     private GameLoopService.RoomState newState(String roomCode) {

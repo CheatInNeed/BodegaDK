@@ -1,15 +1,40 @@
 package dk.bodegadk.runtime;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+@ExtendWith(OutputCaptureExtension.class)
 class InMemoryRuntimeStoreTest {
+
+    @Test
+    void roomTaskFailureIsLoggedAndRoomKeepsWorking(CapturedOutput output) throws Exception {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        CountDownLatch nextTaskRan = new CountDownLatch(1);
+        try {
+            store.submit("ROOM1", () -> {
+                throw new IllegalStateException("boom");
+            });
+            store.submit("ROOM1", nextTaskRan::countDown);
+
+            // Tasks in a room run one at a time, so once the second has run the first has been logged.
+            assertTrue(nextTaskRan.await(2, TimeUnit.SECONDS));
+            assertTrue(output.getAll().contains("Room task failed in room ROOM1"));
+            assertTrue(output.getAll().contains("boom"));
+        } finally {
+            store.shutdownExecutors();
+        }
+    }
 
     @Test
     void migratesHostWhenCurrentHostLeaves() {

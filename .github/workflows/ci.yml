@@ -20,8 +20,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # Images are published and deployed only for merges into dev.
-  DEPLOY: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+  # Images are published and deployed only for merges into dev and master.
+  DEPLOY: ${{ github.event_name == 'push' }}
+  # dev -> dev environment (automatic), master -> production (manual approval).
+  # Pull requests use the settings of the branch they target.
+  DEPLOY_ENV: ${{ (github.base_ref || github.ref_name) == 'master' && 'production' || 'dev' }}
   SERVER_IMAGE: ghcr.io/cheatinneed/bodegadk-server
   WEB_IMAGE: ghcr.io/cheatinneed/bodegadk-web
 
@@ -78,7 +81,8 @@ jobs:
   docker:
     name: Docker build
     runs-on: ubuntu-latest
-    needs: [web, server]
+    # infra-config too: the deploy ships docker-compose.yml and infra/monitoring/ as-is.
+    needs: [web, server, infra-config]
     permissions:
       contents: read
       packages: write
@@ -92,6 +96,10 @@ jobs:
         id: tag
         run: echo "image_tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
+      # Host and public Supabase config of the target environment.
+      - name: Load environment settings
+        run: grep -v '^#' "infra/deploy/environments/$DEPLOY_ENV.env" >> "$GITHUB_ENV"
+
       - name: Build server image
         run: >
           docker build
@@ -99,10 +107,14 @@ jobs:
           -t "$SERVER_IMAGE:${{ steps.tag.outputs.image_tag }}"
           apps/server
 
+      # The public Supabase config is baked into the client, so each
+      # environment gets its own web image.
       - name: Build web image
         run: >
           docker build
           -f apps/web/Dockerfile
+          --build-arg PUBLIC_SUPABASE_URL="$PUBLIC_SUPABASE_URL"
+          --build-arg PUBLIC_SUPABASE_ANON_KEY="$PUBLIC_SUPABASE_ANON_KEY"
           -t "$WEB_IMAGE:${{ steps.tag.outputs.image_tag }}"
           .
 
@@ -113,71 +125,34 @@ jobs:
         run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
       # One immutable tag per commit (what gets deployed) plus a moving
-      # "dev" tag that always points at the newest build.
+      # "dev"/"production" tag that always points at the newest build.
       - name: Push images
         if: env.DEPLOY == 'true'
         run: |
           tag="${{ steps.tag.outputs.image_tag }}"
           for image in "$SERVER_IMAGE" "$WEB_IMAGE"; do
-            docker tag "$image:$tag" "$image:dev"
+            docker tag "$image:$tag" "$image:$DEPLOY_ENV"
             docker push "$image:$tag"
-            docker push "$image:dev"
+            docker push "$image:$DEPLOY_ENV"
           done
-
-  migrate:
-    name: Supabase migrations
-    runs-on: ubuntu-latest
-    needs: docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    # Shared with supabase-migrations.yml, which still handles master.
-    concurrency:
-      group: supabase-shared-db
-      cancel-in-progress: false
-    env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Verify required secrets
-        run: |
-          for key in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD; do
-            if [ -z "${!key:-}" ]; then
-              echo "::error::Missing required secret: $key"
-              exit 1
-            fi
-          done
-
-      - name: Link hosted Supabase project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
-
-      # Applies only migrations that are not yet in the remote history.
-      - name: Apply migrations
-        run: supabase db push --linked --include-all
 
   deploy:
-    name: Deploy to dev server
+    name: Deploy to ${{ github.ref_name == 'master' && 'production' || 'dev' }}
     runs-on: ubuntu-latest
-    needs: [docker, migrate]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    needs: docker
+    if: github.event_name == 'push'
     permissions:
       contents: read
       packages: read
+    # Secrets come from this environment. "production" requires a reviewer to
+    # approve the job, so nothing below touches production before that.
     environment:
-      name: dev
-      url: http://130.225.170.77
+      name: ${{ github.ref_name == 'master' && 'production' || 'dev' }}
+      url: http://${{ steps.settings.outputs.host }}
     concurrency:
-      group: deploy-dev
+      group: deploy-${{ github.ref_name }}
       cancel-in-progress: false
     env:
-      DEPLOY_HOST: 130.225.170.77
       DEPLOY_USER: user
       DEPLOY_DIR: bodegadk-deploy
       IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
@@ -186,6 +161,35 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Load environment settings
+        id: settings
+        run: |
+          grep -v '^#' "infra/deploy/environments/$DEPLOY_ENV.env" >> "$GITHUB_ENV"
+          echo "host=$(sed -n 's/^DEPLOY_HOST=//p' "infra/deploy/environments/$DEPLOY_ENV.env")" >> "$GITHUB_OUTPUT"
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Schema first, then code: migrations run in the same job as the deploy,
+      # against this environment's own Supabase project.
+      - name: Apply Supabase migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          for key in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required secret: $key"
+              exit 1
+            fi
+          done
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          # Applies only migrations that are not yet in the remote history.
+          supabase db push --linked --include-all
 
       - name: Configure SSH
         env:
@@ -201,10 +205,12 @@ jobs:
           # Pinned host key: the job refuses to talk to anything else.
           cp infra/deploy/known_hosts ~/.ssh/known_hosts
 
+      # infra/monitoring/ holds the config the optional monitoring profile mounts
+      # (docs/devops/observability.md); it is copied even when the profile is off.
       - name: Copy deploy files
         run: >
-          scp -o BatchMode=yes
-          infra/docker-compose.yml infra/deploy/deploy.sh
+          scp -o BatchMode=yes -r
+          infra/docker-compose.yml infra/deploy/deploy.sh infra/monitoring
           "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/"
 
       - name: Pull and restart containers
@@ -234,3 +240,63 @@ jobs:
           printf '%s' "$GHCR_TOKEN"
           | ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST"
           "GHCR_USER=$GITHUB_ACTOR bash $DEPLOY_DIR/deploy.sh --rollback"
+
+  infra-config:
+    name: Infra and monitoring config
+    runs-on: ubuntu-latest
+    env:
+      # Image versions must match infra/docker-compose.yml.
+      PROMETHEUS_IMAGE: prom/prometheus:v3.15.0
+      LOKI_IMAGE: grafana/loki:3.7.8
+      ALLOY_IMAGE: grafana/alloy:v1.19.2
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml (including monitoring profile)
+        working-directory: infra
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ci
+          SPRING_DATASOURCE_USERNAME: ci
+          SPRING_DATASOURCE_PASSWORD: ci
+          SUPABASE_JWT_ISSUER: https://example.invalid/auth/v1
+        run: docker compose --profile monitoring config --quiet
+
+      - name: Validate docker-compose.yml with the local build override
+        working-directory: infra
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ci
+          SPRING_DATASOURCE_USERNAME: ci
+          SPRING_DATASOURCE_PASSWORD: ci
+          SUPABASE_JWT_ISSUER: https://example.invalid/auth/v1
+        run: docker compose -f docker-compose.yml -f docker-compose.build.yml config --quiet
+
+      - name: Validate nginx config
+        run: |
+          docker run --rm --add-host server:127.0.0.1 \
+            -v "$PWD/infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:alpine nginx -t
+
+      - name: Check Prometheus config and alert rules
+        run: |
+          docker run --rm -v "$PWD/infra/monitoring/prometheus:/etc/prometheus:ro" \
+            --entrypoint promtool "$PROMETHEUS_IMAGE" check config /etc/prometheus/prometheus.yml
+
+      - name: Unit-test alert rules
+        run: |
+          docker run --rm -v "$PWD/infra/monitoring/prometheus:/etc/prometheus:ro" -w /etc/prometheus \
+            --entrypoint promtool "$PROMETHEUS_IMAGE" test rules alerts.test.yml
+
+      - name: Validate Loki config
+        run: |
+          docker run --rm -v "$PWD/infra/monitoring/loki/loki.yml:/etc/loki/loki.yml:ro" \
+            "$LOKI_IMAGE" -config.file=/etc/loki/loki.yml -verify-config
+
+      - name: Validate Alloy config
+        run: |
+          docker run --rm -v "$PWD/infra/monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro" \
+            "$ALLOY_IMAGE" validate /etc/alloy/config.alloy
+
+      - name: Validate Grafana dashboard JSON
+        run: |
+          for f in infra/monitoring/grafana/dashboards/*.json; do jq empty "$f" && echo "ok: $f"; done

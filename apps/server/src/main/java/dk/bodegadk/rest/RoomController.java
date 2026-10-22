@@ -3,6 +3,7 @@ package dk.bodegadk.rest;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dk.bodegadk.auth.AuthSupport;
 import dk.bodegadk.auth.AuthenticatedUser;
+import dk.bodegadk.runtime.DatabaseCacheService;
 import dk.bodegadk.runtime.InMemoryRuntimeStore;
 import dk.bodegadk.runtime.MatchmakingService;
 import dk.bodegadk.runtime.RoomMetadataStore;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -26,16 +28,19 @@ public class RoomController {
     private final InMemoryRuntimeStore runtimeStore;
     private final RoomMetadataStore roomMetadataStore;
     private final GameWsHandler gameWsHandler;
+    private final DatabaseCacheService cacheService;
 
-    public RoomController(InMemoryRuntimeStore runtimeStore, RoomMetadataStore roomMetadataStore, GameWsHandler gameWsHandler) {
+    public RoomController(InMemoryRuntimeStore runtimeStore, RoomMetadataStore roomMetadataStore,
+                          GameWsHandler gameWsHandler, DatabaseCacheService cacheService) {
         this.runtimeStore = runtimeStore;
         this.roomMetadataStore = roomMetadataStore;
         this.gameWsHandler = gameWsHandler;
+        this.cacheService = cacheService;
     }
 
     @GetMapping
     public List<RoomListItemResponse> publicRooms() {
-        return roomMetadataStore.publicRooms().stream()
+        return cacheService.getRooms().stream()
                 .map(room -> new RoomListItemResponse(
                         room.roomCode(),
                         room.hostPlayerId(),
@@ -56,20 +61,18 @@ public class RoomController {
         String normalizedGame = request == null ? null : request.gameType();
 
         String roomCode;
+        boolean created;
         do {
             roomCode = runtimeStore.generateRoomCode();
-        } while (roomMetadataStore.roomExists(roomCode));
-        roomMetadataStore.createRoom(
-                roomCode,
-                playerId,
-                RoomMetadataStore.RoomVisibility.fromPrivateFlag(isPrivate),
-                normalizedGame,
-                InMemoryRuntimeStore.RoomStatus.LOBBY
-        );
+            created = roomMetadataStore.createRoomAndJoinHost(
+                    roomCode, playerId,
+                    RoomMetadataStore.RoomVisibility.fromPrivateFlag(isPrivate),
+                    normalizedGame, InMemoryRuntimeStore.RoomStatus.LOBBY, username);
+        } while (!created);
+
         runtimeStore.mirrorRoom(roomCode, normalizedGame, isPrivate, playerId, InMemoryRuntimeStore.RoomStatus.LOBBY);
         String token = MatchmakingService.runtimeToken(roomCode, playerId);
         runtimeStore.joinRoom(roomCode, playerId, username, token);
-        roomMetadataStore.upsertParticipant(roomCode, playerId, username);
 
         return runtimeStore.roomSnapshot(roomCode)
                 .map(room -> new CreateRoomResponse(room.roomCode(), playerId, room.hostPlayerId(), room.isPrivate(), room.selectedGame(), room.status().name()))
@@ -78,6 +81,7 @@ public class RoomController {
 
     @PostMapping("/{roomCode}/join")
     @ResponseStatus(HttpStatus.OK)
+    @Transactional
     public JoinRoomResponse joinRoom(Authentication authentication, @PathVariable String roomCode, @RequestBody(required = false) JoinRoomRequest request) {
         AuthenticatedUser user = AuthSupport.requireUser(authentication);
         RoomMetadataStore.StoredRoom stored = roomMetadataStore.room(roomCode)

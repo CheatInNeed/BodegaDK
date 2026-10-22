@@ -2,6 +2,7 @@ package dk.bodegadk.rest;
 
 import dk.bodegadk.auth.AuthSupport;
 import dk.bodegadk.auth.AuthenticatedUser;
+import dk.bodegadk.runtime.DatabaseCacheService;
 import dk.bodegadk.runtime.LeaderboardQueryStore;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -15,9 +16,11 @@ public class LeaderboardController {
     private static final int DEFAULT_LIMIT = 20;
 
     private final LeaderboardQueryStore leaderboardQueryStore;
+    private final DatabaseCacheService cacheService;
 
-    public LeaderboardController(LeaderboardQueryStore leaderboardQueryStore) {
+    public LeaderboardController(LeaderboardQueryStore leaderboardQueryStore, DatabaseCacheService cacheService) {
         this.leaderboardQueryStore = leaderboardQueryStore;
+        this.cacheService = cacheService;
     }
 
     @GetMapping("/leaderboard")
@@ -30,7 +33,7 @@ public class LeaderboardController {
         AuthenticatedUser user = AuthSupport.requireUser(authentication);
         String gameSlug = normalizeRequiredGame(game);
         try {
-            return leaderboardQueryStore.leaderboard(
+            return cacheService.getLeaderboard(
                     user.userId(),
                     gameSlug,
                     mode == null || mode.isBlank() ? "standard" : mode.trim(),

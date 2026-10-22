@@ -146,9 +146,19 @@ function reducer(state: AppState, action: AppAction): AppState {
 
         case 'SET_LANG':   return { ...state, lang: action.lang };
         case 'SET_THEME':  return { ...state, theme: action.theme };
-        case 'SET_VIEW':
+        case 'SET_VIEW': {
             if (state.view === action.view && state.route.game === action.route.game && state.route.room === action.route.room && state.route.mock === action.route.mock) return state;
-            return { ...state, view: action.view, route: action.route };
+            if (state.view === action.view) return { ...state, route: action.route };
+            // Failed list loads are not retried on re-render; opening a view
+            // again clears the error so it gets one fresh attempt.
+            return {
+                ...state,
+                view: action.view,
+                route: action.route,
+                lobbyBrowser: { ...state.lobbyBrowser, errorMessage: null },
+                leaderboard: { ...state.leaderboard, errorMessage: null },
+            };
+        }
         case 'TOGGLE_SIDEBAR': return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
 
         case 'NOTIFICATIONS_OPEN':    if (state.notifications.open) return state; return { ...state, notifications: { ...state.notifications, open: true } };

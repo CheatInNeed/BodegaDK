@@ -1228,7 +1228,10 @@ async function handleNotificationRoom(notificationId: string | undefined, roomCo
 }
 
 function ensureLeaderboardLoaded() {
-    if (store.getState().leaderboard.loading || store.getState().leaderboard.data) {
+    // Runs on every render. A failed load must not start a new one, or the
+    // error -> render -> load cycle never ends; SET_VIEW clears the error.
+    const leaderboard = store.getState().leaderboard;
+    if (leaderboard.loading || leaderboard.data || leaderboard.errorMessage) {
         return;
     }
 
@@ -1861,7 +1864,9 @@ function wireLobbyEvents() {
 }
 
 function ensureLobbyBrowserLoaded() {
-    if (store.getState().lobbyBrowser.loading || store.getState().lobbyBrowser.loaded) {
+    // Runs on every render; see ensureLeaderboardLoaded for why errors stop it.
+    const lobbyBrowser = store.getState().lobbyBrowser;
+    if (lobbyBrowser.loading || lobbyBrowser.loaded || lobbyBrowser.errorMessage) {
         return;
     }
     void refreshLobbyBrowser();
@@ -2232,12 +2237,19 @@ export function navigate(target: Partial<AppRoute> | string) {
         writeRoute(target);
     }
 
-    syncStateFromRoute();
+    syncStateFromRoute({ renderIfUnchanged: true });
 }
 
-function syncStateFromRoute() {
+function syncStateFromRoute(options: { renderIfUnchanged?: boolean } = {}) {
     const route = readRoute();
+    const before = store.getState();
     store.dispatch({ type: 'SET_VIEW', view: route.view, route });
+    // /login, /signup and /custom are chosen by pathname, which is not part of
+    // the store. Moving between them and the same app view leaves the state
+    // untouched, so no subscriber fires and the old page would stay on screen.
+    if (options.renderIfUnchanged && store.getState() === before) {
+        renderApp();
+    }
 }
 
 function normalizeGameKey(game: string): string {
@@ -2767,7 +2779,7 @@ function readLobbyPlayers(value: unknown, hostPlayerId: string | null, selfPlaye
 }
 
 window.addEventListener('popstate', () => {
-    syncStateFromRoute();
+    syncStateFromRoute({ renderIfUnchanged: true });
 });
 
 if (isSupabaseConfigured && supabase) {

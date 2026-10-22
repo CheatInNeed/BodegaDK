@@ -113,13 +113,21 @@ cd apps/server && mvn -B verify
 
 ## Continuous Delivery
 
-A merge into `dev` also runs three more jobs after the checks pass:
+A merge into `dev` or `master` continues after the checks pass:
 
 | Job | What it does |
 | --- | --- |
 | `Docker build` | Additionally pushes both images to `ghcr.io/cheatinneed/` tagged with the short commit SHA |
-| `Supabase migrations` | Applies pending `supabase/migrations/` to the shared Supabase project |
-| `Deploy to dev server` | Pulls that SHA on http://130.225.170.77, checks that `/api/health` reports it, and rolls back if not |
+| `Deploy to dev` / `Deploy to production` | Applies pending `supabase/migrations/`, pulls that SHA on the host, checks that `/api/health` reports it, and rolls back if not |
+
+| Branch | Environment | Host | How it deploys |
+| --- | --- | --- | --- |
+| `dev` | dev (test) | http://130.225.170.77 | Automatically on merge (continuous deployment) |
+| `master` | production | http://130.225.170.69 | After a reviewer approves the job under Actions (continuous delivery) |
+
+The two environments use separate Supabase projects, so test data, users and
+migrations on dev never touch production. Release to production with a pull
+request from `dev` into `master`, merged with "Create a merge commit".
 
 See [docs/instructions/SERVER_GUIDE.md](docs/instructions/SERVER_GUIDE.md)
 for the one-time setup and manual rollback.

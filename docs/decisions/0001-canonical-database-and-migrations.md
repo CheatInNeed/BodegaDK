@@ -51,6 +51,19 @@ decisions must be written by the Spring backend.
 - Do not add backend migration dependencies or migration directories for
   app-owned schema.
 
+## Amendment: Two Environments (2026-10-06)
+
+"The canonical database" is now one Supabase project per environment: one for
+dev (`dev` branch) and one for production (`master` branch). The decision
+itself is unchanged: `supabase/migrations/` is still the only schema path, and
+each project is built purely from those files.
+
+The CD pipeline applies migrations to the dev project on every merge into
+`dev` and to the production project when a release to `master` is approved.
+The separate `supabase-migrations.yml` workflow and its "master must contain
+dev's migrations" guard were removed, because the two branches no longer share
+a database.
+
 ## Follow-Up Work
 
 - Move normal room create/join/list persistence toward the existing

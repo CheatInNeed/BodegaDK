@@ -3,6 +3,7 @@ package dk.bodegadk.runtime;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -40,6 +41,7 @@ public class MatchmakingService {
         this.objectMapper = objectMapper;
     }
 
+    @Transactional
     public MatchmakingSnapshot enqueue(String gameType, String userId, String username, String clientSessionId) {
         GameCatalogService.GameDefinition definition = gameCatalogService.require(gameType);
         if (!definition.quickPlayEnabled() || !definition.realtimeSupported()) {
@@ -60,6 +62,7 @@ public class MatchmakingService {
         return ticketStatus(ticketId).orElseThrow();
     }
 
+    @Transactional
     public Optional<MatchmakingSnapshot> ticketStatus(UUID ticketId) {
         Optional<RoomMetadataStore.MatchmakingTicket> ticket = roomMetadataStore.ticket(ticketId);
         ticket.ifPresent(value -> attemptMatch(value.gameType()));

@@ -337,10 +337,31 @@ Controls:
 
 -   Version control history tracking
 -   Deployment activity logs
+-   Application logs with request IDs and room/player tags
+    (`docs/instructions/LOGGING.md`)
+-   Metrics, dashboards and alert rules
+    (`docs/devops/observability.md`)
 
 Purpose:
 
 -   Detect unauthorized changes
+-   Detect failures and abuse (e.g. spikes in refused WebSocket CONNECTs)
+
+Protections for the monitoring itself:
+
+-   Spring Boot Actuator (health, metrics) listens on the internal
+    management port 8081. nginx only proxies to 8080, so it is not reachable
+    from the internet; on 8080 `/actuator/*` is not served.
+-   Grafana (3000) and Prometheus (9090) bind to `127.0.0.1` on the host and
+    are reached through an SSH tunnel. Grafana sign-up is disabled; set
+    `GRAFANA_ADMIN_PASSWORD` in `.env.deploy`.
+-   Logs never contain access tokens, runtime session tokens, push endpoints,
+    emails or raw WebSocket payloads. User IDs (UUIDs) are logged.
+-   Metric tags never contain room codes or user IDs.
+-   Grafana Alloy has read-only access to the Docker socket to discover
+    containers and read logs. The Docker API still allows a lot through that
+    socket, so Alloy is pinned to an official image version.
+-   Logs are kept 14 days (Loki) and metrics 15 days (Prometheus).
 
 ------------------------------------------------------------------------
 
