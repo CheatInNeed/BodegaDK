@@ -33,11 +33,9 @@ class BodegaMetricsTest {
         metrics.push("sent");
         metrics.push("failed");
         metrics.gameStarted("casino");
-        metrics.heartbeatTimeout();
 
         assertEquals(2.0, registry.get("bodegadk.push").tag("outcome", "sent").counter().count());
         assertEquals(1.0, registry.get("bodegadk.push").tag("outcome", "failed").counter().count());
         assertEquals(1.0, registry.get("bodegadk.games.started").tag("game", "casino").counter().count());
-        assertEquals(1.0, registry.get("bodegadk.heartbeat.timeouts").counter().count());
     }
 }

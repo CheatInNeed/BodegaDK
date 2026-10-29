@@ -73,7 +73,6 @@ Our own (`dk.bodegadk.metrics.BodegaMetrics` and `RuntimeGaugesBinder`):
 | `bodegadk_games_started_total{game}` | counter | Games started |
 | `bodegadk_games_finished_total{game}` | counter | Games finished |
 | `bodegadk_ws_connect_rejected_total{reason}` | counter | Refused WebSocket CONNECTs, e.g. `invalid_token`, `not_participant` |
-| `bodegadk_heartbeat_timeouts_total` | counter | Players dropped because heartbeats stopped |
 | `bodegadk_match_history_failures_total` | counter | Finished games whose result could not be saved |
 | `bodegadk_push_total{outcome}` | counter | Push notifications `sent` / `failed` / `expired` |
 
@@ -161,7 +160,6 @@ a panel: edit it in Grafana, use *Share → Export → JSON*, paste the result i
 | `BodegaHighServerErrorRate` | > 5% REST 5xx for 5 minutes | Look for `Unexpected error handling` in logs |
 | `BodegaGameActionCrashed` | Any game action crashed | Logs, level ERROR, `Game action ... failed`; the stack trace shows the engine line |
 | `BodegaMatchHistoryWriteFailed` | A result could not be saved | Check database/Supabase status |
-| `BodegaHeartbeatTimeoutSpike` | > 20 heartbeat timeouts per 5 min, for 5 min | Network/proxy problems around `/ws` |
 | `BodegaJvmMemoryHigh` | Heap > 90% after GC for 10 min | Possible leak; compare with `bodegadk_rooms` |
 
 Alerts are **visible only** (Prometheus → Alerts, and the "Alerts firing" panel). Nobody is notified

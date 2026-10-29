@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -145,7 +144,6 @@ public class InMemoryRuntimeStore {
             throw new IllegalArgumentException("Room does not exist: " + roomCode);
         }
 
-        Instant now = Instant.now();
         synchronized (room) {
             PlayerSummary participant = new PlayerSummary(playerId, normalizeUsername(username));
             int existingIndex = findParticipantIndex(room.participants, playerId);
@@ -162,7 +160,7 @@ public class InMemoryRuntimeStore {
             }
         }
 
-        sessionsByToken.put(token, new SessionRecord(roomCode, playerId, now, false));
+        sessionsByToken.put(token, new SessionRecord(roomCode, playerId));
         refreshPlayers(roomCode);
         return new PlayerSession(roomCode, playerId, token);
     }
@@ -185,25 +183,7 @@ public class InMemoryRuntimeStore {
             }
         }
 
-        sessionsByToken.computeIfPresent(token, (key, current) -> current.connected(Instant.now()));
         return Optional.of(new PlayerSession(session.roomCode, session.playerId, token));
-    }
-
-    public boolean touchHeartbeat(String token) {
-        return sessionsByToken.computeIfPresent(token, (key, session) -> session.connected(Instant.now())) != null;
-    }
-
-    public boolean touchHeartbeat(String roomCode, String playerId) {
-        Instant now = Instant.now();
-        boolean touched = false;
-        for (var entry : sessionsByToken.entrySet()) {
-            SessionRecord session = entry.getValue();
-            if (session.roomCode.equals(roomCode) && session.playerId.equals(playerId)) {
-                sessionsByToken.put(entry.getKey(), session.connected(now));
-                touched = true;
-            }
-        }
-        return touched;
     }
 
     public Optional<RoomMutation> leaveRoom(String roomCode, String token) {
@@ -215,11 +195,6 @@ public class InMemoryRuntimeStore {
     }
 
     public Optional<RoomMutation> disconnect(String token) {
-        SessionRecord session = sessionsByToken.get(token);
-        if (session == null) {
-            return Optional.empty();
-        }
-        sessionsByToken.computeIfPresent(token, (key, current) -> current.disconnected());
         return Optional.empty();
     }
 
@@ -316,26 +291,9 @@ public class InMemoryRuntimeStore {
             mutation = RoomMutation.updated(toSnapshot(room), null);
         }
 
-        sessionsByToken.computeIfPresent(token, (key, current) -> new SessionRecord(current.roomCode, normalizedPlayerId, current.lastHeartbeat, current.connected));
+        sessionsByToken.computeIfPresent(token, (key, current) -> new SessionRecord(current.roomCode, normalizedPlayerId));
         refreshPlayers(roomCode);
         return Optional.of(mutation);
-    }
-
-    public List<ExpiredSession> sweepExpiredSessions(Duration maxAge) {
-        Instant cutoff = Instant.now().minus(maxAge);
-        List<ExpiredSession> expired = new ArrayList<>();
-
-        for (var entry : sessionsByToken.entrySet()) {
-            SessionRecord session = entry.getValue();
-            if (!session.lastHeartbeat.isBefore(cutoff)) {
-                continue;
-            }
-
-            Optional<RoomMutation> mutation = removePlayer(session.roomCode, session.playerId);
-            mutation.ifPresent(value -> expired.add(new ExpiredSession(entry.getKey(), session.roomCode, session.playerId, value)));
-        }
-
-        return expired;
     }
 
     public GameLoopService.RoomState loadState(String roomCode) {
@@ -723,9 +681,6 @@ public class InMemoryRuntimeStore {
         }
     }
 
-    public record ExpiredSession(String token, String roomCode, String playerId, RoomMutation mutation) {
-    }
-
     private static final class RoomRecord {
         private final String roomCode;
         private final List<PlayerSummary> participants = new ArrayList<>();
@@ -744,17 +699,6 @@ public class InMemoryRuntimeStore {
         }
     }
 
-    private record SessionRecord(String roomCode, String playerId, Instant lastHeartbeat, boolean connected) {
-        private SessionRecord(String roomCode, String playerId) {
-            this(roomCode, playerId, Instant.now(), false);
-        }
-
-        private SessionRecord connected(Instant now) {
-            return new SessionRecord(roomCode, playerId, now, true);
-        }
-
-        private SessionRecord disconnected() {
-            return new SessionRecord(roomCode, playerId, lastHeartbeat, false);
-        }
+    private record SessionRecord(String roomCode, String playerId) {
     }
 }

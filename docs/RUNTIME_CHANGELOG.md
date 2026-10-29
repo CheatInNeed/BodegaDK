@@ -1,5 +1,18 @@
 # Runtime Changelog
 
+## 2026-10-21 -- Remove application-level player heartbeat
+
+### What changed
+- Removed browser room-presence and WebSocket heartbeat timers.
+- WebSocket connections now rely on transport close/error events and explicit
+  room lifecycle operations instead of dropping players after heartbeat timeout.
+- Removed the heartbeat-timeout metric and monitoring alert.
+
+### Why
+Player liveness is owned by the WebSocket transport and clean disconnect
+handling; application-level heartbeat timers created unnecessary traffic and
+false disconnects.
+
 ## 2026-10-06 -- Logged-out navigation fixes (web client)
 
 ### What changed

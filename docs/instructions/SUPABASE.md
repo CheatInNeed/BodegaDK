@@ -8,7 +8,7 @@ Supabase is currently used by the web client for:
   `public.user_avatars`
 - persisted room metadata in `public.rooms`
 - room participants in `public.room_players`
-- active-room heartbeat and stale-room cleanup
+- room lifecycle timestamps and stale-room cleanup
 - quick-play queue tickets in `public.matchmaking_tickets`
 - friend relationships in `public.friendships`, written through the Spring
   friends API
@@ -61,7 +61,7 @@ Profile creation is now database-driven:
 - authenticated browser access to profile/avatar tables also requires explicit
   grants; those live in the browser profile/avatar access grant migration
 - direct browser grants are intentionally limited to profile/avatar/catalog
-  and own-ticket/heartbeat needs; friends, challenges, notifications, stats,
+  and own-ticket needs; friends, challenges, notifications, stats,
   history, and authoritative room mutations go through Spring APIs
 
 Matchmaking queue UI uses Supabase in the browser for live status and
@@ -93,12 +93,13 @@ Challenges and notifications use the existing V1 social tables:
 - the browser reads and mutates these through authenticated Spring REST
   endpoints; it does not write rows directly through the Supabase anon client
 
-Room presence and cleanup uses Supabase RPCs:
+Room cleanup uses lifecycle timestamps and Supabase RPCs:
 
-- `public.touch_room_presence(room_code_input)` updates the authenticated user's
-  `public.room_players.updated_at` while they are in a `LOBBY` or `IN_GAME`
-  room, and also updates `public.rooms.last_heartbeat` for active `IN_GAME`
-  rooms
+- The browser no longer sends periodic room-presence heartbeats. WebSocket
+  transport close events and explicit room lifecycle operations are the active
+  disconnect signals.
+- `public.touch_room_presence(room_code_input)` remains available for schema
+  compatibility, but is not used for active player liveness.
 - `public.touch_room_heartbeat(room_code_input)` remains as a compatibility
   wrapper around `touch_room_presence`
 - `public.finish_stale_rooms(stale_after interval default interval '60 seconds')`

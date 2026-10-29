@@ -48,7 +48,8 @@ confirm that a deploy is live.
 Room status values:
 
 - `LOBBY`: players can join and configure the room
-- `IN_GAME`: active gameplay; the browser sends room heartbeats while this is live
+- `IN_GAME`: active gameplay; liveness is provided by the WebSocket transport and
+  clean disconnect handling, not an application-level player heartbeat
 - `FINISHED`: terminal persisted room state used by stale-room cleanup and history
 
 ------------------------------------------------------------------------
