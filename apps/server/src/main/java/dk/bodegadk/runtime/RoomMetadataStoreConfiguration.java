@@ -55,8 +55,9 @@ public class RoomMetadataStoreConfiguration {
             GameCatalogService gameCatalogService,
             RoomMetadataStore roomMetadataStore,
             InMemoryRuntimeStore runtimeStore,
-            NotificationsStore notificationsStore
+            NotificationsStore notificationsStore,
+            WebPushNotificationService pushNotificationService
     ) {
-        return new JdbcChallengesStore(jdbcTemplate, gameCatalogService, roomMetadataStore, runtimeStore, notificationsStore);
+        return new JdbcChallengesStore(jdbcTemplate, gameCatalogService, roomMetadataStore, runtimeStore, notificationsStore, pushNotificationService);
     }
 }

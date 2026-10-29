@@ -25,14 +25,10 @@ public class BodegaMetrics {
     private static final Set<String> KNOWN_GAMES = Set.of("snyd", "highcard", "casino", "fem", "krig");
 
     private final MeterRegistry registry;
-    private final Counter heartbeatTimeouts;
     private final Counter matchHistoryFailures;
 
     public BodegaMetrics(MeterRegistry registry) {
         this.registry = registry;
-        this.heartbeatTimeouts = Counter.builder("bodegadk.heartbeat.timeouts")
-                .description("Players dropped because their heartbeat stopped")
-                .register(registry);
         this.matchHistoryFailures = Counter.builder("bodegadk.match.history.failures")
                 .description("Finished games whose result could not be saved")
                 .register(registry);
@@ -62,10 +58,6 @@ public class BodegaMetrics {
     /** @param reason a fixed code chosen by the server, e.g. {@code invalid_token}; never client input */
     public void connectRejected(String reason) {
         counter("bodegadk.ws.connect.rejected", "WebSocket CONNECT attempts that were refused", "reason", reason).increment();
-    }
-
-    public void heartbeatTimeout() {
-        heartbeatTimeouts.increment();
     }
 
     public void matchHistoryFailure() {

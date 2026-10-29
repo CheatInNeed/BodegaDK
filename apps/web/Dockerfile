@@ -22,4 +22,4 @@ RUN [ -n "$PUBLIC_SUPABASE_URL" ] || unset PUBLIC_SUPABASE_URL; \
 FROM nginx:alpine
 LABEL org.opencontainers.image.source=https://github.com/CheatInNeed/BodegaDK
 COPY infra/nginx/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /repo/apps/web/public /usr/share/nginx/html
+COPY --from=build /repo/apps/web/dist-vue /usr/share/nginx/html

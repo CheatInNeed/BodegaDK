@@ -3,7 +3,7 @@
   "name": "BodegaDK",
   "short_name": "BodegaDK",
   "description": "Play BodegaDK card and dice games with friends.",
-  "start_url": "/?view=home",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#17120f",
@@ -31,7 +31,7 @@
   "shortcuts": [
     {
       "name": "Play",
-      "url": "/?view=play",
+      "url": "/play",
       "icons": [
         {
           "src": "/images/pwa/icon-192.png",
@@ -41,7 +41,7 @@
     },
     {
       "name": "Lobbies",
-      "url": "/?view=lobby-browser",
+      "url": "/lobbies",
       "icons": [
         {
           "src": "/images/pwa/icon-192.png",

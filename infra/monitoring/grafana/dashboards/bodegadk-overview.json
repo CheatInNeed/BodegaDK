@@ -212,11 +212,10 @@
       "id": 13,
       "type": "timeseries",
       "title": "Connection problems (per 5m)",
-      "description": "Heartbeat timeouts (players dropping) and refused WebSocket CONNECTs by reason.",
+      "description": "Refused WebSocket CONNECTs by reason.",
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 22 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "refId": "A", "expr": "sum(increase(bodegadk_heartbeat_timeouts_total[5m]))", "legendFormat": "heartbeat timeouts" },
         { "refId": "B", "expr": "sum by (reason) (increase(bodegadk_ws_connect_rejected_total[5m]))", "legendFormat": "connect rejected: {{reason}}" }
       ],
       "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },

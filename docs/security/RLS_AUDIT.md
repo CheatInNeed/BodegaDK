@@ -29,7 +29,7 @@ matchmaking decisions, social mutations, notifications, and result writes.
 | `public.matchmaking_tickets` | `select` for `authenticated` | own rows only | Quick-play ticket polling/realtime refresh |
 | `public.cancel_matchmaking_ticket(uuid, text)` | `execute` for `authenticated` | checks `auth.uid()` and session token | Compatibility/maintenance cancellation path |
 | `public.touch_room_presence(text)` | `execute` for `authenticated` | checks active room participation | Lobby/game room participant presence |
-| `public.touch_room_heartbeat(text)` | `execute` for `authenticated` | wrapper around room presence | Backward-compatible active room heartbeat |
+| `public.touch_room_heartbeat(text)` | `execute` for `authenticated` | wrapper around room presence | Backward-compatible RPC; not used for active player liveness |
 
 ## Spring-Only Tables
 

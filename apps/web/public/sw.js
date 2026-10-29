@@ -1,9 +1,8 @@
-const CACHE_NAME = 'bodegadk-shell-v2';
+const CACHE_NAME = 'bodegadk-shell-v3';
 const APP_SHELL = [
     '/',
     '/index.html',
     '/styles.css',
-    '/dist/index.js',
     '/manifest.webmanifest',
     '/images/brand/bodegadk-tab-icon.png',
     '/images/pwa/icon-192.png',
@@ -34,9 +33,25 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(request.url);
     if (url.origin !== self.location.origin) return;
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws')) return;
-    if (url.pathname === '/app-config.js') return;
 
-    if (url.pathname.startsWith('/dist/') || url.pathname === '/styles.css' || url.pathname === '/manifest.webmanifest') {
+    // Vite assets use content hashes — serve from cache, update in background.
+    if (url.pathname.startsWith('/assets/')) {
+        event.respondWith(
+            caches.match(request).then((cached) => {
+                if (cached) return cached;
+                return fetch(request).then((response) => {
+                    if (response.ok) {
+                        const copy = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+                    }
+                    return response;
+                });
+            })
+        );
+        return;
+    }
+
+    if (url.pathname === '/styles.css' || url.pathname === '/manifest.webmanifest') {
         event.respondWith(networkFirst(request));
         return;
     }
@@ -64,7 +79,7 @@ self.addEventListener('push', (event) => {
     const fallback = {
         title: 'BodegaDK',
         body: 'There is a new update waiting for you.',
-        url: '/?view=home',
+        url: '/',
     };
     const data = readPushPayload(event.data, fallback);
     const options = {
@@ -82,7 +97,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const targetUrl = new URL(event.notification.data?.url || '/?view=home', self.location.origin).href;
+    const targetUrl = new URL(event.notification.data?.url || '/', self.location.origin).href;
 
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {

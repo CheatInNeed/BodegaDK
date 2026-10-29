@@ -48,7 +48,8 @@ confirm that a deploy is live.
 Room status values:
 
 - `LOBBY`: players can join and configure the room
-- `IN_GAME`: active gameplay; the browser sends room heartbeats while this is live
+- `IN_GAME`: active gameplay; liveness is provided by the WebSocket transport and
+  clean disconnect handling, not an application-level player heartbeat
 - `FINISHED`: terminal persisted room state used by stale-room cleanup and history
 
 ------------------------------------------------------------------------
@@ -556,7 +557,8 @@ frontend V1 sends `snyd`.
 - `400`: blank username, self-challenge, non-friend target, or inactive/non-challengeable game
 - `404`: username not found
 
-Social side effect: emits `challenge.received` for the challenged user.
+Social side effect: emits `challenge.received` for the challenged user and
+sends Web Push to that user's active subscriptions when push is configured.
 
 ------------------------------------------------------------------------
 
@@ -601,7 +603,8 @@ challenge shape from `POST /challenges`.
 - `409`: challenge is no longer pending
 
 Social side effect: emits `challenge.accepted` for the challenger with
-`roomCode` in the notification payload.
+`roomCode` in the notification payload and sends Web Push to the challenger's
+active subscriptions when push is configured.
 
 ------------------------------------------------------------------------
 
@@ -615,7 +618,8 @@ Declines a pending challenge as the challenged user.
 - `404`: challenge not found or current user is not the challenged user
 - `409`: challenge is no longer pending
 
-Social side effect: emits `challenge.declined` for the challenger.
+Social side effect: emits `challenge.declined` for the challenger and sends
+Web Push to the challenger's active subscriptions when push is configured.
 
 ------------------------------------------------------------------------
 

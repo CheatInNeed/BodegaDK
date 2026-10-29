@@ -1,5 +1,6 @@
 package dk.bodegadk.runtime;
 
+import dk.bodegadk.push.WebPushNotificationService;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ public class JdbcChallengesStore implements ChallengesStore {
     private final RoomMetadataStore roomMetadataStore;
     private final InMemoryRuntimeStore runtimeStore;
     private final NotificationsStore notificationsStore;
+    private final WebPushNotificationService pushNotificationService;
 
     public JdbcChallengesStore(
             JdbcTemplate jdbcTemplate,
@@ -26,11 +28,23 @@ public class JdbcChallengesStore implements ChallengesStore {
             InMemoryRuntimeStore runtimeStore,
             NotificationsStore notificationsStore
     ) {
+        this(jdbcTemplate, gameCatalogService, roomMetadataStore, runtimeStore, notificationsStore, null);
+    }
+
+    public JdbcChallengesStore(
+            JdbcTemplate jdbcTemplate,
+            GameCatalogService gameCatalogService,
+            RoomMetadataStore roomMetadataStore,
+            InMemoryRuntimeStore runtimeStore,
+            NotificationsStore notificationsStore,
+            WebPushNotificationService pushNotificationService
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.gameCatalogService = gameCatalogService;
         this.roomMetadataStore = roomMetadataStore;
         this.runtimeStore = runtimeStore;
         this.notificationsStore = notificationsStore;
+        this.pushNotificationService = pushNotificationService;
     }
 
     @Override
@@ -205,6 +219,13 @@ public class JdbcChallengesStore implements ChallengesStore {
                         "action", "challenge"
                 )
         );
+        sendChallengePush(
+                challenge.challenged().userId(),
+                "New game challenge",
+                displayName(challenge.challenger()) + " challenged you to " + challenge.game().title() + ".",
+                "/?view=profile",
+                "challenge-received-" + challenge.id()
+        );
     }
 
     private void notifyChallengeAccepted(ChallengeSummary challenge, ChallengeRoom room) {
@@ -220,6 +241,13 @@ public class JdbcChallengesStore implements ChallengesStore {
                         "action", "room"
                 )
         );
+        sendChallengePush(
+                challenge.challenger().userId(),
+                "Challenge accepted",
+                displayName(challenge.challenged()) + " accepted your " + challenge.game().title() + " challenge.",
+                "/?view=room&room=" + room.roomCode() + "&game=" + challenge.game().slug(),
+                "challenge-accepted-" + challenge.id()
+        );
     }
 
     private void notifyChallengeDeclined(ChallengeSummary challenge) {
@@ -234,6 +262,33 @@ public class JdbcChallengesStore implements ChallengesStore {
                         "action", "profile"
                 )
         );
+        sendChallengePush(
+                challenge.challenger().userId(),
+                "Challenge declined",
+                displayName(challenge.challenged()) + " declined your " + challenge.game().title() + " challenge.",
+                "/?view=profile",
+                "challenge-declined-" + challenge.id()
+        );
+    }
+
+    private void sendChallengePush(String userId, String title, String body, String url, String tag) {
+        if (pushNotificationService == null) {
+            return;
+        }
+        pushNotificationService.sendToUser(
+                userId,
+                new WebPushNotificationService.PushPayload(title, body, url, tag)
+        );
+    }
+
+    private String displayName(FriendsStore.FriendUser user) {
+        if (user.displayName() != null && !user.displayName().isBlank()) {
+            return user.displayName().trim();
+        }
+        if (user.username() != null && !user.username().isBlank()) {
+            return user.username().trim();
+        }
+        return "Someone";
     }
 
     private void expireOldChallenges() {
