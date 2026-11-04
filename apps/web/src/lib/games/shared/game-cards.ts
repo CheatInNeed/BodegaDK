@@ -11,10 +11,7 @@ export interface CardTheme {
     red: string;
     blk: string;
     backBg: string;
-    backAccent: string;
     backLine: string;
-    backCenter: string;
-    faceAccent: string;
 }
 
 export const THEME: CardTheme = {
@@ -23,9 +20,7 @@ export const THEME: CardTheme = {
     cardShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)',
     innerBorder: null,
     red: '#C0392B', blk: '#111827',
-    backBg: '#1A2535', backAccent: 'rgba(255,255,255,0.08)',
-    backLine: 'rgba(255,255,255,0.12)', backCenter: 'rgba(255,255,255,0.06)',
-    faceAccent: 'rgba(0,0,0,0.025)',
+    backBg: '#1A2535', backLine: 'rgba(255,255,255,0.12)',
 };
 
 // ── Card code parsing ────────────────────────────────────────────────────────
@@ -73,7 +68,6 @@ const PIPS: Record<string, [number, number, number][]> = {
     '10': [[27,11,0],[73,11,0],[50,26,0],[27,41,0],[73,41,0],[27,59,1],[73,59,1],[50,74,1],[27,89,1],[73,89,1]],
 };
 
-const FACE_ICON: Record<string, string> = { J: '\u2694', Q: '\u265B', K: '\u265A' };
 const FACE_RANKS = new Set(['J', 'Q', 'K']);
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
@@ -89,66 +83,52 @@ function corner(rank: string, sym: string, color: string, flipped: boolean): str
 function numberCard(rank: string, suit: {s:string,red:boolean}, t: CardTheme, cw: number, ch: number): string {
     const color = suit.red ? t.red : t.blk;
     const pips = PIPS[rank] ?? [];
-    const sz = rank==='A' ? 36 : rank==='10' ? 13 : ['8','9'].includes(rank) ? 14 : 15;
+    // Pip size and pip area are tuned for a 78x109 card; scale them for other sizes.
+    const scale = cw / 78;
+    const sz = (rank==='A' ? 36 : rank==='10' ? 13 : ['8','9'].includes(rank) ? 14 : 15) * Math.max(scale, 0.7);
+    const padY = Math.round(ch * 0.33);
+    const padX = Math.round(12 * scale);
     const pipHtml = pips.map(([px,py,flip]) =>
         `<div style="position:absolute;left:${px}%;top:${py}%;transform:translate(-50%,-50%)${flip?' rotate(180deg)':''}"><span style="font-size:${sz}px;color:${color};line-height:1;user-select:none;display:block">${suit.s}</span></div>`
     ).join('');
     return `<div style="width:${cw}px;height:${ch}px;border-radius:${t.cardRadius}px;border:${t.cardBorder};box-shadow:${t.cardShadow};background:${t.cardBg};position:relative;overflow:hidden;flex-shrink:0">
 ${t.innerBorder ? `<div style="position:absolute;inset:5px;border:1px solid ${t.innerBorder};border-radius:${Math.max(t.cardRadius-2,2)}px;pointer-events:none"></div>` : ''}
 ${corner(rank, suit.s, color, false)}${corner(rank, suit.s, color, true)}
-<div style="position:absolute;top:36px;bottom:36px;left:12px;right:12px">${pipHtml}</div></div>`;
+<div style="position:absolute;top:${padY}px;bottom:${padY}px;left:${padX}px;right:${padX}px">${pipHtml}</div></div>`;
 }
 
 function faceCard(rank: string, suit: {s:string,red:boolean}, t: CardTheme, cw: number, ch: number): string {
     const color = suit.red ? t.red : t.blk;
-    const icon = FACE_ICON[rank] ?? '';
-    const rankFs = cw < 60 ? '26px' : '42px';
-    const iconFs = cw < 60 ? '10px' : '16px';
+    const rankFs = cw < 60 ? `${Math.round(cw * 0.4)}px` : '42px';
     const symFs  = cw < 60 ? '12px' : '18px';
-    const divider = `<div style="display:flex;align-items:center;gap:4px;margin:0 20px;opacity:0.3"><div style="flex:1;height:1px;background:${color}"></div><span style="font-size:8px;color:${color}">\u2726</span><div style="flex:1;height:1px;background:${color}"></div></div>`;
     return `<div style="width:${cw}px;height:${ch}px;border-radius:${t.cardRadius}px;border:${t.cardBorder};box-shadow:${t.cardShadow};background:${t.cardBg};position:relative;overflow:hidden;flex-shrink:0">
 ${t.innerBorder ? `<div style="position:absolute;inset:5px;border:1px solid ${t.innerBorder};border-radius:${Math.max(t.cardRadius-2,2)}px;pointer-events:none"></div>` : ''}
-<div style="position:absolute;left:14px;right:14px;top:30px;bottom:30px;background:${t.faceAccent};border-radius:4px"></div>
 ${corner(rank, suit.s, color, false)}${corner(rank, suit.s, color, true)}
 <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;width:100%">
-${divider}
-<div style="font-size:${rankFs};font-family:'Playfair Display',serif;font-weight:900;color:${color};line-height:1;margin-top:5px">${rank}</div>
-<div style="font-size:${iconFs};color:${color};line-height:1;margin-top:5px;opacity:0.55">${icon}</div>
-<div style="font-size:${symFs};color:${color};line-height:1;margin-top:3px">${suit.s}</div>
-${divider}
+<div style="font-size:${rankFs};font-family:'Playfair Display',serif;font-weight:900;color:${color};line-height:1">${rank}</div>
+<div style="font-size:${symFs};color:${color};line-height:1;margin-top:4px">${suit.s}</div>
 </div></div>`;
 }
 
 function jokerCard(t: CardTheme, cw: number, ch: number): string {
+    const star = (flipped: boolean) => {
+        const pos = flipped ? 'bottom:5px;right:5px;transform:rotate(180deg)' : 'top:5px;left:5px';
+        return `<div style="position:absolute;${pos};font-size:12px;color:${t.blk};line-height:1;user-select:none">\u2605</div>`;
+    };
+    const textFs = cw < 60 ? '9px' : '13px';
     return `<div style="width:${cw}px;height:${ch}px;border-radius:${t.cardRadius}px;border:${t.cardBorder};box-shadow:${t.cardShadow};background:${t.cardBg};position:relative;overflow:hidden;flex-shrink:0">
-${t.innerBorder ? `<div style="position:absolute;inset:5px;border:1px solid ${t.innerBorder};border-radius:${Math.max(t.cardRadius-2,2)}px;pointer-events:none"></div>` : ''}
-<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
-<div style="font-size:28px;line-height:1;">\uD83C\uDCCF</div>
-<div style="font-size:9px;font-weight:700;color:#6b4;letter-spacing:2px;margin-top:4px;">JOKER</div>
-</div></div>`;
+${star(false)}${star(true)}
+<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:${textFs};font-family:'Playfair Display',serif;font-weight:900;letter-spacing:2px;color:${t.blk}">JOKER</div>
+</div>`;
 }
 
 // ── Public rendering API ─────────────────────────────────────────────────────
 
-/** Render the back of a card. */
-export function renderCardBack(cw: number, ch: number, uid: string, t: CardTheme = THEME): string {
-    const pid = `kpat-${uid}`;
-    const corners = ([[20,22],[cw-20,22],[20,ch-12],[cw-20,ch-12]] as [number,number][])
-        .map(([cx,cy]) => `<text x="${cx}" y="${cy}" text-anchor="middle" font-size="9" fill="${t.backLine}" font-family="serif">\u2726</text>`)
-        .join('');
+/** Render the back of a card. `uid` is kept for API compatibility. */
+export function renderCardBack(cw: number, ch: number, _uid: string, t: CardTheme = THEME): string {
     return `<div style="width:${cw}px;height:${ch}px;border-radius:${t.cardRadius}px;border:${t.cardBorder};box-shadow:${t.cardShadow};overflow:hidden;background:${t.backBg};position:relative;flex-shrink:0">
-<svg width="${cw}" height="${ch}" style="position:absolute;inset:0"><defs>
-<pattern id="${pid}" x="0" y="0" width="18" height="18" patternUnits="userSpaceOnUse">
-<rect width="18" height="18" fill="${t.backBg}"/>
-<path d="M9 0 L18 9 L9 18 L0 9 Z" fill="none" stroke="${t.backLine}" stroke-width="0.7"/>
-<circle cx="9" cy="9" r="1.2" fill="${t.backAccent}"/>
-</pattern></defs>
-<rect width="${cw}" height="${ch}" fill="url(#${pid})"/>
-<rect x="7" y="7" width="${cw-14}" height="${ch-14}" rx="${t.cardRadius}" fill="none" stroke="${t.backLine}" stroke-width="1.2"/>
-<rect x="12" y="12" width="${cw-24}" height="${ch-24}" rx="${Math.max(t.cardRadius-3,2)}" fill="none" stroke="${t.backAccent}" stroke-width="0.8"/>
-<text x="${cw/2}" y="${ch/2+10}" text-anchor="middle" font-size="32" fill="${t.backCenter}" font-family="serif">\u25C6</text>
-<text x="${cw/2}" y="${ch/2+9}" text-anchor="middle" font-size="13" fill="${t.backLine}" font-family="serif">B</text>
-${corners}</svg></div>`;
+<div style="position:absolute;inset:6px;border:1px solid ${t.backLine};border-radius:${Math.max(t.cardRadius-4,2)}px"></div>
+</div>`;
 }
 
 /** Render a face-up playing card from a ParsedCard. */
