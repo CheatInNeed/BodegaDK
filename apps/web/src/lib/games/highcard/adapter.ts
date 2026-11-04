@@ -40,7 +40,7 @@ export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateSt
         return normalized === 'highcard' || normalized === 'single-card-highest-wins';
     },
 
-    toViewModel({ publicState, privateState, selectedCards }) {
+    toViewModel({ publicState, privateState, selectedCards, selfPlayerId }) {
         const handCodes = Array.isArray(privateState?.hand)
             ? privateState.hand.filter((card): card is string => typeof card === 'string')
             : [];
@@ -65,6 +65,9 @@ export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateSt
             hand,
             selectedCard: selectedCards[0] ?? null,
             history: toLogEntries(readHistory(publicState?.history), describeHighCardEvent),
+            isFinished: publicState?.finished === true,
+            // The dealer isn't a player, so a loss has no winner id; compare against self.
+            didWin: publicState?.finished === true && !!selfPlayerId && publicState?.winner === selfPlayerId,
         };
     },
 

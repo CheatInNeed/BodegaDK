@@ -97,11 +97,13 @@ function reducer(state: RoomSessionState, action: RoomStoreAction): RoomSessionS
             ...msg.payload,
         };
         const nextGamePhase = typeof nextPublicState.gamePhase === 'string' ? nextPublicState.gamePhase : null;
+        // Krig reports gamePhase; HighCard reports finished. Either signals a fresh game after rematch.
+        const gameInProgress = nextGamePhase === 'PLAYING' || nextPublicState.finished === false;
 
         return {
             ...state,
             publicState: nextPublicState,
-            winnerPlayerId: nextGamePhase === 'PLAYING' ? null : state.winnerPlayerId,
+            winnerPlayerId: gameInProgress ? null : state.winnerPlayerId,
             lastError: null,
         };
     }

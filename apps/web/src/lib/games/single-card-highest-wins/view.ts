@@ -13,4 +13,6 @@ export type SingleCardHighestWinsViewModel = {
     hand: Array<{ card: string; selected: boolean }>;
     selectedCard: string | null;
     history: GameLogEntry[];
+    isFinished: boolean;
+    didWin: boolean;
 };

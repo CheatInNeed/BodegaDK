@@ -80,10 +80,10 @@ function onHandClick(e: Event) {
     <!-- Overlay -->
     <template #overlay>
       <WinOverlay
-        v-if="viewModel?.postGame || state.winnerPlayerId"
-        :winner-label="state.winnerPlayerId === state.playerId ? t('room.win.youWon') : t('room.highcard.dealerWon')"
+        v-if="viewModel?.isFinished"
+        :winner-label="viewModel.didWin ? t('room.win.youWon') : t('room.highcard.dealerWon')"
         :subtitle="t('room.highcard.finalScore', { you: viewModel?.scoreYou ?? 0, dealer: viewModel?.scoreDealer ?? 0 })"
-        :is-victory="!!state.winnerPlayerId && state.winnerPlayerId === state.playerId"
+        :is-victory="viewModel.didWin"
         @action="requestRematch"
       />
     </template>

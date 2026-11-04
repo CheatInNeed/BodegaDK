@@ -150,6 +150,28 @@ class HighCardEngineTest {
         assertEquals("5", gameOver.data().get("wins"));
     }
 
+    @Test
+    void rematchAfterFinishDealsFreshGameWithEmptyHistory() {
+        HighCardState state = buildState(new Card("H", "A"), new Card("D", "3"));
+        state.setRound(7);
+        HighCardState finished = engine.apply(new HighCardAction("p1", "HA"), state);
+
+        HighCardState restarted = engine.requestRematch("p1", finished);
+
+        assertEquals(GameState.Phase.PLAYING, restarted.phase());
+        assertEquals(1, restarted.round());
+        assertEquals(7, restarted.playerHand().size());
+        assertEquals(0, restarted.wins());
+        assertNull(restarted.winnerPlayerId());
+        assertTrue(restarted.history().events().isEmpty());
+    }
+
+    @Test
+    void rematchBeforeFinishThrows() {
+        HighCardState state = buildState(new Card("H", "A"), new Card("D", "3"));
+        assertThrows(GameRuleException.class, () -> engine.requestRematch("p1", state));
+    }
+
     private HighCardState buildState(Card playerCard, Card computerCard) {
         HighCardState state = new HighCardState(List.of("p1"));
         state.playerHand().add(playerCard);

@@ -921,6 +921,11 @@ The server tracks which players have opted in. When both players have
 requested a rematch, the server deals a fresh match and returns to
 `PLAYING`.
 
+For `highcard` (single player vs dealer), this is only valid once the game
+is `finished`. No vote is needed: the server deals a fresh game immediately
+and the next `PUBLIC_UPDATE` has `finished: false`, round 1 and an empty
+`history`.
+
 ------------------------------------------------------------------------
 
 ## CASINO_PLAY_MOVE

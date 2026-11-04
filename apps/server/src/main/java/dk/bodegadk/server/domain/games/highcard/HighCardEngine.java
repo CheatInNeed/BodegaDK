@@ -131,6 +131,17 @@ public class HighCardEngine implements GameEngine<HighCardState, HighCardAction>
         return next;
     }
 
+    /** Single player, so no vote is needed: a finished game is re-dealt immediately. */
+    public HighCardState requestRematch(String playerId, HighCardState state) {
+        if (!state.isFinished()) {
+            throw new GameRuleException("Game is not over yet.");
+        }
+        if (!state.playerIds().contains(playerId)) {
+            throw new GameRuleException("Player not in game.");
+        }
+        return init(state.playerIds());
+    }
+
     @Override
     public boolean isFinished(HighCardState state) {
         return state.isFinished();
