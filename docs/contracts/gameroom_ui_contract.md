@@ -45,7 +45,7 @@ Props:
 - `layout: 'duel' | 'ring'` — table layout mode
 - `gameTitle: string` — displayed in leave confirmation
 - `isMyTurn?: boolean` — turn-based games only (Snyd, Casino, 500). When set, a "Din tur" pill is shown above the actions row while it is the player's turn; the row keeps its height so the layout doesn't shift. Omit for games without turns (HighCard, Krig).
-- `historyEntries?: GameLogEntry[]` — entries for the side panel's history tab. No game supplies entries yet, so the tab shows its empty state.
+- `historyEntries?: GameLogEntry[]` — entries for the side panel's history tab. HighCard and Krig map `publicState.history` (server-side, see PROTOCOL.md) into these via `lib/game-room/history.ts`; Snyd, Casino and 500 don't supply any yet.
 
 ### Side panel (`GameSidePanel.vue`)
 

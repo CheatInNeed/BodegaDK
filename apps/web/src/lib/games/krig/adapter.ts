@@ -1,8 +1,9 @@
 import { t } from '../../../i18n';
+import { formatCard, readHistory, toLogEntries } from '../../game-room/history';
 import { resolvePlayerName } from '../../game-room/player-display';
 import type { CardDisplayModel, GameAdapter, RoomSessionState, UiIntent } from '../../game-room/types';
 import { createLayoutSpec } from '../../game-room/ui';
-import type { ClientToServerMessage, PlayerRef } from '../../net/protocol';
+import type { ClientToServerMessage, HistoryEvent, PlayerRef } from '../../net/protocol';
 import type { KrigViewModel } from './view';
 
 type KrigTrick = {
@@ -108,6 +109,7 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
 
         return {
             roomCode: typeof publicState?.roomCode === 'string' ? publicState.roomCode : '-',
+            history: toLogEntries(readHistory(publicState?.history), (event) => describeKrigEvent(event, playerNames)),
             trickNumber: typeof publicState?.trickNumber === 'number' ? publicState.trickNumber : 1,
             selfPlayerId,
             isGameOver: gamePhase === 'GAME_OVER',
@@ -305,6 +307,40 @@ function describeStatus(input: {
     }
 
     return input.fallback ?? t('room.krig.status.flip');
+}
+
+function describeKrigEvent(event: HistoryEvent, playerNames: Record<string, string>) {
+    const d = event.data;
+    const name = (playerId: string | undefined) => resolvePlayerName(playerNames, playerId);
+    if (event.type === 'KRIG_WAR') {
+        return {
+            text: t('room.history.krig.war', {
+                first: name(d.firstPlayerId), firstCard: formatCard(d.firstCard),
+                second: name(d.secondPlayerId), secondCard: formatCard(d.secondCard),
+            }),
+            kind: 'round' as const,
+        };
+    }
+    if (event.type === 'KRIG_TRICK') {
+        const params = {
+            winner: name(d.winnerPlayerId), count: d.cardsWon ?? '0',
+            firstCard: formatCard(d.firstCard), secondCard: formatCard(d.secondCard),
+        };
+        const isWar = Number(d.warDepth ?? '0') > 0;
+        return {
+            text: t(isWar ? 'room.history.krig.warWon' : 'room.history.krig.trick', params),
+            kind: isWar ? 'round' as const : 'move' as const,
+        };
+    }
+    if (event.type === 'GAME_OVER') {
+        return {
+            text: d.winnerPlayerId
+                ? t('room.krig.status.winsGame', { name: name(d.winnerPlayerId) })
+                : t('room.krig.status.finalTie'),
+            kind: 'round' as const,
+        };
+    }
+    return null;
 }
 
 function readStringArray(value: unknown): string[] {

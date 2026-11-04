@@ -394,5 +394,13 @@
   "room.chat.system.disconnected": "Connection lost",
   "room.chat.system.reconnected": "Connection restored",
   "room.chat.system.connectionError": "Connection error",
-  "room.chat.system.error": "Error: {message}"
+  "room.chat.system.error": "Error: {message}",
+  "room.history.highcard.higher": "Round {round}: {player} beat {dealer}",
+  "room.history.highcard.lower": "Round {round}: {player} lost to {dealer}",
+  "room.history.highcard.equal": "Round {round}: {player} vs {dealer} is a tie – dealer wins",
+  "room.history.highcard.won": "You won the game {wins}–{losses}",
+  "room.history.highcard.lost": "Dealer won the game {losses}–{wins}",
+  "room.history.krig.war": "War! {first} {firstCard} vs {second} {secondCard}",
+  "room.history.krig.trick": "{winner} takes {count} cards ({firstCard} vs {secondCard})",
+  "room.history.krig.warWon": "{winner} wins the war and takes {count} cards ({firstCard} vs {secondCard})"
 }

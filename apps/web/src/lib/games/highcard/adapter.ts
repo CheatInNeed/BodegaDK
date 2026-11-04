@@ -1,8 +1,9 @@
 import { t } from '../../../i18n';
+import { formatCard, readHistory, toLogEntries } from '../../game-room/history';
 import type { GameAdapter } from '../../game-room/types';
 import type { RoomSessionState, UiIntent } from '../../game-room/types';
 import { createLayoutSpec } from '../../game-room/ui';
-import type { ClientToServerMessage } from '../../net/protocol';
+import type { ClientToServerMessage, HistoryEvent } from '../../net/protocol';
 import type { SingleCardHighestWinsViewModel } from '../single-card-highest-wins/view';
 
 type HighCardPublicState = {
@@ -63,6 +64,7 @@ export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateSt
             lastDealerCard: typeof lastRound?.dealerCard === 'string' ? lastRound.dealerCard : null,
             hand,
             selectedCard: selectedCards[0] ?? null,
+            history: toLogEntries(readHistory(publicState?.history), describeHighCardEvent),
         };
     },
 
@@ -88,6 +90,25 @@ function buildHighCardAction(intent: UiIntent, state: RoomSessionState): ClientT
             claimRank: intent.claimRank || 'A',
         },
     };
+}
+
+function describeHighCardEvent(event: HistoryEvent) {
+    const d = event.data;
+    if (event.type === 'HIGHCARD_ROUND') {
+        const params = { round: d.round ?? '?', player: formatCard(d.playerCard), dealer: formatCard(d.dealerCard) };
+        const key = d.comparison === 'HIGHER' ? 'room.history.highcard.higher'
+            : d.comparison === 'LOWER' ? 'room.history.highcard.lower'
+                : 'room.history.highcard.equal';
+        return { text: t(key, params), kind: 'move' as const };
+    }
+    if (event.type === 'GAME_OVER') {
+        const params = { wins: d.wins ?? '0', losses: d.losses ?? '0' };
+        return {
+            text: t(d.winnerPlayerId ? 'room.history.highcard.won' : 'room.history.highcard.lost', params),
+            kind: 'round' as const,
+        };
+    }
+    return null;
 }
 
 function toFeedbackText(round: HighCardPublicState['lastRound']): string {

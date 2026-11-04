@@ -52,7 +52,7 @@ function onHandClick(e: Event) {
 </script>
 
 <template>
-  <GameTable :state="state" layout="duel" :game-title="t('game.highcard')">
+  <GameTable :state="state" layout="duel" :game-title="t('game.highcard')" :history-entries="viewModel?.history">
     <!-- Topbar -->
     <template #topbar>
       <span class="gt-connection-pill">{{ t('room.highcard.score', { you: viewModel?.scoreYou ?? 0, dealer: viewModel?.scoreDealer ?? 0 }) }}</span>

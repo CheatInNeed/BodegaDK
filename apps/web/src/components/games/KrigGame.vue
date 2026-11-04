@@ -114,7 +114,7 @@ function requestRematch() {
 </script>
 
 <template>
-  <GameTable :state="state" layout="duel" :game-title="t('game.krig')">
+  <GameTable :state="state" layout="duel" :game-title="t('game.krig')" :history-entries="viewModel?.history">
     <!-- Topbar: score bar -->
     <template #topbar>
       <div v-if="!viewModel?.warActive" style="text-align:center">

@@ -82,6 +82,15 @@ class HighCardEnginePortAdapterTest {
         assertNotNull(result.privateUpdates().get("p1"));
         assertTrue(result.publicUpdate().has("computerCard"));
         assertEquals("IN_GAME", result.publicUpdate().path("status").asText());
+
+        JsonNode history = result.publicUpdate().path("history");
+        assertEquals(1, history.size());
+        assertEquals("HIGHCARD_ROUND", history.get(0).path("type").asText());
+        assertEquals(cardToPlay, history.get(0).path("data").path("playerCard").asText());
+
+        // A reconnecting client gets the same history in its snapshot.
+        GameLoopService.RoomState reconnect = service.prepareSnapshot(roomCode, "p1");
+        assertEquals(1, reconnect.publicState().path("history").size());
     }
 
     @Test
@@ -211,6 +220,12 @@ class HighCardEnginePortAdapterTest {
         assertTrue(resolvedResult.publicUpdate().path("lastTrick").has("winnerPlayerId"));
         assertEquals(52, resolvedResult.publicUpdate().path("drawPileCounts").path("p1").asInt()
                 + resolvedResult.publicUpdate().path("drawPileCounts").path("p2").asInt());
+
+        assertEquals(0, waitingResult.publicUpdate().path("history").size());
+        JsonNode history = resolvedResult.publicUpdate().path("history");
+        assertEquals(1, history.size());
+        // Random deal: the first trick is either won outright or a tie that declares war.
+        assertTrue(java.util.Set.of("KRIG_TRICK", "KRIG_WAR").contains(history.get(0).path("type").asText()));
     }
 
     @Test
@@ -246,6 +261,7 @@ class HighCardEnginePortAdapterTest {
         assertEquals(26, secondVote.publicUpdate().path("drawPileCounts").path("p2").asInt());
         assertEquals(26, secondVote.privateUpdates().get("p1").path("drawPileCount").asInt());
         assertEquals(26, secondVote.privateUpdates().get("p2").path("drawPileCount").asInt());
+        assertEquals(0, secondVote.publicUpdate().path("history").size());
     }
 
     private GameLoopService.ActionCommand flipCommand(String roomCode, String playerId) {

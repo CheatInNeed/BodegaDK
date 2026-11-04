@@ -394,5 +394,13 @@
   "room.chat.system.disconnected": "Forbindelsen blev afbrudt",
   "room.chat.system.reconnected": "Forbindelsen er genoprettet",
   "room.chat.system.connectionError": "Forbindelsesfejl",
-  "room.chat.system.error": "Fejl: {message}"
+  "room.chat.system.error": "Fejl: {message}",
+  "room.history.highcard.higher": "Runde {round}: {player} slog {dealer}",
+  "room.history.highcard.lower": "Runde {round}: {player} tabte til {dealer}",
+  "room.history.highcard.equal": "Runde {round}: {player} mod {dealer} er lige – giver vinder",
+  "room.history.highcard.won": "Du vandt spillet {wins}–{losses}",
+  "room.history.highcard.lost": "Giver vandt spillet {losses}–{wins}",
+  "room.history.krig.war": "Krig! {first} {firstCard} mod {second} {secondCard}",
+  "room.history.krig.trick": "{winner} tager {count} kort ({firstCard} mod {secondCard})",
+  "room.history.krig.warWon": "{winner} vinder krigen og tager {count} kort ({firstCard} mod {secondCard})"
 }

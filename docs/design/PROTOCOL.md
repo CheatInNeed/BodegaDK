@@ -1138,6 +1138,45 @@ Broadcast til alle spillere.
 }
 ```
 
+### Spilhistorik (`history`)
+
+For HighCard og Krig indeholder public state (i både `STATE_SNAPSHOT` og
+`PUBLIC_UPDATE`) feltet `history`: de seneste offentlige hændelser i spillet,
+ældste først, maks. 100. Listen ligger på spillets state på serveren, så en
+klient der genopretter forbindelsen får hele listen i sit snapshot, og den
+nulstilles ved nyt spil/omkamp.
+
+Hændelser indeholder kun information, der allerede er offentlig for alle
+spillere (aldrig skjulte kort, fx Krigs nedvendte indsatskort). Klienten
+oversætter `type` + `data` til tekst.
+
+``` json
+"history": [
+  {
+    "seq": 0,
+    "at": 1767520800000,
+    "type": "KRIG_TRICK",
+    "data": {
+      "winnerPlayerId": "p1",
+      "firstPlayerId": "p1", "firstCard": "HK",
+      "secondPlayerId": "p2", "secondCard": "S3",
+      "cardsWon": "2", "warDepth": "0"
+    }
+  }
+]
+```
+
+-   `seq`: stigende pr. spil (også efter loftet på 100 er nået)
+-   `at`: server-tidspunkt i epoch millisekunder
+-   `data`: alle værdier er strenge; felter uden værdi udelades
+
+| `type`           | Spil     | `data`                                                                 |
+|------------------|----------|------------------------------------------------------------------------|
+| `HIGHCARD_ROUND` | HighCard | `round`, `playerId`, `playerCard`, `dealerCard`, `comparison` (`HIGHER`/`LOWER`/`EQUAL`) |
+| `KRIG_WAR`       | Krig     | `firstPlayerId`, `firstCard`, `secondPlayerId`, `secondCard`, `warDepth` |
+| `KRIG_TRICK`     | Krig     | `winnerPlayerId`, `firstPlayerId`, `firstCard`, `secondPlayerId`, `secondCard`, `cardsWon`, `warDepth` |
+| `GAME_OVER`      | Begge    | `winnerPlayerId` (udeladt ved uafgjort / giver vinder); HighCard også `wins`, `losses` |
+
 ------------------------------------------------------------------------
 
 ## PRIVATE_UPDATE

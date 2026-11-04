@@ -120,6 +120,36 @@ class HighCardEngineTest {
         assertNull(engine.getWinner(finished));
     }
 
+    @Test
+    void resolvedRoundIsRecordedInHistory() {
+        HighCardState state = buildState(new Card("H", "A"), new Card("D", "3"));
+        HighCardState next = engine.apply(new HighCardAction("p1", "HA"), state);
+
+        assertTrue(state.history().events().isEmpty(), "apply must not mutate the input state");
+        var event = next.history().events().getLast();
+        assertEquals("HIGHCARD_ROUND", event.type());
+        assertEquals("1", event.data().get("round"));
+        assertEquals("HA", event.data().get("playerCard"));
+        assertEquals("D3", event.data().get("dealerCard"));
+        assertEquals("HIGHER", event.data().get("comparison"));
+    }
+
+    @Test
+    void finalRoundRecordsGameOver() {
+        HighCardState state = buildState(new Card("H", "A"), new Card("D", "3"));
+        state.setRound(7);
+        state.setWins(4);
+        state.setLosses(2);
+        HighCardState finished = engine.apply(new HighCardAction("p1", "HA"), state);
+
+        var events = finished.history().events();
+        assertEquals("HIGHCARD_ROUND", events.get(events.size() - 2).type());
+        var gameOver = events.getLast();
+        assertEquals("GAME_OVER", gameOver.type());
+        assertEquals("p1", gameOver.data().get("winnerPlayerId"));
+        assertEquals("5", gameOver.data().get("wins"));
+    }
+
     private HighCardState buildState(Card playerCard, Card computerCard) {
         HighCardState state = new HighCardState(List.of("p1"));
         state.playerHand().add(playerCard);

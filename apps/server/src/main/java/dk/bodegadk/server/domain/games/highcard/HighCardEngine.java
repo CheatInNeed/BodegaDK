@@ -6,7 +6,9 @@ import dk.bodegadk.server.domain.primitives.Card;
 import dk.bodegadk.server.domain.primitives.Deck;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * High Card game engine (1 player vs computer).
@@ -102,12 +104,25 @@ public class HighCardEngine implements GameEngine<HighCardState, HighCardAction>
             next.setLosses(next.losses() + 1);
         }
 
+        next.history().add("HIGHCARD_ROUND", Map.of(
+                "round", next.round(),
+                "playerId", action.playerId(),
+                "playerCard", played.toString(),
+                "dealerCard", computer.toString(),
+                "comparison", comparison
+        ));
+
         if (next.round() >= TOTAL_ROUNDS) {
             next.setComputerCard(null);
             next.setPhase(GameState.Phase.FINISHED);
             if (next.wins() > next.losses()) {
                 next.setWinnerPlayerId(next.playerIds().getFirst());
             }
+            Map<String, Object> gameOver = new LinkedHashMap<>();
+            gameOver.put("winnerPlayerId", next.winnerPlayerId());
+            gameOver.put("wins", next.wins());
+            gameOver.put("losses", next.losses());
+            next.history().add("GAME_OVER", gameOver);
         } else {
             next.setRound(next.round() + 1);
             revealComputerCard(next);
