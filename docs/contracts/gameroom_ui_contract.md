@@ -15,30 +15,96 @@ or backend authority.
   conditions.
 - The client game room only renders public/private state and sends player
   intents.
-- Card games share one common room shell and one common table foundation.
-- Games may vary card presentation, center-board content, and controls, but
-  should not reinvent the full room structure.
+- All card games share the `GameTable.vue` component as a centralized,
+  immersive felt-table layout.
+- Games customize only their unique content via named slots — they never
+  reinvent the full room structure.
+- A single set of CSS custom properties (`--gt-*`) controls the visual
+  theme across all game rooms.
+
+## Architecture
+
+### GameTable.vue
+
+`apps/web/src/components/game-room/GameTable.vue`
+
+The single shared layout component wrapping every game. It provides:
+
+- Full-viewport immersive felt background (nordisk green-felt theme)
+- Leave button with confirmation dialog
+- Connection status pill
+- `handTrayOpen` ref via Vue `provide()`
+
+Props:
+- `state: RoomSessionState` — connection, errors, winner
+- `layout: 'duel' | 'ring'` — table layout mode
+- `gameTitle: string` — displayed in leave confirmation
+- `isMyTurn?: boolean` — turn-based games only (Snyd, Casino, 500). When set, a "Din tur" pill is shown above the actions row while it is the player's turn; the row keeps its height so the layout doesn't shift. Omit for games without turns (HighCard, Krig).
+
+### Named slots
+
+Every game fills these slots to customize its UI:
+
+| Slot | Purpose | Required |
+|------|---------|----------|
+| `#topbar` | Score bars, round pills, game-specific header content | Yes |
+| `#opponents` | Opponent zones (badges, melds, hidden hands) | Yes |
+| `#center` | Central board (battle cards, draw/discard piles, claims) | Yes |
+| `#self-display` | Self player zone (melds, pips, score) | No |
+| `#actions` | Action buttons (Flip, Play, Draw, Call Snyd) | No |
+| `#hand` | Hand tray with selectable cards | No |
+| `#overlay` | Post-game overlay (WinOverlay) | No |
+
+### Shared sub-components
+
+- `PlayerBadge.vue` — player name, turn indicator, score display
+- `CardStack.vue` — themed card pile with count label
+- `WinOverlay.vue` — post-game winner display with rematch action
+
+### Card rendering
+
+All card rendering is consolidated in:
+
+`apps/web/src/lib/games/shared/game-cards.ts`
+
+Exports:
+- `parseCardCode(code)` — unified parser with joker support
+- `renderCardFront(code, cw, ch)` — face-up card SVG
+- `renderCardBack(cw, ch, uid)` — face-down card SVG
+- `renderHandFan(cards, selected, interactive, faceUp, cw, ch)` — arc-fanned hand
+- `renderCardStack(count, cw, ch, uid)` — stacked face-down cards
+- `renderEmptySlot(cw, ch)` — empty card placeholder
+
+Uses the nordisk theme exclusively (`THEME` export).
+
+### CSS theming
+
+All game table styles use CSS custom properties defined in `styles.css`:
+
+```css
+--gt-felt-center, --gt-felt-mid, --gt-felt-edge
+--gt-gold, --gt-gold-bright, --gt-gold-dark
+--gt-text-primary, --gt-text-muted
+--gt-border-subtle, --gt-border-accent
+--gt-font-display
+--gt-overlay-bg, --gt-topbar-bg
+```
+
+Shared CSS classes prefixed with `.gt-*` (e.g., `.gt-root`, `.gt-table`,
+`.gt-topbar`, `.gt-btn`, `.gt-player-badge`, `.gt-connection-pill`).
 
 ## Stable room zones
 
 Every active card game room is composed from these zones:
 
-1. Shell
-   - Outer immersive frame, topbar, connection status, leave action,
-     sidebar/log, notices.
-2. Header pills
-   - Short high-signal room metadata such as room code, round, score, pile,
-     turn, or game label.
-3. Table surface
-   - Shared green-table presentation used as the base play surface.
-4. Seats
-   - Shared seat positions around the table for players/opponents.
-5. Center board
-   - Game-specific focal content inside the table surface.
-6. Private tray
-   - Current player hand area and supporting summary text.
-7. Actions
-   - Game actions tied to the private tray, such as play/claim/challenge.
+1. **Root** — Full-viewport immersive frame with dark felt background
+2. **Topbar** — Leave button, game-specific pills, connection status
+3. **Opponents** — Opponent zones (duel: single row top; ring: positioned seats)
+4. **Center** — Game-specific focal content (battle cards, piles, claims)
+5. **Self zone** — Current player display (melds, score)
+6. **Actions** — Game action buttons
+7. **Hand** — Current player's card hand (collapsible tray)
+8. **Overlay** — Post-game winner display
 
 ## Shared layout rules
 
@@ -46,14 +112,10 @@ Every active card game room is composed from these zones:
 - The current player should be anchored to the bottom seat whenever the
   room includes a local self player.
 - Seat placement must come from shared seat presets or the shared seating
-  engine, not from bespoke per-game CSS alone.
+  engine (`arrangeSeats()` in `ui.ts`), not from bespoke per-game CSS.
 - The default layout modes are:
-  - `duel`
-    - for 2-player or head-to-head focused games
-  - `ring`
-    - for multiplayer round-table card games
-- Games may override the default preset only when the shared layout cannot
-  represent the room clearly.
+  - `duel` — for 2-player or head-to-head focused games
+  - `ring` — for multiplayer round-table card games
 - Responsive behavior must preserve:
   - a readable center board
   - visible current-player tray/actions
@@ -61,53 +123,41 @@ Every active card game room is composed from these zones:
 
 ## Shared card rendering rules
 
-- Visible cards should use shared card-face primitives.
-- Hidden opponent hands should use shared back/stack primitives.
-- Empty or pending table states should use shared empty-slot treatment.
-- Selected cards must have a distinct selected state.
-- Disabled or non-actionable states must stay visually clear.
-- Card primitives inherit active theme tokens automatically.
+- Visible cards use `renderCardFront()` from `game-cards.ts`.
+- Hidden opponent hands use `renderCardBack()` or `renderHandFan()` with
+  `faceUp: false`.
+- Empty table states use `renderEmptySlot()`.
+- Selected cards have a distinct visual state (handled by `renderHandFan()`).
+- All rendering uses the nordisk theme automatically.
 - Games may vary card size, overlap, and placement, but should not redefine
-  the base face/back styling for every game.
+  the base face/back styling.
 
 ## Required UI inputs
 
 Every card game room implementation must provide enough UI data for:
 
-- Game metadata
-  - game id/title
-  - max players
-  - preferred layout mode
-- Header summary
-  - short room/game state pills
-- Seat data
-  - player id
-  - display label
-  - self/current-turn state
-  - optional badges/meta
-  - hidden-hand count and/or revealed table card
-- Center-board data
-  - game-specific focus content and status
-- Private tray data
-  - current hand
-  - optional tray summary text
-- Action state
-  - enabled/disabled action controls
-  - any required local input fields
+- Game metadata — game id/title, max players, preferred layout mode
+- Topbar content — short room/game state pills
+- Opponent data — player badges, hidden hand counts, melds
+- Center-board data — game-specific focus content
+- Self display — melds, score, player badge
+- Action state — enabled/disabled action controls
+- Hand data — current hand cards with selection state
+- Post-game — winner label, scores, rematch action
 
 ## Game-specific extension points
 
-Games are expected to customize only the parts that are unique:
+Games customize only the parts that are unique:
 
-- center-board content
-- action controls
-- seat badge content
-- per-seat revealed cards vs hidden stacks
-- counters/status pills
-- tray copy and action composition
+- Center-board content (via `#center` slot)
+- Action controls (via `#actions` slot)
+- Opponent presentation (via `#opponents` slot)
+- Self display content (via `#self-display` slot)
+- Topbar pills and score bars (via `#topbar` slot)
+- Post-game overlay content (via `#overlay` slot)
 
-Games should not replace the shell, table foundation, or core seat system
-unless the room type genuinely cannot fit the shared model.
+Games should not replace the GameTable component or override `.gt-*`
+styles unless the game genuinely cannot fit the shared model.
 
 ## Non-goals
 
@@ -118,9 +168,22 @@ unless the room type genuinely cannot fit the shared model.
 
 ## Implementation reference
 
-The runtime/session architecture still lives in:
+The runtime/session architecture lives in:
 
 - `docs/design/WEB_CLIENT_GAME_ROOM.md`
+
+Key files:
+
+| File | Role |
+|------|------|
+| `apps/web/src/components/game-room/GameTable.vue` | Shared layout component |
+| `apps/web/src/components/game-room/PlayerBadge.vue` | Player display component |
+| `apps/web/src/components/game-room/WinOverlay.vue` | Post-game overlay |
+| `apps/web/src/lib/games/shared/game-cards.ts` | Consolidated card rendering |
+| `apps/web/src/lib/game-room/ui.ts` | Seat arrangement utilities |
+| `apps/web/src/lib/game-room/types.ts` | Shared type definitions |
+| `apps/web/src/pages/GameRoomPage.vue` | Page orchestration |
+| `apps/web/public/styles.css` | CSS custom properties and `.gt-*` classes |
 
 This contract is the source of truth for how live game-room UI should be
 composed and extended.

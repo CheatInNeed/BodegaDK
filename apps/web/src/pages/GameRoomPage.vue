@@ -3,7 +3,6 @@ import { computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useGameSession } from '@/composables/useGameSession';
-import GameRoomFrame from '@/components/game-room/GameRoomFrame.vue';
 import HighCardGame from '@/components/games/HighCardGame.vue';
 import SnydGame from '@/components/games/SnydGame.vue';
 import CasinoGame from '@/components/games/CasinoGame.vue';
@@ -68,19 +67,13 @@ onMounted(() => {
     <p class="card-desc">Unsupported game mode: {{ game }}</p>
   </div>
 
-  <GameRoomFrame
-    v-else
+  <component
+    :is="gameComponent"
+    v-else-if="gameComponent"
     :state="session.state.value"
-    :game-title="game"
-  >
-    <component
-      :is="gameComponent"
-      v-if="gameComponent"
-      :state="session.state.value"
-      :view-model="session.viewModel.value"
-      @toggle-card="session.toggleCard"
-      @send-intent="session.sendIntent"
-      @send-message="session.sendMessage"
-    />
-  </GameRoomFrame>
+    :view-model="session.viewModel.value"
+    @toggle-card="session.toggleCard"
+    @send-intent="session.sendIntent"
+    @send-message="session.sendMessage"
+  />
 </template>

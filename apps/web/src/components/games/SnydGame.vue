@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref, inject, type Ref } from 'vue';
+import { ref } from 'vue';
 import type { RoomSessionState } from '@/lib/game-room/types';
-import { renderCard, renderHandCards, arrangeSeats, createLayoutSpec } from '@/lib/game-room/ui';
+import { renderHandFan, renderCardStack } from '@/lib/games/shared/game-cards';
+import { arrangeSeats, createLayoutSpec } from '@/lib/game-room/ui';
+import GameTable from '@/components/game-room/GameTable.vue';
+import PlayerBadge from '@/components/game-room/PlayerBadge.vue';
 import WinOverlay from '@/components/game-room/WinOverlay.vue';
 
 const props = defineProps<{
@@ -15,37 +18,29 @@ const emit = defineEmits<{
   'send-message': [message: any];
 }>();
 
-const handTrayOpen = inject<Ref<boolean>>('handTrayOpen', { value: true } as any);
 const claimRank = ref('A');
+const CW = 78, CH = 109;
 
 const layout = createLayoutSpec({ maxPlayers: 8, preferredLayout: 'ring' });
 
-function getSeats() {
-  return arrangeSeats(props.viewModel?.seats ?? [], layout);
-}
-
-function seatBadgeClass(seat: any): string {
-  return seat.isSelf ? 'seat-badge self' : 'seat-badge';
-}
-
-function seatToneClass(seat: any): string {
-  return seat.stateTone && seat.stateTone !== 'default' ? ` table-seat-panel-${seat.stateTone}` : '';
-}
-
-function renderSeatCard(seat: any): string {
-  if (seat.tableCard) {
-    return renderCard(seat.tableCard);
-  }
-  if (typeof seat.stackCount === 'number') {
-    return renderCard({ kind: 'stack', count: seat.stackCount });
-  }
-  return '';
+function getOpponentSeats() {
+  const seats = arrangeSeats(props.viewModel?.seats ?? [], layout);
+  return seats.filter((s: any) => !s.isSelf);
 }
 
 function handCardsHtml(): string {
-  const hand = props.viewModel?.hand ?? [];
-  if (hand.length === 0) return '<span class="muted">Ingen kort</span>';
-  return renderHandCards(hand);
+  const hand: Array<{ card: string; selected: boolean }> = props.viewModel?.hand ?? [];
+  if (hand.length === 0) return '<span style="font-size:12px;color:rgba(255,255,255,0.25);font-style:italic;">Ingen kort</span>';
+  const codes = hand.map((h) => h.card);
+  const selected = new Set(props.state.selectedHandCards);
+  return renderHandFan(codes, selected, true, true, CW, CH);
+}
+
+function seatStackHtml(seat: any): string {
+  if (typeof seat.stackCount === 'number' && seat.stackCount > 0) {
+    return renderCardStack(seat.stackCount, 42, 59, `snyd-${seat.playerId}`);
+  }
+  return '';
 }
 
 function playCards() {
@@ -61,7 +56,7 @@ function requestRematch() {
   emit('send-intent', { type: 'REQUEST_REMATCH' });
 }
 
-function onHandCardClick(e: Event) {
+function onHandClick(e: Event) {
   const target = (e.target as HTMLElement).closest('[data-action="toggle-card"]') as HTMLElement | null;
   if (target?.dataset.card) {
     emit('toggle-card', target.dataset.card);
@@ -70,85 +65,71 @@ function onHandCardClick(e: Event) {
 </script>
 
 <template>
-  <section class="card room-card room-table-card room-snyd">
-    <div class="room-header-row">
-      <div class="pill room-header-pill">Room: {{ viewModel?.roomCode ?? state.roomCode }}</div>
-      <div class="pill room-header-pill">Tur: {{ viewModel?.turnPlayerId ? viewModel.turnPlayerName : '-' }}</div>
-      <div class="pill room-header-pill">N&aelig;ste: {{ viewModel?.nextPlayerId ? viewModel.nextPlayerName : '-' }}</div>
-      <div class="pill room-header-pill">Bunke: {{ viewModel?.pileCount ?? 0 }}</div>
-    </div>
+  <GameTable :state="state" layout="ring" game-title="Snyd" :is-my-turn="!!viewModel?.isMyTurn">
+    <!-- Topbar -->
+    <template #topbar>
+      <span class="gt-connection-pill">Bunke: {{ viewModel?.pileCount ?? 0 }}</span>
+    </template>
 
-    <div class="table-stage game-room-table game-room-table--ring table-snyd">
-      <div class="table-bg-grain"></div>
-      <div class="table-top">
-        <div class="table-felt"></div>
-        <div class="table-center-shell table-center-shell--focus">
-          <div class="table-center-info">
-            <div class="table-title">Snyd</div>
-            <div class="table-center-stat-row">
-              <span class="pill table-center-stat">Bunke {{ viewModel?.pileCount ?? 0 }}</span>
-              <span class="pill table-center-stat">{{ viewModel?.isMyTurn ? 'Din tur' : 'Venter p&aring; tur' }}</span>
-            </div>
-            <div class="table-sub">{{ viewModel?.lastClaimText ?? '' }}</div>
-          </div>
-        </div>
-      </div>
-
+    <!-- Opponents: ring seats -->
+    <template #opponents>
       <div
-        v-for="seat in getSeats()"
+        v-for="seat in getOpponentSeats()"
         :key="seat.playerId"
-        class="table-seat"
-        :class="seat.positionClass ?? 'seat-top'"
+        style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px 14px;"
       >
-        <div
-          class="table-seat-panel"
-          :class="[
-            seat.isCurrentTurn ? 'current-turn' : '',
-            seatToneClass(seat),
-          ]"
-        >
-          <div class="table-seat-badge-row">
-            <div :class="seatBadgeClass(seat)">{{ seat.label }}</div>
-            <span v-for="badge in (seat.badges ?? [])" :key="badge" class="table-seat-tag">{{ badge }}</span>
-            <span v-if="seat.isCurrentTurn" class="table-seat-tag">Current turn</span>
-          </div>
-          <div v-if="seat.meta" class="table-seat-meta">{{ seat.meta }}</div>
-          <div v-if="seat.tableCard || typeof seat.stackCount === 'number'" class="table-seat-card" v-html="renderSeatCard(seat)"></div>
-          <div v-if="seat.callout" class="table-seat-callout">{{ seat.callout }}</div>
-        </div>
+        <PlayerBadge
+          :name="seat.label"
+          :is-current-turn="seat.isCurrentTurn"
+        />
+        <div v-if="typeof seat.stackCount === 'number'" v-html="seatStackHtml(seat)"></div>
+        <div v-if="seat.callout" style="font-size:11px;color:var(--gt-gold);margin-top:4px;">{{ seat.callout }}</div>
       </div>
-    </div>
+    </template>
 
-    <div
-      class="private-panel room-hand-tray"
-      :class="{ 'is-open': handTrayOpen }"
-      data-room-hand-tray
-      :aria-hidden="handTrayOpen ? 'false' : 'true'"
-    >
-      <div class="card-title">Din h&aring;nd</div>
-      <div class="private-hand-row" @click="onHandCardClick" v-html="handCardsHtml()"></div>
-      <div class="card-row room-actions">
-        <label class="claim-label">Meldt rang
-          <input class="claim-input" v-model="claimRank" maxlength="2" />
-        </label>
-        <button
-          class="btn primary"
-          :disabled="state.selectedHandCards.length === 0 || !viewModel?.isMyTurn || state.connection !== 'connected'"
-          @click="playCards"
-        >Spil valgte ({{ state.selectedHandCards.length }})</button>
-        <button
-          class="btn"
-          :disabled="!viewModel?.isMyTurn || state.connection !== 'connected'"
-          @click="callSnyd"
-        >Kald Snyd</button>
+    <!-- Center: last claim -->
+    <template #center>
+      <div v-if="viewModel?.lastClaimText" style="font-size:13px;color:rgba(255,255,255,0.45);text-align:center;">
+        {{ viewModel.lastClaimText }}
       </div>
-    </div>
-  </section>
+    </template>
 
-  <WinOverlay
-    v-if="viewModel?.postGame || state.winnerPlayerId"
-    :winner-label="viewModel?.postGame?.winnerLabel ?? 'Winner'"
-    subtitle="Vinder!"
-    @action="requestRematch"
-  />
+    <!-- Actions -->
+    <template #actions>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gt-text-muted);">
+        Meldt rang
+        <input
+          v-model="claimRank"
+          maxlength="2"
+          style="width:40px;background:rgba(255,255,255,0.08);border:1px solid var(--gt-border-accent);border-radius:6px;color:var(--gt-text-primary);font-size:14px;padding:4px 8px;text-align:center;"
+        />
+      </label>
+      <button
+        class="gt-btn"
+        :disabled="state.selectedHandCards.length === 0 || !viewModel?.isMyTurn || state.connection !== 'connected'"
+        @click="playCards"
+      >Spil valgte ({{ state.selectedHandCards.length }})</button>
+      <button
+        class="gt-btn gt-btn--secondary"
+        :disabled="!viewModel?.isMyTurn || state.connection !== 'connected'"
+        @click="callSnyd"
+      >Kald Snyd</button>
+    </template>
+
+    <!-- Hand -->
+    <template #hand>
+      <div @click="onHandClick" v-html="handCardsHtml()"></div>
+    </template>
+
+    <!-- Overlay -->
+    <template #overlay>
+      <WinOverlay
+        v-if="viewModel?.postGame || state.winnerPlayerId"
+        :winner-label="state.winnerPlayerId === state.playerId ? 'Du vandt!' : 'Du tabte'"
+        subtitle="Runden er slut"
+        :is-victory="!!state.winnerPlayerId && state.winnerPlayerId === state.playerId"
+        @action="requestRematch"
+      />
+    </template>
+  </GameTable>
 </template>

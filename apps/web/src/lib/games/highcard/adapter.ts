@@ -71,6 +71,10 @@ export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateSt
 };
 
 function buildHighCardAction(intent: UiIntent, state: RoomSessionState): ClientToServerMessage | null {
+    if (intent.type === 'REQUEST_REMATCH') {
+        return { type: 'REQUEST_REMATCH', payload: {} };
+    }
+
     if (intent.type !== 'PLAY_SELECTED') return null;
     if (state.winnerPlayerId) return null;
     if (state.selectedHandCards.length !== 1) return null;

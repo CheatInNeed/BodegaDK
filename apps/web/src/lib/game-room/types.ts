@@ -58,20 +58,6 @@ export type GameRoomLayoutSpec = {
     seatRenderMode: SeatRenderMode;
 };
 
-export type GameRoomSectionModel = {
-    layout: GameRoomLayoutSpec;
-    headerPills: string[];
-    seats: SeatViewModel[];
-    centerHtml: string;
-    handTrayOpen?: boolean;
-    trayTitle?: string;
-    trayDescription?: string | null;
-    trayBodyHtml?: string;
-    trayFooterHtml?: string;
-    roomClassName?: string;
-    tableClassName?: string;
-};
-
 /**
  * Session state shared between transport, reducer, and UI mapping layers.
  */
