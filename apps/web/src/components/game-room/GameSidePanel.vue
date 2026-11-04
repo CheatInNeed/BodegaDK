@@ -24,7 +24,7 @@ function writeStored(key: string, value: string) {
 }
 
 const open = ref(readStored(OPEN_KEY) === '1');
-const tab = ref<Tab>(readStored(TAB_KEY) === 'chat' ? 'chat' : 'history');
+const tab = ref<Tab>(readStored(TAB_KEY) === 'history' ? 'history' : 'chat');
 
 watch(open, (value) => writeStored(OPEN_KEY, value ? '1' : '0'));
 watch(tab, (value) => writeStored(TAB_KEY, value));
@@ -65,20 +65,20 @@ function formatTime(timestamp: number): string {
       <div class="gt-side-tabs" role="tablist">
         <button
           class="gt-side-tab"
-          :class="{ 'gt-side-tab--active': tab === 'history' }"
-          type="button"
-          role="tab"
-          :aria-selected="tab === 'history'"
-          @click="tab = 'history'"
-        >{{ t('room.panel.history') }}</button>
-        <button
-          class="gt-side-tab"
           :class="{ 'gt-side-tab--active': tab === 'chat' }"
           type="button"
           role="tab"
           :aria-selected="tab === 'chat'"
           @click="tab = 'chat'"
         >{{ t('room.panel.chat') }}</button>
+        <button
+          class="gt-side-tab"
+          :class="{ 'gt-side-tab--active': tab === 'history' }"
+          type="button"
+          role="tab"
+          :aria-selected="tab === 'history'"
+          @click="tab = 'history'"
+        >{{ t('room.panel.history') }}</button>
       </div>
 
       <div ref="listEl" class="gt-side-list">

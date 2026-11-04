@@ -53,7 +53,7 @@ Rendered by `GameTable` for every game, inside `.gt-body` (everything below the 
 
 - Slides in over the table from the right (300px; full width under 600px); the table layout is never resized.
 - Toggled by a tab fixed to the right edge, vertically centered (`◀` closed, `▶` open). Starts closed; open state and active tab are remembered per browser via `localStorage`.
-- Two tabs: **History** (game moves, `GameLogEntry`) and **Chat** (`ChatMessage`).
+- Two tabs: **Chat** (`ChatMessage`, left, default) and **History** (game moves, `GameLogEntry`).
 - Chat is UI-only: the input is disabled ("coming soon") until a chat backend exists. System lines (player joined/left, connection lost/restored, errors) are derived client-side by `useSystemMessages` and shown in the chat tab; they store an i18n key so they follow language switches.
 - The toggle shows an unread badge counting chat lines that arrived while the panel was closed. History entries do not raise the badge.
 - Sits above the win overlay so history stays readable after the game ends.
