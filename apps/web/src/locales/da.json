@@ -379,5 +379,6 @@
   "room.fem.takePile": "Tag hele bunken",
   "room.fem.layMeld": "Læg stik ({count} kort)",
   "room.fem.close": "Luk",
-  "room.fem.discard": "Aflæg"
+  "room.fem.discard": "Aflæg",
+  "room.emptyHand": "— tom hånd —"
 }

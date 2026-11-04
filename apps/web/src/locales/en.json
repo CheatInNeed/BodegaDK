@@ -379,5 +379,6 @@
   "room.fem.takePile": "Take whole pile",
   "room.fem.layMeld": "Lay meld ({count} cards)",
   "room.fem.close": "Close",
-  "room.fem.discard": "Discard"
+  "room.fem.discard": "Discard",
+  "room.emptyHand": "— empty hand —"
 }

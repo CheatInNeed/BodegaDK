@@ -1,3 +1,5 @@
+import { t as translate } from '../../../i18n';
+
 // ── Nordisk card theme (hardcoded single theme) ──────────────────────────────
 
 export interface CardTheme {
@@ -175,7 +177,7 @@ export function renderHandFan(
     t: CardTheme = THEME,
 ): string {
     if (cards.length === 0) {
-        return `<div style="height:${ch + 38}px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.25);font-size:12px;letter-spacing:1px;font-style:italic;">\u2014 tom h\u00E5nd \u2014</div>`;
+        return `<div style="height:${ch + 38}px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.25);font-size:12px;letter-spacing:1px;font-style:italic;">${translate('room.emptyHand')}</div>`;
     }
     const n    = cards.length;
     const mid  = (n - 1) / 2;
