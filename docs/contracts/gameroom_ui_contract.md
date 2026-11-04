@@ -45,6 +45,18 @@ Props:
 - `layout: 'duel' | 'ring'` — table layout mode
 - `gameTitle: string` — displayed in leave confirmation
 - `isMyTurn?: boolean` — turn-based games only (Snyd, Casino, 500). When set, a "Din tur" pill is shown above the actions row while it is the player's turn; the row keeps its height so the layout doesn't shift. Omit for games without turns (HighCard, Krig).
+- `historyEntries?: GameLogEntry[]` — entries for the side panel's history tab. No game supplies entries yet, so the tab shows its empty state.
+
+### Side panel (`GameSidePanel.vue`)
+
+Rendered by `GameTable` for every game, inside `.gt-body` (everything below the topbar).
+
+- Slides in over the table from the right (300px; full width under 600px); the table layout is never resized.
+- Toggled by a tab fixed to the right edge, vertically centered (`◀` closed, `▶` open). Starts closed; open state and active tab are remembered per browser via `localStorage`.
+- Two tabs: **History** (game moves, `GameLogEntry`) and **Chat** (`ChatMessage`).
+- Chat is UI-only: the input is disabled ("coming soon") until a chat backend exists. System lines (player joined/left, connection lost/restored, errors) are derived client-side by `useSystemMessages` and shown in the chat tab; they store an i18n key so they follow language switches.
+- The toggle shows an unread badge counting chat lines that arrived while the panel was closed. History entries do not raise the badge.
+- Sits above the win overlay so history stays readable after the game ends.
 
 ### Named slots
 

@@ -291,6 +291,194 @@
     border-color: rgba(255, 179, 0, 0.2);
 }
 
+/* ── Body (below topbar) ─────────────────────────────────────────────────── */
+.gt-body {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* ── Side panel (history / chat) ─────────────────────────────────────────── */
+.gt-side {
+    --gt-side-width: 300px;
+}
+
+.gt-side-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    width: var(--gt-side-width);
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    background: rgba(6, 18, 10, 0.94);
+    border-left: 1px solid var(--gt-border-accent);
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(8px);
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.gt-side--open .gt-side-panel {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform 0.25s ease, visibility 0s;
+}
+
+.gt-side-toggle {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    z-index: 61;
+    width: 26px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--gt-border-accent);
+    border-right: none;
+    border-radius: 10px 0 0 10px;
+    background: rgba(6, 18, 10, 0.85);
+    color: var(--gt-gold);
+    font-size: 11px;
+    cursor: pointer;
+    transform: translateY(-50%);
+    transition: right 0.25s ease, background 0.15s ease;
+}
+
+.gt-side-toggle:hover {
+    background: rgba(20, 40, 26, 0.95);
+}
+
+.gt-side--open .gt-side-toggle {
+    right: min(var(--gt-side-width), calc(100% - 26px));
+}
+
+.gt-side-badge {
+    position: absolute;
+    top: -7px;
+    left: -7px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #ffb300;
+    color: #1a0800;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 18px;
+    text-align: center;
+}
+
+.gt-side-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--gt-border-accent);
+    flex-shrink: 0;
+}
+
+.gt-side-tab {
+    flex: 1;
+    padding: 12px 8px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--gt-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.gt-side-tab--active {
+    color: var(--gt-gold);
+    border-bottom-color: var(--gt-gold);
+}
+
+.gt-side-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.gt-side-empty {
+    margin: auto 0;
+    text-align: center;
+    font-size: 12px;
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.gt-side-entry {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.gt-side-entry--round {
+    color: var(--gt-gold);
+}
+
+.gt-side-time {
+    flex-shrink: 0;
+    font-size: 10px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.3);
+    font-variant-numeric: tabular-nums;
+}
+
+.gt-side-system {
+    align-self: center;
+    max-width: 90%;
+    text-align: center;
+    font-size: 11px;
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.gt-side-input {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--gt-border-accent);
+    flex-shrink: 0;
+}
+
+.gt-side-input input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--gt-border-accent);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--gt-text-primary);
+    font-size: 12px;
+}
+
+.gt-side-input input:disabled,
+.gt-side-input button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+    .gt-side {
+        --gt-side-width: 100%;
+    }
+}
+
 /* ── Zones ────────────────────────────────────────────────────────────────── */
 .gt-opponents {
     position: relative;

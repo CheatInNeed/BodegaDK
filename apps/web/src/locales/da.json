@@ -380,5 +380,19 @@
   "room.fem.layMeld": "Læg stik ({count} kort)",
   "room.fem.close": "Luk",
   "room.fem.discard": "Aflæg",
-  "room.emptyHand": "— tom hånd —"
+  "room.emptyHand": "— tom hånd —",
+  "room.panel.open": "Åbn historik og chat",
+  "room.panel.close": "Luk panel",
+  "room.panel.history": "Historik",
+  "room.panel.chat": "Chat",
+  "room.panel.historyEmpty": "Ingen hændelser endnu",
+  "room.panel.chatEmpty": "Ingen beskeder endnu",
+  "room.panel.chatSoon": "Chat kommer snart",
+  "room.panel.send": "Send",
+  "room.chat.system.joined": "{name} kom til bordet",
+  "room.chat.system.left": "{name} forlod bordet",
+  "room.chat.system.disconnected": "Forbindelsen blev afbrudt",
+  "room.chat.system.reconnected": "Forbindelsen er genoprettet",
+  "room.chat.system.connectionError": "Forbindelsesfejl",
+  "room.chat.system.error": "Fejl: {message}"
 }

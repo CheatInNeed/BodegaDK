@@ -74,6 +74,24 @@ export type RoomSessionState = {
     krigPresentation: KrigPresentationState;
 };
 
+/**
+ * One entry in the side panel's history tab. `text` is already translated.
+ */
+export type GameLogEntry = {
+    id: string;
+    timestamp: number;
+    text: string;
+    kind: 'move' | 'round';
+};
+
+/**
+ * One line in the side panel's chat tab. System lines store an i18n key
+ * (not text) so they re-render when the language changes.
+ */
+export type ChatMessage =
+    | { id: string; timestamp: number; kind: 'system'; key: string; params?: Record<string, string> }
+    | { id: string; timestamp: number; kind: 'player'; playerId: string; displayName: string; text: string };
+
 export type UiIntent =
     | { type: 'PLAY_SELECTED'; claimRank: string }
     | { type: 'FLIP_CARD' }

@@ -380,5 +380,19 @@
   "room.fem.layMeld": "Lay meld ({count} cards)",
   "room.fem.close": "Close",
   "room.fem.discard": "Discard",
-  "room.emptyHand": "— empty hand —"
+  "room.emptyHand": "— empty hand —",
+  "room.panel.open": "Open history and chat",
+  "room.panel.close": "Close panel",
+  "room.panel.history": "History",
+  "room.panel.chat": "Chat",
+  "room.panel.historyEmpty": "No events yet",
+  "room.panel.chatEmpty": "No messages yet",
+  "room.panel.chatSoon": "Chat coming soon",
+  "room.panel.send": "Send",
+  "room.chat.system.joined": "{name} joined the table",
+  "room.chat.system.left": "{name} left the table",
+  "room.chat.system.disconnected": "Connection lost",
+  "room.chat.system.reconnected": "Connection restored",
+  "room.chat.system.connectionError": "Connection error",
+  "room.chat.system.error": "Error: {message}"
 }
