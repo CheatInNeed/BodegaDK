@@ -21,6 +21,11 @@ or backend authority.
   reinvent the full room structure.
 - A single set of CSS custom properties (`--gt-*`) controls the visual
   theme across all game rooms.
+- All game room copy lives under `room.*` keys in `src/locales/{da,en}.json`.
+  Components use `useI18n().t`; adapters import `t` from `src/i18n.ts`.
+  `useGameSession` rebuilds the view model on locale change so
+  adapter-produced text follows the language setting live. Server error
+  messages are shown untranslated.
 
 ## Architecture
 

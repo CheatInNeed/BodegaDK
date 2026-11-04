@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { RoomSessionState } from '@/lib/game-room/types';
 import { renderCardFront, renderHandFan } from '@/lib/games/shared/game-cards';
 import GameTable from '@/components/game-room/GameTable.vue';
@@ -17,6 +18,8 @@ const emit = defineEmits<{
   'send-message': [message: any];
 }>();
 
+const { t } = useI18n();
+
 const selectedStackIds = ref<string[]>([]);
 const CW = 64, CH = 90;
 
@@ -27,11 +30,11 @@ function tableStacksHtml(): string {
   return stacks.map((stack: any) => {
     const isSel = selectedSet.has(stack.stackId);
     const borderStyle = isSel ? 'border:2px solid #ffb300;' : 'border:2px solid transparent;';
-    const lockText = stack.locked ? 'LOCKED' : 'OPEN';
+    const lockText = stack.locked ? t('room.casino.locked') : t('room.casino.open');
     return `<button data-action="casino-toggle-table" data-stack-id="${stack.stackId}"
       style="background:rgba(255,255,255,0.05);border-radius:12px;${borderStyle}padding:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;">
       ${renderCardFront(stack.topCard, CW, CH)}
-      <span style="font-size:10px;color:var(--gt-text-muted);">Total: ${stack.total}</span>
+      <span style="font-size:10px;color:var(--gt-text-muted);">${t('room.casino.total', { total: stack.total })}</span>
       <span style="font-size:9px;color:rgba(255,255,255,0.3);">${lockText}</span>
     </button>`;
   }).join('');
@@ -93,10 +96,10 @@ function requestRematch() {
 </script>
 
 <template>
-  <GameTable :state="state" layout="duel" game-title="Casino" :is-my-turn="!!viewModel?.isMyTurn">
+  <GameTable :state="state" layout="duel" :game-title="t('game.casino')" :is-my-turn="!!viewModel?.isMyTurn">
     <!-- Topbar -->
     <template #topbar>
-      <span class="gt-connection-pill">Kort tilbage: {{ viewModel?.deckCount ?? 0 }}</span>
+      <span class="gt-connection-pill">{{ t('room.casino.deck', { count: viewModel?.deckCount ?? 0 }) }}</span>
     </template>
 
     <!-- Opponents -->
@@ -108,7 +111,7 @@ function requestRematch() {
       >
         <PlayerBadge
           :name="player.displayName"
-          :score="`Captured: ${(viewModel?.capturedCounts ?? {})[player.playerId] ?? 0}`"
+          :score="t('room.casino.captured', { count: (viewModel?.capturedCounts ?? {})[player.playerId] ?? 0 })"
           :is-current-turn="player.playerId === viewModel?.turnPlayerId"
         />
       </div>
@@ -127,12 +130,12 @@ function requestRematch() {
         class="gt-btn"
         :disabled="!viewModel?.isMyTurn || !state.selectedHandCards.length || state.connection !== 'connected'"
         @click="playMove"
-      >Capture / Trail</button>
+      >{{ t('room.casino.capture') }}</button>
       <button
         class="gt-btn gt-btn--secondary"
         :disabled="!viewModel?.isMyTurn || !state.selectedHandCards.length || selectedStackIds.length !== 1 || state.connection !== 'connected'"
         @click="buildStack"
-      >Build stack</button>
+      >{{ t('room.casino.build') }}</button>
     </template>
 
     <!-- Hand -->
@@ -144,8 +147,8 @@ function requestRematch() {
     <template #overlay>
       <WinOverlay
         v-if="viewModel?.postGame || state.winnerPlayerId"
-        :winner-label="state.winnerPlayerId === state.playerId ? 'Du vandt!' : 'Du tabte'"
-        subtitle="Spillet er slut"
+        :winner-label="state.winnerPlayerId === state.playerId ? t('room.win.youWon') : t('room.win.youLost')"
+        :subtitle="t('room.win.gameOver')"
         :is-victory="!!state.winnerPlayerId && state.winnerPlayerId === state.playerId"
         @action="requestRematch"
       />

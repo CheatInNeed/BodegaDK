@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
+
 defineProps<{
   name: string;
   score?: string;
@@ -22,7 +26,7 @@ defineProps<{
     </div>
     <div v-if="isCurrentTurn" class="gt-turn-indicator">
       <div class="gt-turn-dot"></div>
-      <span>Tur</span>
+      <span>{{ t('room.turn') }}</span>
     </div>
   </div>
 </template>

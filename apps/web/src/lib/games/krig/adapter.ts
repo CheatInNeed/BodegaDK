@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import { resolvePlayerName } from '../../game-room/player-display';
 import type { CardDisplayModel, GameAdapter, RoomSessionState, UiIntent } from '../../game-room/types';
 import { createLayoutSpec } from '../../game-room/ui';
@@ -157,24 +158,24 @@ export const krigAdapter: GameAdapter<KrigPublicState, KrigPrivateState, KrigVie
                     isReady: readyPlayerSet.has(playerId),
                     isRoundWinner: isWinner,
                     isRoundLoser: isLoser,
-                    callout: isWinner ? `+${trick?.cardsWon ?? cardsInCenter} cards` : null,
+                    callout: isWinner ? t('room.krig.callout', { count: trick?.cardsWon ?? cardsInCenter }) : null,
                 };
             }),
             postGame: postGameVisible
                 ? {
-                    winnerLabel: winnerPlayerId ? resolvePlayerName(playerNames, winnerPlayerId) : 'Tie Game',
+                    winnerLabel: winnerPlayerId ? resolvePlayerName(playerNames, winnerPlayerId) : t('room.krig.tieGame'),
                     isTie: !winnerPlayerId,
                     rematchButtonLabel: opponentLeft
-                        ? 'Opponent left'
+                        ? t('room.krig.opponentLeft')
                         : selfRequestedRematch
-                            ? 'Waiting for opponent...'
-                            : 'Rematch',
+                            ? t('room.krig.waitingForOpponent')
+                            : t('room.win.rematch'),
                     rematchDisabled,
                     rematchStatusText: opponentLeft
-                        ? 'Opponent left the table. Return to the lobby to start a new match.'
+                        ? t('room.krig.rematch.opponentLeft')
                         : selfRequestedRematch
-                            ? 'Your rematch vote is locked in.'
-                            : 'Both players must press rematch to deal a new game.',
+                            ? t('room.krig.rematch.voted')
+                            : t('room.krig.rematch.both'),
                     piles: playerIds.map((playerId) => ({
                         playerId,
                         displayName: resolvePlayerName(playerNames, playerId),
@@ -245,10 +246,10 @@ function buildTableCard(input: {
     }
 
     if (input.suspenseVisible || input.isReady) {
-        return { kind: 'back', label: 'Ready', size: 'sm' };
+        return { kind: 'back', label: t('room.krig.ready'), size: 'sm' };
     }
 
-    return { kind: 'back', label: 'Draw pile', size: 'sm' };
+    return { kind: 'back', label: t('room.krig.drawPile'), size: 'sm' };
 }
 
 function describeStatus(input: {
@@ -265,23 +266,23 @@ function describeStatus(input: {
 }): string {
     if (input.gamePhase === 'GAME_OVER') {
         if (input.opponentLeft) {
-            return 'Opponent left the table.';
+            return t('room.krig.status.opponentLeft');
         }
         if (input.trick?.winnerPlayerId) {
-            return `${resolvePlayerName(input.playerNames, input.trick.winnerPlayerId)} wins the game.`;
+            return t('room.krig.status.winsGame', { name: resolvePlayerName(input.playerNames, input.trick.winnerPlayerId) });
         }
-        return 'Final result: tie game.';
+        return t('room.krig.status.finalTie');
     }
 
     if (input.suspenseVisible) {
-        return input.trick?.warDepth && input.trick.warDepth > 0 ? 'Krig!' : 'Cards are flipping...';
+        return input.trick?.warDepth && input.trick.warDepth > 0 ? t('room.krig.status.war') : t('room.krig.status.flipping');
     }
 
     if (input.krigRevealVisible) {
         if (input.selfPlayerId && input.readyPlayerSet.has(input.selfPlayerId)) {
-            return 'War card locked in. Waiting for opponent...';
+            return t('room.krig.status.warLocked');
         }
-        return 'Krig! Flip your war card.';
+        return t('room.krig.status.flipWar');
     }
 
     if (input.revealVisible && input.trick) {
@@ -289,21 +290,21 @@ function describeStatus(input: {
             const winner = resolvePlayerName(input.playerNames, input.trick.winnerPlayerId);
             const cardsWon = input.trick.cardsWon ?? 2;
             return input.trick.warDepth && input.trick.warDepth > 0
-                ? `${winner} wins the war and takes ${cardsWon} cards.`
-                : `${winner} wins the trick and takes ${cardsWon} cards.`;
+                ? t('room.krig.status.winsWar', { name: winner, count: cardsWon })
+                : t('room.krig.status.winsTrick', { name: winner, count: cardsWon });
         }
-        return 'War ended in a tie.';
+        return t('room.krig.status.warTie');
     }
 
     if (input.selfPlayerId && input.readyPlayerSet.has(input.selfPlayerId)) {
-        return 'Flip locked in. Waiting for opponent...';
+        return t('room.krig.status.flipLocked');
     }
 
     if (input.readyPlayerSet.size > 0) {
-        return 'Opponent is ready. Flip your top card.';
+        return t('room.krig.status.opponentReady');
     }
 
-    return input.fallback ?? 'Flip your top card.';
+    return input.fallback ?? t('room.krig.status.flip');
 }
 
 function readStringArray(value: unknown): string[] {

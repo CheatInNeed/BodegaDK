@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useAuthStore } from '@/stores/auth';
 import { useGameSession } from '@/composables/useGameSession';
 import HighCardGame from '@/components/games/HighCardGame.vue';
@@ -21,6 +22,7 @@ const props = defineProps<{
 }>();
 
 const route = useRoute();
+const { t } = useI18n();
 const authStore = useAuthStore();
 const useMock = computed(() => route.query.mock === '1');
 
@@ -63,8 +65,8 @@ onMounted(() => {
 
 <template>
   <div v-if="!adapter || !session" class="card">
-    <div class="card-title">Cannot open room</div>
-    <p class="card-desc">Unsupported game mode: {{ game }}</p>
+    <div class="card-title">{{ t('room.unsupported.title') }}</div>
+    <p class="card-desc">{{ t('room.unsupported.desc', { game }) }}</p>
   </div>
 
   <component

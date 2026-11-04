@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { RoomSessionState } from '@/lib/game-room/types';
 import { THEME, renderCardBack, renderPlayingCard, renderEmptySlot, parseCardCode } from '@/lib/games/shared/game-cards';
 import GameTable from '@/components/game-room/GameTable.vue';
@@ -14,6 +15,8 @@ const emit = defineEmits<{
   'send-intent': [intent: any];
   'send-message': [message: any];
 }>();
+
+const { t } = useI18n();
 
 const TABLE_THEME = THEME;
 const CARD_WIDTH = 80;
@@ -111,7 +114,7 @@ function requestRematch() {
 </script>
 
 <template>
-  <GameTable :state="state" layout="duel" game-title="Krig">
+  <GameTable :state="state" layout="duel" :game-title="t('game.krig')">
     <!-- Topbar: score bar -->
     <template #topbar>
       <div v-if="!viewModel?.warActive" style="text-align:center">
@@ -120,9 +123,9 @@ function requestRematch() {
           <div class="krig-score-fill krig-p1" :style="{ width: ((resolveSeatPlayers().bottomPlayer?.pileCount ?? 0) / TOTAL_CARDS * 100) + '%' }"></div>
         </div>
         <div class="krig-score-labels">
-          <span>{{ resolveSeatPlayers().bottomPlayer?.displayName ?? 'Guest' }}</span>: {{ resolveSeatPlayers().bottomPlayer?.pileCount ?? 0 }}
+          <span>{{ resolveSeatPlayers().bottomPlayer?.displayName ?? t('room.guest') }}</span>: {{ resolveSeatPlayers().bottomPlayer?.pileCount ?? 0 }}
           &nbsp;
-          <span>{{ resolveSeatPlayers().topPlayer?.displayName ?? 'Guest' }}</span>: {{ resolveSeatPlayers().topPlayer?.pileCount ?? 0 }}
+          <span>{{ resolveSeatPlayers().topPlayer?.displayName ?? t('room.guest') }}</span>: {{ resolveSeatPlayers().topPlayer?.pileCount ?? 0 }}
         </div>
       </div>
     </template>
@@ -141,8 +144,8 @@ function requestRematch() {
           >
             <span></span><span></span><span></span>
           </div>
-          <div class="krig-name">{{ resolveSeatPlayers().topPlayer?.displayName ?? 'Guest' }}</div>
-          <div class="krig-count">{{ resolveSeatPlayers().topPlayer?.pileCount ?? 0 }} kort</div>
+          <div class="krig-name">{{ resolveSeatPlayers().topPlayer?.displayName ?? t('room.guest') }}</div>
+          <div class="krig-count">{{ t('room.cards', { count: resolveSeatPlayers().topPlayer?.pileCount ?? 0 }) }}</div>
         </div>
         <div v-html="cardStackHtml(resolveSeatPlayers().topPlayer?.pileCount ?? 0, 'top', resolveSeatPlayers().topPlayer?.isReady ?? false)"></div>
       </div>
@@ -161,12 +164,12 @@ function requestRematch() {
         <!-- Center area -->
         <div style="display:flex;flex-direction:column;align-items:center;gap:14px;z-index:10;pointer-events:auto">
           <div v-if="viewModel?.warActive" style="text-align:center;margin-bottom:4px">
-            <div class="krig-word" :class="{ 'krig-word--new': viewModel?.warJustDeclared }">KRIG!</div>
+            <div class="krig-word" :class="{ 'krig-word--new': viewModel?.warJustDeclared }">{{ t('room.krig.war') }}</div>
           </div>
 
-          <button class="gt-btn krig-flip-btn" :disabled="!viewModel?.canFlip" @click="flipCard">Vend!</button>
+          <button class="gt-btn krig-flip-btn" :disabled="!viewModel?.canFlip" @click="flipCard">{{ t('room.krig.flip') }}</button>
 
-          <div v-if="viewModel?.centerPileSize > 0" class="krig-pot-label">{{ viewModel.centerPileSize }} kort i potten</div>
+          <div v-if="viewModel?.centerPileSize > 0" class="krig-pot-label">{{ t('room.krig.pot', { count: viewModel.centerPileSize }) }}</div>
         </div>
 
         <!-- Bottom player's card -->
@@ -193,8 +196,8 @@ function requestRematch() {
           >
             <span></span><span></span><span></span>
           </div>
-          <div class="krig-name">{{ resolveSeatPlayers().bottomPlayer?.displayName ?? 'Guest' }}</div>
-          <div class="krig-count">{{ resolveSeatPlayers().bottomPlayer?.pileCount ?? 0 }} kort</div>
+          <div class="krig-name">{{ resolveSeatPlayers().bottomPlayer?.displayName ?? t('room.guest') }}</div>
+          <div class="krig-count">{{ t('room.cards', { count: resolveSeatPlayers().bottomPlayer?.pileCount ?? 0 }) }}</div>
         </div>
       </div>
     </template>
@@ -203,8 +206,8 @@ function requestRematch() {
     <template #overlay>
       <WinOverlay
         v-if="viewModel?.postGame"
-        :winner-label="viewModel.postGame.winnerLabel ?? 'Ingen'"
-        :subtitle="viewModel.postGame.isTie ? 'Uafgjort' : 'Vinder af krig!'"
+        :winner-label="viewModel.postGame.winnerLabel ?? t('room.win.nobody')"
+        :subtitle="viewModel.postGame.isTie ? t('room.win.tie') : t('room.krig.warWinner')"
         :is-victory="!viewModel.postGame.isTie && state.winnerPlayerId === state.playerId"
         :quip="viewModel.postGame.rematchStatusText"
         :button-label="viewModel.postGame.rematchButtonLabel"

@@ -1,23 +1,11 @@
 import { createApp, watch } from 'vue';
 import { createPinia } from 'pinia';
-import { createI18n } from 'vue-i18n';
 import App from './App.vue';
 import router from './router';
-import da from './locales/da.json';
-import en from './locales/en.json';
+import { i18n } from './i18n';
 import { useAuthStore } from './stores/auth';
 import { useUiStore } from './stores/ui';
 import { registerPwaServiceWorker } from './lib/pwa';
-
-const savedLang = localStorage.getItem('lang');
-const locale = savedLang === 'en' ? 'en' : 'da';
-
-const i18n = createI18n({
-  legacy: false,
-  locale,
-  fallbackLocale: 'da',
-  messages: { da, en },
-});
 
 const app = createApp(App);
 const pinia = createPinia();

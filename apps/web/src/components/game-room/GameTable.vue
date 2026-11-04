@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, provide, useSlots } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import type { RoomSessionState } from '@/lib/game-room/types';
 
 const props = defineProps<{
@@ -12,6 +13,7 @@ const props = defineProps<{
 }>();
 
 const router = useRouter();
+const { t } = useI18n();
 const slots = useSlots();
 
 const handTrayOpen = ref(true);
@@ -20,7 +22,7 @@ provide('toggleHandTray', () => { handTrayOpen.value = !handTrayOpen.value; });
 
 function leaveTable() {
   if (props.state.connection === 'connected') {
-    if (!confirm(`Forlad ${props.gameTitle}?`)) return;
+    if (!confirm(t('room.leaveConfirm', { game: props.gameTitle }))) return;
   }
   router.push('/lobbies');
 }
@@ -31,14 +33,14 @@ function leaveTable() {
     <div class="gt-table">
       <!-- Topbar -->
       <div class="gt-topbar">
-        <button class="gt-leave-btn" type="button" @click="leaveTable">&larr; Forlad</button>
+        <button class="gt-leave-btn" type="button" @click="leaveTable">&larr; {{ t('room.leave') }}</button>
         <div class="gt-topbar-center">
           <slot name="topbar" />
         </div>
         <span
           class="gt-connection-pill gt-connection-pill--status"
           :data-status="state.connection"
-        >{{ state.connection }}</span>
+        >{{ t(`room.connection.${state.connection}`) }}</span>
       </div>
 
       <!-- Error banner -->
@@ -69,7 +71,7 @@ function leaveTable() {
         <Transition name="gt-turn-pill">
           <div v-if="isMyTurn && !state.winnerPlayerId" class="gt-turn-pill">
             <div class="gt-turn-dot"></div>
-            <span>Din tur</span>
+            <span>{{ t('room.yourTurn') }}</span>
           </div>
         </Transition>
       </div>

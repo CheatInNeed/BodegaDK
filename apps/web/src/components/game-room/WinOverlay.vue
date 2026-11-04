@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
   winnerLabel: string;
@@ -15,6 +16,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const { t } = useI18n();
 
 function leaveTable() {
   router.push('/lobbies');
@@ -27,7 +29,7 @@ function leaveTable() {
       {{ isVictory === false ? '✕' : '♛' }}
     </div>
     <div class="win-overlay-title">
-      {{ isVictory === false ? 'Nederlag' : 'Sejr!' }}
+      {{ isVictory === false ? t('room.win.defeat') : t('room.win.victory') }}
     </div>
     <div class="win-overlay-sub">{{ winnerLabel }}</div>
     <div v-if="subtitle" class="win-overlay-sub">{{ subtitle }}</div>
@@ -38,12 +40,12 @@ function leaveTable() {
         class="win-overlay-btn"
         :disabled="buttonDisabled"
         @click="emit('action')"
-      >{{ buttonLabel ?? 'Rematch' }}</button>
+      >{{ buttonLabel ?? t('room.win.rematch') }}</button>
       <button
         class="win-overlay-btn win-overlay-btn--leave"
         type="button"
         @click="leaveTable"
-      >Forlad bord</button>
+      >{{ t('room.win.leaveTable') }}</button>
     </div>
   </div>
 </template>

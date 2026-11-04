@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import type { GameAdapter } from '../../game-room/types';
 import type { RoomSessionState, UiIntent } from '../../game-room/types';
 import { createLayoutSpec } from '../../game-room/ui';
@@ -52,8 +53,8 @@ export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateSt
 
         return {
             roomCode: typeof publicState?.roomCode === 'string' ? publicState.roomCode : '-',
-            dealerLabel: 'Dealer',
-            playerLabel: 'You',
+            dealerLabel: t('room.highcard.dealer'),
+            playerLabel: t('room.highcard.you'),
             middleCard: typeof publicState?.computerCard === 'string' ? publicState.computerCard : '--',
             scoreYou: wins,
             scoreDealer: losses,
@@ -91,18 +92,18 @@ function buildHighCardAction(intent: UiIntent, state: RoomSessionState): ClientT
 
 function toFeedbackText(round: HighCardPublicState['lastRound']): string {
     if (!round) {
-        return 'Play a card to reveal round result.';
+        return t('room.highcard.feedback.none');
     }
-    const playerCard = typeof round.playerCard === 'string' ? round.playerCard : 'your card';
-    const dealerCard = typeof round.dealerCard === 'string' ? round.dealerCard : 'dealer card';
+    const playerCard = typeof round.playerCard === 'string' ? round.playerCard : t('room.highcard.yourCard');
+    const dealerCard = typeof round.dealerCard === 'string' ? round.dealerCard : t('room.highcard.dealerCard');
     if (round.comparison === 'HIGHER') {
-        return `You won the round: ${playerCard} was higher than ${dealerCard}.`;
+        return t('room.highcard.feedback.higher', { player: playerCard, dealer: dealerCard });
     }
     if (round.comparison === 'LOWER') {
-        return `Dealer won the round: ${playerCard} was lower than ${dealerCard}.`;
+        return t('room.highcard.feedback.lower', { player: playerCard, dealer: dealerCard });
     }
     if (round.comparison === 'EQUAL') {
-        return `Tie on value (${playerCard} vs ${dealerCard}) counts as dealer win.`;
+        return t('room.highcard.feedback.equal', { player: playerCard, dealer: dealerCard });
     }
-    return 'Round result unavailable.';
+    return t('room.highcard.feedback.unknown');
 }

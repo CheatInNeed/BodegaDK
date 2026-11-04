@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { RoomSessionState } from '@/lib/game-room/types';
 import { renderCardFront, renderHandFan } from '@/lib/games/shared/game-cards';
 import GameTable from '@/components/game-room/GameTable.vue';
@@ -14,6 +15,8 @@ const emit = defineEmits<{
   'send-intent': [intent: any];
   'send-message': [message: any];
 }>();
+
+const { t } = useI18n();
 
 const CW = 78, CH = 109;
 
@@ -49,10 +52,10 @@ function onHandClick(e: Event) {
 </script>
 
 <template>
-  <GameTable :state="state" layout="duel" game-title="HighCard">
+  <GameTable :state="state" layout="duel" :game-title="t('game.highcard')">
     <!-- Topbar -->
     <template #topbar>
-      <span class="gt-connection-pill">Score: You {{ viewModel?.scoreYou ?? 0 }} - {{ viewModel?.scoreDealer ?? 0 }} Dealer</span>
+      <span class="gt-connection-pill">{{ t('room.highcard.score', { you: viewModel?.scoreYou ?? 0, dealer: viewModel?.scoreDealer ?? 0 }) }}</span>
     </template>
 
     <!-- Center: middle card -->
@@ -66,7 +69,7 @@ function onHandClick(e: Event) {
         class="gt-btn"
         :disabled="state.selectedHandCards.length === 0 || state.connection !== 'connected'"
         @click="playSelected"
-      >Spil kort</button>
+      >{{ t('room.highcard.play') }}</button>
     </template>
 
     <!-- Hand -->
@@ -78,10 +81,9 @@ function onHandClick(e: Event) {
     <template #overlay>
       <WinOverlay
         v-if="viewModel?.postGame || state.winnerPlayerId"
-        :winner-label="state.winnerPlayerId === state.playerId ? 'Du vandt!' : 'Dealer vandt'"
-        :subtitle="`Score: ${viewModel?.scoreYou ?? 0} - ${viewModel?.scoreDealer ?? 0}`"
+        :winner-label="state.winnerPlayerId === state.playerId ? t('room.win.youWon') : t('room.highcard.dealerWon')"
+        :subtitle="t('room.highcard.finalScore', { you: viewModel?.scoreYou ?? 0, dealer: viewModel?.scoreDealer ?? 0 })"
         :is-victory="!!state.winnerPlayerId && state.winnerPlayerId === state.playerId"
-        button-label="Rematch"
         @action="requestRematch"
       />
     </template>

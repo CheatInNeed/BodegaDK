@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { RoomSessionState } from '@/lib/game-room/types';
 import { renderCardFront, renderCardBack, renderHandFan } from '@/lib/games/shared/game-cards';
 import GameTable from '@/components/game-room/GameTable.vue';
@@ -16,6 +17,8 @@ const emit = defineEmits<{
   'send-intent': [intent: any];
   'send-message': [message: any];
 }>();
+
+const { t } = useI18n();
 
 const CW = 78, CH = 109;
 const MW = 51, MH = 71;
@@ -68,13 +71,13 @@ function scoreBarHtml(): string {
   }).join('');
 
   const opponentLabel = others.length === 1
-    ? `<span class="g500-score-label">${others[0].score} pt</span>`
-    : `<span class="g500-score-label">${others.map((o) => `${o.displayName}: ${o.score}`).join(' \u00b7 ')} pt</span>`;
+    ? `<span class="g500-score-label">${t('room.fem.points', { count: others[0].score })}</span>`
+    : `<span class="g500-score-label">${others.map((o) => `${o.displayName}: ${t('room.fem.points', { count: o.score })}`).join(' \u00b7 ')}</span>`;
 
   return `<div class="g500-score-bar">
     ${opponentLabel}
     ${tracks}
-    <span class="g500-score-label g500-score-label-amber">${selfScore} pt</span>
+    <span class="g500-score-label g500-score-label-amber">${t('room.fem.points', { count: selfScore })}</span>
   </div>`;
 }
 
@@ -86,7 +89,7 @@ function meldGroupHtml(meld: FemMeld, cw: number, ch: number, action?: string): 
   ).join('');
   const pts = Object.values(meld.pointsPerPlayer).reduce((s: number, n: number) => s + n, 0);
   const ptsHtml = pts > 0
-    ? `<div style="position:absolute;bottom:-14px;left:0;font-size:8px;letter-spacing:1px;color:rgba(255,179,0,0.7);font-weight:700;">${pts} pt</div>`
+    ? `<div style="position:absolute;bottom:-14px;left:0;font-size:8px;letter-spacing:1px;color:rgba(255,179,0,0.7);font-weight:700;">${t('room.fem.points', { count: pts })}</div>`
     : '';
   const cursor = action ? 'cursor:pointer;' : '';
   const attrs = action ? `data-action="${action}" data-meld-id="${meld.id}"` : '';
@@ -107,7 +110,7 @@ function drawPileHtml(): string {
     `<div style="position:absolute;top:${-off * 2.5}px;left:${-off * 1.5}px;opacity:0.55;">${renderCardBack(72, 101, `dstk${off}`)}</div>`
   ).join('');
   const overlay = canDraw
-    ? `<div data-action="fem-draw-stock" class="g500-pile-overlay" style="cursor:pointer;"><span class="g500-hover-label">Tr\u00e6k</span></div>`
+    ? `<div data-action="fem-draw-stock" class="g500-pile-overlay" style="cursor:pointer;"><span class="g500-hover-label">${t('room.fem.drawHover')}</span></div>`
     : '';
   return `<div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
     <div class="g500-pile-wrap${canDraw ? ' g500-pile-hoverable' : ''}">
@@ -116,8 +119,8 @@ function drawPileHtml(): string {
       ${overlay}
     </div>
     <div style="text-align:center;line-height:1.45;">
-      <div class="g500-pile-label">Bunke</div>
-      <div class="g500-pile-count">${count} kort</div>
+      <div class="g500-pile-label">${t('room.fem.stock')}</div>
+      <div class="g500-pile-count">${t('room.cards', { count })}</div>
     </div>
   </div>`;
 }
@@ -128,7 +131,7 @@ function discardPileHtml(): string {
   const topH = top
     ? `<div style="position:relative;z-index:2;">
         ${renderCardFront(top, 72, 101)}
-        ${canDrawDiscard ? `<div data-action="fem-draw-discard" class="g500-pile-overlay" style="cursor:pointer;"><span class="g500-hover-label">Tag kort</span></div>` : ''}
+        ${canDrawDiscard ? `<div data-action="fem-draw-discard" class="g500-pile-overlay" style="cursor:pointer;"><span class="g500-hover-label">${t('room.fem.takeHover')}</span></div>` : ''}
       </div>`
     : `<div style="width:72px;height:101px;border-radius:12px;border:2px dashed rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.18);font-size:24px;">\u2014</div>`;
   return `<div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
@@ -136,8 +139,8 @@ function discardPileHtml(): string {
       ${topH}
     </div>
     <div style="text-align:center;line-height:1.45;">
-      <div class="g500-pile-label">Aflagning</div>
-      ${top ? `<div class="g500-pile-count">${top}</div>` : '<div class="g500-pile-count">tom</div>'}
+      <div class="g500-pile-label">${t('room.fem.discardPile')}</div>
+      ${top ? `<div class="g500-pile-count">${top}</div>` : `<div class="g500-pile-count">${t('room.fem.empty')}</div>`}
     </div>
   </div>`;
 }
@@ -155,9 +158,9 @@ function opponentZoneHtml(opp: FemPlayer): string {
         <div class="gt-player-avatar">${(opp.displayName || '?')[0].toUpperCase()}</div>
         <div>
           <div class="gt-player-name">${opp.displayName}</div>
-          <div class="gt-player-meta"><span style="font-weight:700;font-size:13px;color:${opp.score >= 400 ? '#f6a46f' : 'rgba(255,255,255,0.65)'};">${opp.score}</span> / 500 pt</div>
+          <div class="gt-player-meta"><span style="font-weight:700;font-size:13px;color:${opp.score >= 400 ? '#f6a46f' : 'rgba(255,255,255,0.65)'};">${opp.score}</span> ${t('room.fem.of500')}</div>
         </div>
-        ${opp.isCurrentTurn ? '<div class="gt-turn-indicator"><div class="gt-turn-dot"></div><span>Tur</span></div>' : ''}
+        ${opp.isCurrentTurn ? `<div class="gt-turn-indicator"><div class="gt-turn-dot"></div><span>${t('room.turn')}</span></div>` : ''}
       </div>
     </div>
     ${melds.length > 0 ? `<div style="padding:6px 0 2px;">${meldSectionHtml(melds, MW, MH, meldClickAction)}</div>` : ''}
@@ -214,11 +217,11 @@ function requestRematch() {
 </script>
 
 <template>
-  <GameTable :state="state" layout="duel" game-title="500" :is-my-turn="!!viewModel?.isMyTurn" @click="onContentClick">
+  <GameTable :state="state" layout="duel" :game-title="t('game.500')" :is-my-turn="!!viewModel?.isMyTurn" @click="onContentClick">
     <!-- Topbar: score bar + round -->
     <template #topbar>
       <div v-html="scoreBarHtml()"></div>
-      <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px;">Runde {{ viewModel?.roundNumber ?? 1 }}</span>
+      <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:1px;">{{ t('room.fem.round', { n: viewModel?.roundNumber ?? 1 }) }}</span>
     </template>
 
     <!-- Opponents -->
@@ -249,7 +252,7 @@ function requestRematch() {
         <PlayerBadge
           v-if="self"
           :name="self.displayName"
-          :score="`${self.score} / 500 pt`"
+          :score="t('room.fem.scoreOf500', { score: self.score })"
           :is-current-turn="self.isCurrentTurn"
         />
       </div>
@@ -257,15 +260,15 @@ function requestRematch() {
         <div
           v-if="viewModel?.isMyTurn && viewModel?.canExtendMeld && (viewModel?.melds ?? []).length > 0"
           style="font-size:10px;color:rgba(255,179,0,0.6);letter-spacing:0.5px;"
-        >Klik p&aring; et stik for at tilf&oslash;je dit valgte kort</div>
+        >{{ t('room.fem.extendHint') }}</div>
 
         <template v-if="(viewModel?.phase === 'PLAYING' || !viewModel?.winnerPlayerId) && viewModel?.isMyTurn">
-          <button v-if="viewModel?.canDraw" class="gt-btn" @click="emit('send-intent', { type: 'FEM_DRAW_FROM_STOCK' })">Tr&aelig;k fra bunke</button>
-          <button v-if="viewModel?.canDrawDiscard && viewModel?.discardPileTop" class="gt-btn gt-btn--secondary" @click="emit('send-intent', { type: 'FEM_DRAW_FROM_DISCARD' })">Tag aflagt kort</button>
-          <button v-if="viewModel?.canTakePile" class="gt-btn gt-btn--secondary" @click="emit('send-intent', { type: 'FEM_TAKE_DISCARD_PILE' })">Tag hele bunken</button>
-          <button v-if="viewModel?.canLayMeld" class="gt-btn" @click="emit('send-intent', { type: 'FEM_LAY_MELD' })">L&aelig;g stik ({{ selCount }} kort)</button>
-          <button v-if="viewModel?.canClose" class="gt-btn" @click="emit('send-intent', { type: 'FEM_CLOSE_ROUND', card: (viewModel?.hand ?? [])[0] })">Luk</button>
-          <button v-else-if="viewModel?.canDiscard && selCount === 1" class="gt-btn gt-btn--secondary" @click="emit('send-intent', { type: 'FEM_DISCARD' })">Afl&aelig;g</button>
+          <button v-if="viewModel?.canDraw" class="gt-btn" @click="emit('send-intent', { type: 'FEM_DRAW_FROM_STOCK' })">{{ t('room.fem.drawStock') }}</button>
+          <button v-if="viewModel?.canDrawDiscard && viewModel?.discardPileTop" class="gt-btn gt-btn--secondary" @click="emit('send-intent', { type: 'FEM_DRAW_FROM_DISCARD' })">{{ t('room.fem.drawDiscard') }}</button>
+          <button v-if="viewModel?.canTakePile" class="gt-btn gt-btn--secondary" @click="emit('send-intent', { type: 'FEM_TAKE_DISCARD_PILE' })">{{ t('room.fem.takePile') }}</button>
+          <button v-if="viewModel?.canLayMeld" class="gt-btn" @click="emit('send-intent', { type: 'FEM_LAY_MELD' })">{{ t('room.fem.layMeld', { count: selCount }) }}</button>
+          <button v-if="viewModel?.canClose" class="gt-btn" @click="emit('send-intent', { type: 'FEM_CLOSE_ROUND', card: (viewModel?.hand ?? [])[0] })">{{ t('room.fem.close') }}</button>
+          <button v-else-if="viewModel?.canDiscard && selCount === 1" class="gt-btn gt-btn--secondary" @click="emit('send-intent', { type: 'FEM_DISCARD' })">{{ t('room.fem.discard') }}</button>
         </template>
       </div>
     </template>
@@ -280,9 +283,9 @@ function requestRematch() {
       <WinOverlay
         v-if="viewModel?.postGame"
         :winner-label="viewModel.postGame.winnerLabel"
-        subtitle="Spillet er slut"
+        :subtitle="t('room.win.gameOver')"
         :is-victory="!!state.winnerPlayerId && state.winnerPlayerId === state.playerId"
-        button-label="Nyt spil"
+        :button-label="t('room.win.newGame')"
         @action="requestRematch"
       >
         <div class="win-overlay-scores">
@@ -291,7 +294,7 @@ function requestRematch() {
             :key="s.name"
             class="win-overlay-score-row"
             :class="{ 'is-winner': s.isWinner }"
-          >{{ s.name }}: {{ s.score }} point</div>
+          >{{ s.name }}: {{ t('room.fem.points', { count: s.score }) }}</div>
         </div>
       </WinOverlay>
     </template>
