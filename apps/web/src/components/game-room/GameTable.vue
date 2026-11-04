@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { GameLogEntry, RoomSessionState } from '@/lib/game-room/types';
 import { useSystemMessages } from '@/composables/useSystemMessages';
+import { useHandHover } from '@/composables/useHandHover';
 import GameSidePanel from './GameSidePanel.vue';
 
 const props = defineProps<{
@@ -21,6 +22,9 @@ const { t } = useI18n();
 const slots = useSlots();
 
 const chatMessages = useSystemMessages(() => props.state);
+
+const handEl = ref<HTMLElement | null>(null);
+useHandHover(handEl);
 
 const handTrayOpen = ref(true);
 provide('handTrayOpen', handTrayOpen);
@@ -90,7 +94,7 @@ function leaveTable() {
         </div>
 
         <!-- Hand tray -->
-        <div v-if="slots.hand" class="gt-hand">
+        <div v-if="slots.hand" ref="handEl" class="gt-hand">
           <slot name="hand" />
         </div>
 

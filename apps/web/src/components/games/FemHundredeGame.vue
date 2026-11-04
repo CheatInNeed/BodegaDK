@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { RoomSessionState } from '@/lib/game-room/types';
-import { renderCardFront, renderCardBack, renderHandFan } from '@/lib/games/shared/game-cards';
+import { renderCardFront, renderCardBack, renderHandFan, HAND_CARD_W, HAND_CARD_H } from '@/lib/games/shared/game-cards';
 import GameTable from '@/components/game-room/GameTable.vue';
 import PlayerBadge from '@/components/game-room/PlayerBadge.vue';
 import WinOverlay from '@/components/game-room/WinOverlay.vue';
@@ -20,7 +20,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const CW = 78, CH = 109;
 const MW = 51, MH = 71;
 
 type FemPlayer = {
@@ -180,7 +179,7 @@ function selfMeldsHtml(): string {
 
 function selfHandFanHtml(): string {
   const hand: string[] = props.viewModel?.hand ?? [];
-  return renderHandFan(hand, selectedSet.value, true, true, CW, CH);
+  return renderHandFan(hand, selectedSet.value, true, true, HAND_CARD_W, HAND_CARD_H);
 }
 
 function onContentClick(e: Event) {

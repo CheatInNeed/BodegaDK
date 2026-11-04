@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { RoomSessionState } from '@/lib/game-room/types';
-import { renderHandFan, renderCardStack } from '@/lib/games/shared/game-cards';
+import { renderHandFan, renderCardStack, HAND_CARD_W, HAND_CARD_H } from '@/lib/games/shared/game-cards';
 import { arrangeSeats, createLayoutSpec } from '@/lib/game-room/ui';
 import GameTable from '@/components/game-room/GameTable.vue';
 import PlayerBadge from '@/components/game-room/PlayerBadge.vue';
@@ -22,7 +22,6 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const claimRank = ref('A');
-const CW = 78, CH = 109;
 
 const layout = createLayoutSpec({ maxPlayers: 8, preferredLayout: 'ring' });
 
@@ -36,7 +35,7 @@ function handCardsHtml(): string {
   if (hand.length === 0) return `<span style="font-size:12px;color:rgba(255,255,255,0.25);font-style:italic;">${t('room.snyd.noCards')}</span>`;
   const codes = hand.map((h) => h.card);
   const selected = new Set(props.state.selectedHandCards);
-  return renderHandFan(codes, selected, true, true, CW, CH);
+  return renderHandFan(codes, selected, true, true, HAND_CARD_W, HAND_CARD_H);
 }
 
 function seatStackHtml(seat: any): string {

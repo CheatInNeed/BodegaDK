@@ -166,7 +166,21 @@ export function renderEmptySlot(cw: number, ch: number): string {
     return `<div style="width:${cw}px;height:${ch}px;border-radius:${THEME.cardRadius}px;border:1.5px dashed rgba(212,175,106,0.1);display:flex;align-items:center;justify-content:center"><span style="color:rgba(212,175,106,0.18);font-size:18px">\u2205</span></div>`;
 }
 
-/** Render an arc-fanned hand of cards with optional selection highlighting. */
+// Fan geometry: cards sit on a circle so each card's tilt matches the curve under it.
+const FAN_STEP_DEG = 3.5;     // tilt between neighbouring cards
+const FAN_MAX_EDGE_DEG = 13;  // outermost tilt; large hands use a smaller step
+const FAN_RADIUS = 1000;      // px; ~65px spacing at 3.5deg, so the drop matches the spread
+
+/** Card size for the player's own hand fan (matches HighCard's centre card). */
+export const HAND_CARD_W = 96;
+export const HAND_CARD_H = 134;
+
+/**
+ * Render an arc-fanned hand of cards with optional selection highlighting.
+ *
+ * Interactive fans (the player's hand) are spaced by CSS (`.hand-fan` in styles.css) so
+ * the spread adapts to the hand size and window width; other fans use fixed px spacing.
+ */
 export function renderHandFan(
     cards: string[],
     selectedCodes: Set<string>,
@@ -181,14 +195,20 @@ export function renderHandFan(
     }
     const n    = cards.length;
     const mid  = (n - 1) / 2;
-    const maxA = Math.min(22, n * 3.5);
+    const step = mid > 0 ? Math.min(FAN_STEP_DEG, FAN_MAX_EDGE_DEG / mid) : 0;
     const over = Math.max(26, Math.min(38, 200 / n));
     const totalW = cw + (n - 1) * over;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    // Raise the whole fan by its deepest point (edge drop plus the lower corner of the
+    // tilted edge card) so no card dips below the fan's box.
+    const edge = toRad(mid * step);
+    const base = 8 + Math.ceil(FAN_RADIUS * (1 - Math.cos(edge)) + (cw / 2) * Math.sin(edge));
+    const height = ch + 30 + base;
 
     const html = cards.map((code, i) => {
         const off    = i - mid;
-        const rotate = (off / Math.max(mid, 1)) * maxA;
-        const arcY   = (Math.abs(off) / Math.max(mid, 1)) * 12;
+        const rotate = off * step;
+        const arcY   = FAN_RADIUS * (1 - Math.cos(toRad(rotate)));
         const isSel  = selectedCodes.has(code);
         const liftY  = isSel ? -22 : 0;
         const shadow = isSel
@@ -198,17 +218,22 @@ export function renderHandFan(
             ? `<div style="position:absolute;top:-7px;right:-5px;width:18px;height:18px;border-radius:50%;background:#ffb300;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#1a0800;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,0.5);">\u2713</div>`
             : '';
         const content   = faceUp ? renderCardFront(code, cw, ch, t) : renderCardBack(cw, ch, `opp${i}`, t);
+        const position  = interactive ? `--i:${i};` : `left:${i * over}px;`;
         const action    = interactive ? `data-action="toggle-card" data-card="${code}"` : '';
         const dragAttrs = interactive ? `draggable="true" data-drag-card="${code}"` : '';
-        const cursor    = interactive ? 'pointer' : 'default';
+        // Transform parts live in CSS variables so the .hand-card hover rules in styles.css can override them.
+        const cls       = interactive ? 'hand-card hand-card--interactive' : 'hand-card';
 
-        return `<div ${action} ${dragAttrs} style="position:absolute;left:${i * over}px;bottom:8px;z-index:${i};transform-origin:bottom center;transform:rotate(${rotate}deg) translateY(${arcY + liftY}px);transition:transform 0.16s ease;cursor:${cursor};">
+        return `<div ${action} ${dragAttrs} class="${cls}" style="${position}--z:${i};--rot:${rotate.toFixed(2)}deg;--arc:${arcY.toFixed(1)}px;--sel:${liftY}px;">
   <div style="border-radius:${t.cardRadius}px;box-shadow:${shadow};transition:box-shadow 0.16s ease;">${content}</div>
   ${selBadge}
 </div>`;
     }).join('');
 
-    return `<div style="position:relative;width:${totalW}px;height:${ch + 38}px;margin:0 auto;">${html}</div>`;
+    if (interactive) {
+        return `<div class="hand-fan" style="--n:${n};--cw:${cw}px;--fan-base:${base}px;height:${height}px;">${html}</div>`;
+    }
+    return `<div style="position:relative;width:${totalW}px;height:${height}px;margin:0 auto;--fan-base:${base}px;">${html}</div>`;
 }
 
 // ── Backward compat re-exports (to be removed after all games migrate) ───────

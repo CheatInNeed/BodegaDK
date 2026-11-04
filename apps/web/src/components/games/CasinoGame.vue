@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { RoomSessionState } from '@/lib/game-room/types';
-import { renderCardFront, renderHandFan } from '@/lib/games/shared/game-cards';
+import { renderCardFront, renderHandFan, HAND_CARD_W, HAND_CARD_H } from '@/lib/games/shared/game-cards';
 import GameTable from '@/components/game-room/GameTable.vue';
 import PlayerBadge from '@/components/game-room/PlayerBadge.vue';
 import WinOverlay from '@/components/game-room/WinOverlay.vue';
@@ -45,7 +45,7 @@ function handCardsHtml(): string {
   if (hand.length === 0) return '';
   const codes = hand.map((item: any) => typeof item === 'string' ? item : item.card);
   const selected = new Set(props.state.selectedHandCards);
-  return renderHandFan(codes, selected, true, true, CW, CH);
+  return renderHandFan(codes, selected, true, true, HAND_CARD_W, HAND_CARD_H);
 }
 
 function onTableStackClick(e: Event) {

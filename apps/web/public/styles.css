@@ -686,6 +686,58 @@
     50% { transform: scale(1.3); opacity: 1; }
 }
 
+/* ── Hand fan cards (rendered by renderHandFan) ──────────────────────────── */
+/* Per-card inline vars: --z (stack order), --rot (fan angle), --arc (fan drop),
+   --sel (selected lift). Inline custom properties beat stylesheet rules, so hover
+   never overrides those directly; it sets --straighten / --hover-lift / --scale.
+   The hovered card is picked by pointer x position (useHandHover), which sets
+   .is-hovered - not :hover, since a popped card covers its neighbours. */
+.hand-card {
+    position: absolute;
+    bottom: var(--fan-base, 8px);
+    z-index: var(--z, 0);
+    transform-origin: bottom center;
+    transform:
+        translateX(var(--shift, 0px))
+        translateY(calc(var(--hover-lift, 0px) + var(--arc, 0px) * var(--straighten, 1)))
+        rotate(calc(var(--rot, 0deg) * var(--straighten, 1)))
+        translateY(var(--sel, 0px))
+        scale(var(--scale, 1));
+    transition: transform 0.50s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.hand-card--interactive {
+    cursor: pointer;
+}
+
+/* Player hand spacing. Fewer cards spread wider, capped at 65px per card; the
+   whole fan stays within ~90vw (max 560px) and never tighter than 18px per card.
+   Inline vars from renderHandFan: --n (card count), --cw (card width), --i (index). */
+.hand-fan {
+    --slot: clamp(18px, (min(560px, 90vw) - var(--cw)) / max(var(--n) - 1, 1), 65px);
+    position: relative;
+    width: calc(var(--cw) + (var(--n) - 1) * var(--slot));
+    margin: 0 auto;
+}
+
+.hand-fan > .hand-card {
+    left: calc(var(--i) * var(--slot));
+}
+
+/* Hover pop (mouse only; useHandHover ignores touch). */
+.hand-card.is-hovered {
+    --straighten: 0;
+    --hover-lift: -60px;
+    --scale: 1.35;
+    z-index: 100;
+}
+
+/* Neighbours slide aside so the hovered card is never covered. */
+.hand-card.is-hovered + .hand-card { --shift: 20px; }
+.hand-card.is-hovered + .hand-card + .hand-card { --shift: 8px; }
+.hand-card:has(+ .hand-card.is-hovered) { --shift: -20px; }
+.hand-card:has(+ .hand-card + .hand-card.is-hovered) { --shift: -8px; }
+
 /* ── Your-turn pill ───────────────────────────────────────────────────────── */
 .gt-turn-pill-row {
     position: relative;
