@@ -36,7 +36,8 @@ async function changePicture(action: () => Promise<void>) {
   pictureError.value = '';
   try {
     await action();
-  } catch {
+  } catch (error) {
+    console.error('Profile picture update failed', error);
     pictureError.value = t('profile.picture.error');
   } finally {
     pictureBusy.value = false;
