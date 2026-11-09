@@ -189,7 +189,8 @@ jobs:
           done
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
           # Applies only migrations that are not yet in the remote history.
-          supabase db push --linked --include-all
+          # --yes: CI has no terminal, so the CLI's confirmation prompt would abort the run.
+          supabase db push --linked --include-all --yes
 
       - name: Configure SSH
         env:
