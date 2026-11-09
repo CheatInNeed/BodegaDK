@@ -83,7 +83,7 @@ After applying migrations, verify from a signed-in browser:
 - Avatar lookup can read `user_avatars` joined to active `avatar_defs`.
 - Profile/avatar writes are limited to the current user.
 - Storage bucket `avatars` is public-read; `storage.objects` insert/update/delete
-  policies for `authenticated` only allow paths under the user's own `auth.uid()` folder.
+  and select policies for `authenticated` only allow paths under the user's own `auth.uid()` folder.
   `profiles.avatar_url` is covered by the existing own-row `profiles` policies.
 - Friend/challenge/notification UI still works through `/api/*`, not direct
   Supabase table calls.
