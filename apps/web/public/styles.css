@@ -3534,34 +3534,11 @@ button.lobby-game-card {
 .hidden {
     display: none;
 }
-.avatar-options {
-    display: flex;
-    gap: 20px;
-    justify-content: center;
-    margin: 20px 0;
-}
-
 .avatar {
     width: 30px;
     height: 30px;
     cursor: pointer;
     border: 2px solid transparent;
-}
-
-.avatar[data-color="red"] {
-    background: #d86455;
-}
-
-.avatar[data-color="blue"] {
-    background: #6b94d6;
-}
-
-.avatar[data-shape="circle"] {
-    border-radius: 50%;
-}
-
-.avatar[data-shape="square"] {
-    border-radius: 8px;
 }
 
 .selected {
@@ -4026,9 +4003,27 @@ button.lobby-game-card {
     flex-shrink: 0;
 }
 
-.profile-avatar-empty {
+.profile-hero-picture {
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 2px solid var(--color-border, transparent);
+    border-radius: 50%;
+    overflow: hidden;
     background: var(--color-surface-soft);
-    border-radius: 8px;
+    cursor: pointer;
+}
+
+.avatar-button img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .profile-hero-name {
