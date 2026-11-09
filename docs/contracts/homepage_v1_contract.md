@@ -24,7 +24,7 @@ where support is already verified.
 ## Current repo state
 
 -   Routing is split between:
-    -   pathname routes: `/login`, `/signup`, `/custom`
+    -   pathname routes: `/login`, `/signup`
     -   query-param app views: `/?view=home|play|settings|help|room`
 -   `/?view=home` already exists, but currently renders the same game grid
     as `/?view=play`

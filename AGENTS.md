@@ -12,7 +12,7 @@ Monorepo components:
 - `docs`: architecture, protocol, homepage contract, development, and security documentation
 
 Frontend routing is split:
-- Pathname routes: `/`, `/login`, `/signup`, `/custom`
+- Pathname routes: `/`, `/login`, `/signup`
 - Query-param app views on `/`: `?view=home|play|settings|help|lobby-browser|lobby|room`
 - `/` currently defaults to `home`
 
@@ -71,7 +71,7 @@ Do not run `deploy:main` or `deploy:dev` unless explicitly asked; they switch gi
 - Ensure TypeScript output remains compatible with `apps/web/public/dist`.
 - Treat `apps/web/public/app-config.js` as generated runtime config, not a tracked source file.
 - Preserve shared utility classes used by multiple flows; auth/homepage uses `.full`, lobby still uses `.full-width`.
-- Keep the current auth path routes working: `/login`, `/signup`, `/custom`.
+- Keep the current auth path routes working: `/login`, `/signup`.
 - Keep the current lobby flow working:
   - `?view=lobby-browser`
   - `?view=lobby`

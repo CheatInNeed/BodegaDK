@@ -24,7 +24,7 @@ matchmaking decisions, social mutations, notifications, and result writes.
 |---|---:|---|---|
 | `public.profiles` | `select`, `insert`, `update` for `authenticated` | own row only | Signup/profile bootstrap and auth metadata backfill |
 | `public.avatar_defs` | `select` for `authenticated` | active rows only | Avatar picker and profile avatar rendering |
-| `public.user_avatars` | `select`, `insert`, `update` for `authenticated` | own row only | Avatar customization |
+| `public.user_avatars` | `select`, `insert`, `update` for `authenticated` | own row only | Legacy colour avatar (no longer set from the web UI; still read by the leaderboard) |
 | `public.games` | `select` for `authenticated` | active rows only | Client catalog reads where needed |
 | `public.matchmaking_tickets` | `select` for `authenticated` | own rows only | Quick-play ticket polling/realtime refresh |
 | `public.cancel_matchmaking_ticket(uuid, text)` | `execute` for `authenticated` | checks `auth.uid()` and session token | Compatibility/maintenance cancellation path |
@@ -82,6 +82,9 @@ After applying migrations, verify from a signed-in browser:
 - Profile page can read `profiles.username` and `profiles.country`.
 - Avatar lookup can read `user_avatars` joined to active `avatar_defs`.
 - Profile/avatar writes are limited to the current user.
+- Storage bucket `avatars` is public-read; `storage.objects` insert/update/delete
+  policies for `authenticated` only allow paths under the user's own `auth.uid()` folder.
+  `profiles.avatar_url` is covered by the existing own-row `profiles` policies.
 - Friend/challenge/notification UI still works through `/api/*`, not direct
   Supabase table calls.
 - Quick-play ticket updates still work for the current user's ticket.

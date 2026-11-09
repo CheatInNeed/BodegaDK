@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
 import NotificationBell from './NotificationBell.vue';
+import { DEFAULT_AVATAR } from '@/lib/image';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -42,20 +43,18 @@ function changeLang(event: Event) {
 
       <NotificationBell v-if="authStore.isAuthenticated" />
 
-      <div
-        v-if="authStore.isAuthenticated && authStore.avatar"
-        class="avatar"
-        :data-color="authStore.avatar.color"
-        :data-shape="authStore.avatar.shape"
-      ></div>
-
       <template v-if="!authStore.isAuthenticated">
         <button class="btn" @click="router.push('/login')">{{ t('top.login') }}</button>
         <button class="btn primary" @click="router.push('/signup')">{{ t('top.signup') }}</button>
       </template>
-      <template v-else>
-        <button class="btn" @click="router.push('/profile')">{{ t('top.profile') }}</button>
-      </template>
+      <button
+        v-else
+        class="avatar-button"
+        :aria-label="t('top.profile')"
+        @click="router.push('/profile')"
+      >
+        <img :src="authStore.avatarUrl ?? DEFAULT_AVATAR" alt="" />
+      </button>
     </div>
   </header>
 </template>

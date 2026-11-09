@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useFriendsStore } from '@/stores/friends';
+import { DEFAULT_AVATAR } from '@/lib/image';
 import ProfileInfo from '@/components/profile/ProfileInfo.vue';
 import ProfileStats from '@/components/profile/ProfileStats.vue';
 import MatchHistory from '@/components/profile/MatchHistory.vue';
@@ -26,31 +27,59 @@ async function logout() {
   router.push('/login');
 }
 
-const avatarStyle = () => {
-  if (!authStore.avatar?.color) return '';
-  const radius = authStore.avatar.shape === 'circle' ? '50%' : '8px';
-  return `background:${authStore.avatar.color};border-radius:${radius}`;
-};
+const fileInput = ref<HTMLInputElement | null>(null);
+const pictureBusy = ref(false);
+const pictureError = ref('');
+
+async function changePicture(action: () => Promise<void>) {
+  pictureBusy.value = true;
+  pictureError.value = '';
+  try {
+    await action();
+  } catch {
+    pictureError.value = t('profile.picture.error');
+  } finally {
+    pictureBusy.value = false;
+  }
+}
+
+async function onFileChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (file) await changePicture(() => authStore.uploadAvatar(file));
+}
+
+function removePicture() {
+  return changePicture(() => authStore.removeAvatar());
+}
+
 </script>
 
 <template>
   <section class="profile-layout">
     <section class="card profile-hero-card">
       <div class="profile-hero">
-        <div
-          v-if="authStore.avatar?.color"
-          class="avatar profile-hero-avatar"
-          :style="avatarStyle()"
-        ></div>
-        <div v-else class="avatar profile-hero-avatar profile-avatar-empty"></div>
+        <img
+          class="profile-hero-avatar profile-hero-picture"
+          :src="authStore.avatarUrl ?? DEFAULT_AVATAR"
+          alt=""
+        />
         <div class="profile-hero-info">
           <h1 class="profile-hero-name">{{ authStore.user?.username ?? '---' }}</h1>
           <p class="profile-hero-sub">{{ authStore.user?.email ?? '---' }}</p>
         </div>
       </div>
       <div class="profile-hero-actions">
-        <button class="btn primary" data-action="profile-customize" @click="router.push('/custom')">{{ t('profile.customize') }}</button>
+        <input ref="fileInput" type="file" accept="image/*" hidden @change="onFileChange" />
+        <button class="btn" :disabled="pictureBusy" @click="fileInput?.click()">
+          {{ authStore.avatarUrl ? t('profile.picture.change') : t('profile.picture.upload') }}
+        </button>
+        <button v-if="authStore.avatarUrl" class="btn" :disabled="pictureBusy" @click="removePicture">
+          {{ t('profile.picture.remove') }}
+        </button>
         <button class="btn danger" data-action="profile-logout" @click="logout">{{ t('profile.logout') }}</button>
+        <p v-if="pictureError" class="card-desc" role="alert">{{ pictureError }}</p>
       </div>
     </section>
 
