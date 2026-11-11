@@ -5,6 +5,7 @@ import App from './App.vue';
 import router from './router';
 import da from './locales/da.json';
 import en from './locales/en.json';
+import { cookieMessages } from './i18n';
 import { useAuthStore } from './stores/auth';
 import { useUiStore } from './stores/ui';
 import { registerPwaServiceWorker } from './lib/pwa';
@@ -16,7 +17,7 @@ const i18n = createI18n({
   legacy: false,
   locale,
   fallbackLocale: 'da',
-  messages: { da, en },
+  messages: { da: { ...da, ...cookieMessages.da }, en: { ...en, ...cookieMessages.en } },
 });
 
 const app = createApp(App);

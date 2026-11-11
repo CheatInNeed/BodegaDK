@@ -153,6 +153,14 @@ Clarification:
 
 ------------------------------------------------------------------------
 
+## Shared cookie notice
+
+The homepage shares an informational cookie notice. The notice simply states “BodegaDK
+uses cookies.”. The same statement appears within the existing Help box (`/help#help`).
+Dismissal is remembered on this browser using `bodegadk:cookie-notice:v1` in local storage.
+If storage is unavailable, dismissal lasts for the current app visit.
+The statement remains available in Help after dismissal. Copy is available in Danish and English.
+
 ## Acceptance criteria
 
 1.  `/?view=home` renders a homepage distinct from `/?view=play`
