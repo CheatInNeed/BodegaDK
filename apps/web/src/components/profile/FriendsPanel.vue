@@ -78,6 +78,12 @@ function displayName(user: { username: string; displayName?: string | null }): s
               </div>
               <div class="profile-friend-actions">
                 <button
+                  class="btn primary"
+                  type="button"
+                  :disabled="friendsStore.busyChallengeUserId !== null || friendsStore.busyFriendshipId === friendship.id"
+                  @click="friendsStore.challenge(otherUser(friendship).username, 'snyd')"
+                >{{ t('profile.friends.challenge') }}</button>
+                <button
                   class="btn danger"
                   type="button"
                   :disabled="friendsStore.busyFriendshipId === friendship.id"

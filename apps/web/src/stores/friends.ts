@@ -89,6 +89,7 @@ export const useFriendsStore = defineStore('friends', () => {
   }
 
   async function challenge(username: string, gameType?: string) {
+    if (busyChallengeUserId.value !== null) return;
     busyChallengeUserId.value = username;
     errorMessage.value = null;
     try {
