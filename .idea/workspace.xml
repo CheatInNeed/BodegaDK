@@ -7,13 +7,13 @@
     <option name="selectedModelId" value="auto" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Smoke test updated to accommodate https">
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Cookie statement implemented">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/public/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/public/styles.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/App.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/main.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/main.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/pages/HelpPage.vue" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/pages/HelpPage.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/contracts/homepage_v1_contract.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/contracts/homepage_v1_contract.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/components/NotificationPanel.vue" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/components/NotificationPanel.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/components/profile/FriendsPanel.vue" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/components/profile/FriendsPanel.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/stores/friends.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/stores/friends.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/stores/notifications.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/stores/notifications.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -165,7 +165,7 @@
     "cidr.known.project.marker": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
     "copilot.chat.legacySessionMetadata.migrated": "true",
-    "git-widget-placeholder": "feature/cookie-statement",
+    "git-widget-placeholder": "bug/challenge-friends",
     "git.auto.fetch.suggestion.counter": "3",
     "ignore.virus.scanning.warn.message": "true",
     "javascript.preferred.runtime.type.id": "node",
@@ -433,7 +433,8 @@
     <MESSAGE value="Https setup, and notification apply to more stuff" />
     <MESSAGE value="Config now allow origins from https://bodegadk-test.duckdns.org and https://bodegadk.duckdns.org" />
     <MESSAGE value="Smoke test updated to accommodate https" />
-    <option name="LAST_COMMIT_MESSAGE" value="Smoke test updated to accommodate https" />
+    <MESSAGE value="Cookie statement implemented" />
+    <option name="LAST_COMMIT_MESSAGE" value="Cookie statement implemented" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>
