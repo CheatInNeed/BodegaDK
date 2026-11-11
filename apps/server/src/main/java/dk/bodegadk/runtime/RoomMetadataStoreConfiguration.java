@@ -16,8 +16,8 @@ public class RoomMetadataStoreConfiguration {
 
     @Bean
     MatchHistoryStore matchHistoryStore(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper,
-                                        DatabaseCacheService cacheService) {
-        return new JdbcMatchHistoryStore(jdbcTemplate, objectMapper, cacheService);
+                                        DatabaseCacheService cacheService, dk.bodegadk.rating.RatingService ratingService) {
+        return new JdbcMatchHistoryStore(jdbcTemplate, objectMapper, cacheService, ratingService);
     }
 
     @Bean

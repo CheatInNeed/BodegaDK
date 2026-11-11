@@ -2,10 +2,14 @@ package dk.bodegadk.runtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dk.bodegadk.match.MatchMode;
+import dk.bodegadk.rating.PlayerGameRating;
+import dk.bodegadk.rating.RatingRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -25,6 +29,8 @@ public class MatchmakingService {
     private final GameLoopService gameLoopService;
     private final GameCatalogService gameCatalogService;
     private final ObjectMapper objectMapper;
+    private final RatingRepository ratingRepository;
+    private final MatchmakingWindow matchmakingWindow;
     private final ConcurrentMap<String, Object> queueLocks = new ConcurrentHashMap<>();
 
     public MatchmakingService(
@@ -34,20 +40,60 @@ public class MatchmakingService {
             GameCatalogService gameCatalogService,
             ObjectMapper objectMapper
     ) {
+        this(roomMetadataStore, runtimeStore, gameLoopService, gameCatalogService, objectMapper, null,
+                new MatchmakingWindow(100, 50, 500));
+    }
+
+    @Autowired
+    public MatchmakingService(
+            RoomMetadataStore roomMetadataStore,
+            InMemoryRuntimeStore runtimeStore,
+            GameLoopService gameLoopService,
+            GameCatalogService gameCatalogService,
+            ObjectMapper objectMapper,
+            RatingRepository ratingRepository,
+            MatchmakingProperties properties
+    ) {
+        this(roomMetadataStore, runtimeStore, gameLoopService, gameCatalogService, objectMapper,
+                ratingRepository, properties.window());
+    }
+
+    private MatchmakingService(
+            RoomMetadataStore roomMetadataStore,
+            InMemoryRuntimeStore runtimeStore,
+            GameLoopService gameLoopService,
+            GameCatalogService gameCatalogService,
+            ObjectMapper objectMapper,
+            RatingRepository ratingRepository,
+            MatchmakingWindow matchmakingWindow
+    ) {
         this.roomMetadataStore = roomMetadataStore;
         this.runtimeStore = runtimeStore;
         this.gameLoopService = gameLoopService;
         this.gameCatalogService = gameCatalogService;
         this.objectMapper = objectMapper;
+        this.ratingRepository = ratingRepository;
+        this.matchmakingWindow = matchmakingWindow;
     }
 
     @Transactional
     public MatchmakingSnapshot enqueue(String gameType, String userId, String username, String clientSessionId) {
+        return enqueue(gameType, MatchMode.UNRANKED, userId, username, clientSessionId);
+    }
+
+    @Transactional
+    public MatchmakingSnapshot enqueue(String gameType, MatchMode mode, String userId, String username, String clientSessionId) {
         GameCatalogService.GameDefinition definition = gameCatalogService.require(gameType);
         if (!definition.quickPlayEnabled() || !definition.realtimeSupported()) {
             throw new IllegalStateException("Quick play is not available for " + gameType);
         }
 
+        Integer rating = null;
+        if (ratingRepository != null) {
+            rating = mode == MatchMode.RANKED
+                    ? ratingRepository.findOrCreate(userId, definition.id()).rating()
+                    : ratingRepository.find(userId, definition.id()).map(PlayerGameRating::rating).orElse(null);
+        }
         UUID ticketId = roomMetadataStore.enqueueTicket(
                 definition.id(),
                 userId,
@@ -55,17 +101,19 @@ public class MatchmakingService {
                 clientSessionId,
                 definition.minPlayers(),
                 definition.maxPlayers(),
-                definition.strictCount()
+                definition.strictCount(),
+                mode.name(),
+                rating
         );
 
-        attemptMatch(definition.id());
+        attemptMatch(definition.id(), mode.name());
         return ticketStatus(ticketId).orElseThrow();
     }
 
     @Transactional
     public Optional<MatchmakingSnapshot> ticketStatus(UUID ticketId) {
         Optional<RoomMetadataStore.MatchmakingTicket> ticket = roomMetadataStore.ticket(ticketId);
-        ticket.ifPresent(value -> attemptMatch(value.gameType()));
+        ticket.ifPresent(value -> attemptMatch(value.gameType(), value.mode()));
         return roomMetadataStore.ticket(ticketId).map(this::toSnapshot);
     }
 
@@ -78,16 +126,29 @@ public class MatchmakingService {
         return true;
     }
 
-    private void attemptMatch(String gameType) {
-        synchronized (queueLock(gameType)) {
+    @Scheduled(fixedDelayString = "${bodegadk.matchmaking.poll-interval-ms:1000}")
+    public void processWaitingQueues() {
+        for (String gameType : gameCatalogService.gameTypes()) {
+            for (MatchMode mode : MatchMode.values()) {
+                attemptMatch(gameType, mode.name());
+            }
+        }
+    }
+
+    private void attemptMatch(String gameType, String mode) {
+        synchronized (queueLock(gameType + ":" + mode)) {
             GameCatalogService.GameDefinition definition = gameCatalogService.require(gameType);
-            List<RoomMetadataStore.MatchmakingTicket> waitingTickets = roomMetadataStore.waitingTickets(definition.id());
+            List<RoomMetadataStore.MatchmakingTicket> waitingTickets = roomMetadataStore.waitingTickets(definition.id()).stream()
+                    .filter(ticket -> ticket.mode().equals(mode))
+                    .toList();
             int matchSize = gameCatalogService.resolveMatchSize(definition.id(), waitingTickets.size());
             if (matchSize == 0) {
                 return;
             }
 
-            List<RoomMetadataStore.MatchmakingTicket> matchedTickets = uniquePlayerTickets(waitingTickets, matchSize);
+            List<RoomMetadataStore.MatchmakingTicket> matchedTickets = uniquePlayerTickets(
+                    waitingTickets, matchSize, MatchMode.valueOf(mode)
+            );
             if (matchedTickets.size() < matchSize) {
                 return;
             }
@@ -97,6 +158,7 @@ public class MatchmakingService {
                 roomCode = runtimeStore.generateRoomCode();
             } while (roomMetadataStore.roomExists(roomCode));
             roomMetadataStore.createRoom(roomCode, hostTicket.userId(), RoomMetadataStore.RoomVisibility.PUBLIC, definition.id(), InMemoryRuntimeStore.RoomStatus.LOBBY);
+            roomMetadataStore.updateRoomMode(roomCode, mode);
             runtimeStore.mirrorRoom(roomCode, definition.id(), false, hostTicket.userId(), InMemoryRuntimeStore.RoomStatus.LOBBY);
 
             for (RoomMetadataStore.MatchmakingTicket ticket : matchedTickets) {
@@ -128,7 +190,9 @@ public class MatchmakingService {
     }
 
     private MatchmakingSnapshot toSnapshot(RoomMetadataStore.MatchmakingTicket ticket) {
-        int queuedPlayers = roomMetadataStore.waitingTickets(ticket.gameType()).size();
+        int queuedPlayers = (int) roomMetadataStore.waitingTickets(ticket.gameType()).stream()
+                .filter(value -> value.mode().equals(ticket.mode()))
+                .count();
         int playersNeeded = ticket.status() == RoomMetadataStore.MatchmakingTicketStatus.MATCHED
                 ? 0
                 : Math.max(ticket.minPlayers() - queuedPlayers, 0);
@@ -139,6 +203,7 @@ public class MatchmakingService {
         return new MatchmakingSnapshot(
                 ticket.ticketId(),
                 ticket.gameType(),
+                ticket.mode(),
                 ticket.status(),
                 ticket.roomCode(),
                 ticket.userId(),
@@ -155,10 +220,26 @@ public class MatchmakingService {
         return queueLocks.computeIfAbsent(gameType, key -> new Object());
     }
 
-    private List<RoomMetadataStore.MatchmakingTicket> uniquePlayerTickets(List<RoomMetadataStore.MatchmakingTicket> tickets, int limit) {
+    private List<RoomMetadataStore.MatchmakingTicket> uniquePlayerTickets(
+            List<RoomMetadataStore.MatchmakingTicket> tickets, int limit, MatchMode mode
+    ) {
         List<RoomMetadataStore.MatchmakingTicket> uniqueTickets = new ArrayList<>();
         Set<String> playerIds = new HashSet<>();
+        RoomMetadataStore.MatchmakingTicket anchor = tickets.stream()
+                .filter(ticket -> ticket.mode().equals(mode.name()))
+                .findFirst()
+                .orElse(null);
+        Instant now = Instant.now();
         for (RoomMetadataStore.MatchmakingTicket ticket : tickets) {
+            if (!ticket.mode().equals(mode.name())) {
+                continue;
+            }
+            if (anchor != null && anchor.rating() != null
+                    && ticket.rating() != null
+                    && Math.abs(ticket.rating() - anchor.rating()) >
+                    matchmakingWindow.forJoinedAt(ticket.createdAt(), now)) {
+                continue;
+            }
             if (!playerIds.add(ticket.userId())) {
                 continue;
             }
@@ -177,6 +258,7 @@ public class MatchmakingService {
     public record MatchmakingSnapshot(
             UUID ticketId,
             String gameType,
+            String mode,
             RoomMetadataStore.MatchmakingTicketStatus status,
             String roomCode,
             String playerId,

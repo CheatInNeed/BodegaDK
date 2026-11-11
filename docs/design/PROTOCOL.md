@@ -179,7 +179,8 @@ gangen.
 {
   "gameType": "casino",
   "username": "Alice",
-  "clientSessionId": "browser-generated-queue-id"
+  "clientSessionId": "browser-generated-queue-id",
+  "mode": "RANKED"
 }
 ```
 
@@ -189,6 +190,7 @@ gangen.
 {
   "ticketId": "uuid",
   "gameType": "casino",
+  "mode": "RANKED",
   "status": "WAITING",
   "roomCode": null,
   "playerId": "auth-user-uuid",
@@ -217,6 +219,31 @@ skal navigere direkte til `view=room`.
 Annullerer en quick-play ticket.
 
 ------------------------------------------------------------------------
+
+## Ratings
+
+Ratings are maintained independently for each game. A rating row is created
+when a player first joins that game's ranked queue; unranked games never change
+ratings. Ranked and unranked tickets are kept in separate queues.
+
+### GET /ratings
+
+Returns all per-game ratings for the authenticated player.
+
+### GET /ratings/{gameType}
+
+Returns the authenticated player's rating for one game. A missing row returns
+`404`.
+
+### GET /ratings/{gameType}/leaderboard?page=0&size=20
+
+Returns a paginated ranked-only leaderboard. Players appear after their first
+completed ranked game; merely joining a ranked queue does not add them.
+`size` is capped at 100.
+
+### GET /ratings/{gameType}/history?page=0&size=20
+
+Returns the authenticated player's rating changes for that game, newest first.
 
 # REST API (PWA / Push)
 
