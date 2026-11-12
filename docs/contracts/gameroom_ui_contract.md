@@ -27,6 +27,98 @@ or backend authority.
   adapter-produced text follows the language setting live. Server error
   messages are shown untranslated.
 
+## Minimal UI principles
+
+The table should look like a card table, not a dashboard. HighCard
+(`HighCardGame.vue`) is the reference room that follows these principles;
+the other rooms have not been cleaned up yet (see the checklist below).
+
+1. **Don't label what is visible.** Cards, piles and seats explain
+   themselves. No "Middle card", "Your hand (7 cards)" or "Selected: …".
+2. **State in short pills, not sentences.** Keep only state the player
+   needs and can't see on the table (e.g. the HighCard score). Lobby info
+   (room code, game name) does not belong in the room.
+3. **No instructions on the table.** Selection and hover show what to do.
+   Rules belong on the Help page.
+4. **Narration goes to the side panel.** "What just happened" (last round,
+   who won the trick, claims) goes to the History tab; system events (joins,
+   leaves, connection) go to Chat. The table shows current state only.
+5. **Quiet always-on signals.** Connection status is the topbar pill with a
+   coloured dot, not a banner.
+6. **One turn signal.** The "Din tur" pill beside the actions
+   (`isMyTurn` on `GameTable`). No extra "Current turn" tags or
+   turn sentences.
+7. **Short verb buttons beside the hand**, never above it. Avoid counts and
+   explanations in button labels.
+8. **No decorative flair.** Plain card faces, solid backs, no ornaments.
+   Use the shared renderers in `game-cards.ts` and the `--gt-*` tokens.
+   No inline styles for new UI; add `.gt-*` or game classes in `styles.css`.
+9. **No hardcoded copy.** Every visible string is a `room.*` i18n key.
+10. **The test for every piece of text:** would a player miss it if it were
+    gone? If not, remove it.
+
+### Before / after: HighCard
+
+| Removed | Why |
+|---|---|
+| "Room: …" and "Game: Single Card Highest Wins" pills | Lobby info, not game state |
+| "Middle card" | The card is visible |
+| "Play a card with a higher value." | Rules belong in Help |
+| "Last round: … vs …" | Narration — moved to the History tab |
+| "Current turn" seat tag | One turn signal (the "Din tur" pill) |
+| "Your hand (7 cards)" | The hand is visible |
+| "Selected: …" pill | Selection is shown on the card |
+| "Play selected card" | Shortened to "Spil kort" |
+
+Kept: the score pill ("Score: Dig 3 - 1 Giver"), because the score is not
+visible anywhere else.
+
+### Cleanup checklist for the remaining rooms
+
+Candidates found when HighCard was done. Check each one against the
+principles above before removing it; keep what a player would miss.
+
+**Krig** (`KrigGame.vue`)
+- Topbar score labels repeat names and pile counts already shown in the
+  player zones (`room.cards`) — keep the score bar, drop the labels or the
+  zone counts.
+- "{count} kort i potten" (`room.krig.pot`) — the pot is visible as a pile.
+- "Vinder af krigen!" overlay subtitle, "+{count} kort" callouts — consider
+  moving to History (trick/war events already exist there).
+- Status sentences built in `krig/adapter.ts` (`room.krig.status.*`,
+  `room.krig.ready`, `room.krig.drawPile`, `room.krig.waitingForOpponent`)
+  — check whether they still reach the screen; narration belongs in
+  History, and unused keys can go.
+
+**Snyd** (`SnydGame.vue`)
+- "{name} meldte {count} × {rank}" in the centre (`lastClaimText`) and
+  seat callouts — the current claim is game state and can stay as a short
+  pill; earlier claims belong in History (Snyd history is not built yet).
+- "Meldt rang" label on the rank input; "Spil valgte ({count})" — shorten
+  to a verb.
+- "Ingen kort" empty-hand text with inline styles.
+- Check that opponents render: the template reads `viewModel.seats`, the
+  adapter only provides `players`.
+
+**Casino** (`CasinoGame.vue`)
+- "Kort tilbage: {count}" — could be a deck pile with a count instead of a
+  sentence.
+- "LÅST" / "ÅBEN" and "I alt: {total}" on every table stack — keep only
+  what the player can't see (e.g. a lock icon, the build total).
+- "Taget: {count}" under each player; "Tag / Læg", "Byg stak" buttons.
+- Inline styles in the stack renderer.
+
+**500** (`FemHundredeGame.vue`)
+- Points shown in several places (score bar, badges, "/ 500 pt",
+  per-meld points) — keep one.
+- "Bunke" / "Aflagning" pile labels and "tom" — the piles are visible.
+- "Klik på et stik for at tilføje dit valgte kort" — instruction text.
+- Hover labels "Træk" / "Tag kort" on the piles duplicate the action
+  buttons; up to six action buttons with long labels ("Træk fra bunke",
+  "Tag hele bunken", "Læg stik ({count} kort)").
+- Opponent "Tur" indicator — a second turn signal next to "Din tur".
+- Heavy inline styling in the HTML generators.
+
 ## Architecture
 
 ### GameTable.vue
