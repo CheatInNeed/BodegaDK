@@ -260,6 +260,28 @@ Room setup, matchmaking, profile history/stats, leaderboard, friends,
 challenges, and notifications use authenticated REST APIs documented in the
 same protocol file.
 
+### Friend challenges
+
+The profile friends list exposes **Udfordr / Challenge** for accepted friends.
+It sends `POST /api/challenges` with the friend's username and `gameType: snyd`.
+Notification rendering uses the backend's dotted types (`challenge.received`,
+`challenge.accepted`, `challenge.declined`) and `payload.gameType`.
+
+Accept and Decline call the corresponding `/api/challenges/{challengeId}`
+action before marking the notification read. Acceptance opens the returned
+private lobby; the challenger can open it from the acceptance notification.
+Actions remain available on pending notifications even after marking them read.
+The client prevents concurrent challenge responses and hides actions it has
+successfully handled during the current session. The server remains responsible
+for rejecting expired or previously resolved challenges. Failed responses show an
+error and can be retried; failure to mark a notification read does not prevent
+entering a successfully created lobby.
+
+Run the frontend challenge regression checks with
+`node --test tests/web/challenges.test.mjs` from the repository root. They cover
+the HTTP adapter, translated UI, and Vue click handlers with simulated API
+responses; they do not replace a live two-account acceptance check.
+
 ------------------------------------------------------------------------
 
 ## Non-goals i denne iteration

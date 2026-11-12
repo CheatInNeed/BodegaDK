@@ -60,6 +60,10 @@ Profile creation is now database-driven:
 - `public.profiles` uses RLS policies so authenticated users can read and update only their own row
 - authenticated browser access to profile/avatar tables also requires explicit
   grants; those live in the browser profile/avatar access grant migration
+- profile pictures live in the public Storage bucket `avatars` as
+  `{user_id}/avatar.webp` (128x128 WebP, bucket limit 100 KB, `image/webp` only);
+  `public.profiles.avatar_url` holds the public URL; the browser compresses the
+  image before upload, and Storage policies let users write only their own folder
 - direct browser grants are intentionally limited to profile/avatar/catalog
   and own-ticket needs; friends, challenges, notifications, stats,
   history, and authoritative room mutations go through Spring APIs

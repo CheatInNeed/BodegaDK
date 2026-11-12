@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { compressAvatar } from '@/lib/image';
 
 export type AuthUser = {
   id: string;
@@ -9,14 +10,9 @@ export type AuthUser = {
   country: string | null;
 };
 
-export type AuthAvatar = {
-  color: string;
-  shape: string;
-};
-
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null);
-  const avatar = ref<AuthAvatar | null>(null);
+  const avatarUrl = ref<string | null>(null);
   const initialized = ref(false);
 
   const isAuthenticated = computed(() => user.value !== null);
@@ -66,7 +62,7 @@ export const useAuthStore = defineStore('auth', () => {
         await loadAvatar(u.id);
       } else {
         user.value = null;
-        avatar.value = null;
+        avatarUrl.value = null;
       }
     });
   }
@@ -75,19 +71,45 @@ export const useAuthStore = defineStore('auth', () => {
     if (!supabase) return;
     try {
       const { data } = await supabase
-        .from('user_avatars')
-        .select('color, options')
+        .from('profiles')
+        .select('avatar_url')
         .eq('user_id', userId)
         .single();
-      if (data) {
-        avatar.value = {
-          color: data.color ?? '',
-          shape: data.options?.shape ?? '',
-        };
-      }
+      avatarUrl.value = data?.avatar_url ?? null;
     } catch {
-      // Avatar is optional
+      // Profile picture is optional
     }
+  }
+
+  async function uploadAvatar(file: File) {
+    if (!supabase || !user.value) throw new Error('Authentication required');
+    const blob = await compressAvatar(file);
+    const path = `${user.value.id}/avatar.webp`;
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(path, blob, { upsert: true, contentType: 'image/webp' });
+    if (uploadError) throw uploadError;
+    const url = `${supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_url: url })
+      .eq('user_id', user.value.id);
+    if (error) throw error;
+    avatarUrl.value = url;
+  }
+
+  async function removeAvatar() {
+    if (!supabase || !user.value) throw new Error('Authentication required');
+    const { error: removeError } = await supabase.storage
+      .from('avatars')
+      .remove([`${user.value.id}/avatar.webp`]);
+    if (removeError) throw removeError;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_url: null })
+      .eq('user_id', user.value.id);
+    if (error) throw error;
+    avatarUrl.value = null;
   }
 
   async function signIn(email: string, password: string) {
@@ -127,7 +149,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!supabase) return;
     await supabase.auth.signOut();
     user.value = null;
-    avatar.value = null;
+    avatarUrl.value = null;
   }
 
   async function getAccessToken(): Promise<string> {
@@ -140,10 +162,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user,
-    avatar,
+    avatarUrl,
     initialized,
     isAuthenticated,
     init,
+    uploadAvatar,
+    removeAvatar,
     signIn,
     signUp,
     signOut,

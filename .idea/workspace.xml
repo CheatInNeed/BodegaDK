@@ -7,18 +7,13 @@
     <option name="selectedModelId" value="auto" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Supabase apply migration workflow updated to include all">
+    <list default="true" id="3b60bc68-5525-46bd-af32-26a97e1132bd" name="Changes" comment="Cookie statement implemented">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/WebPushNotificationService.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/push/WebPushNotificationService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcChallengesStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/JdbcChallengesStore.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/main/java/dk/bodegadk/runtime/RoomMetadataStoreConfiguration.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/JdbcChallengesStoreTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/JdbcChallengesStoreTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/JdbcFriendsStoreTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/apps/server/src/test/java/dk/bodegadk/runtime/JdbcFriendsStoreTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apps/web/src/pwa.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/pwa.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/PROTOCOL.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PROTOCOL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/PWA_AND_PUSH.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/instructions/DEVELOPMENT.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/infra/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/infra/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/components/NotificationPanel.vue" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/components/NotificationPanel.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/components/profile/FriendsPanel.vue" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/components/profile/FriendsPanel.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/stores/friends.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/stores/friends.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/web/src/stores/notifications.ts" beforeDir="false" afterPath="$PROJECT_DIR$/apps/web/src/stores/notifications.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/design/WEB_CLIENT_GAME_ROOM.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,19 +23,20 @@
   <component name="CopilotPersistence">
     <persistenceIdMap>
       <entry key="_/Users/alex/WebstormProjects/BodegaDK" value="3C4WxYrhQF8Ooqah2ksVJ0CjBUJ" />
+      <entry key="_/Users/ivanviemoescuevas/IdeaProjects/BodegaDK" value="3LxgtuWiGOP83Pkblhy8Ton5B9F" />
       <entry key="_/Users/peterroland/Library/CloudStorage/OneDrive-DanmarksTekniskeUniversitet/DTU/4_Semester/62595_Full_stack_development/BodegaDK" value="3ATq15ONpesXwkLXmSD166wfQI8" />
       <entry key="_C:/Users/aske/Documents/GitHub/BodegaDK" value="3Jk8lTz6KmQNhz0fx6JAqJzd9OQ" />
       <entry key="_C:/Users/lille/WebstormProjects/BodegaDK" value="3Cz5lx1ZkjQl7oymrnbvyPN9j5J" />
     </persistenceIdMap>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="562" />
+    <option name="cachedIndexableFilesCount" value="605" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="feature/push_notifications" />
+        <entry key="$PROJECT_DIR$" value="dev" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -67,23 +63,23 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.2064802957572296" />
-      <entry key="MS500" value="2.113883509192947" />
-      <entry key="S2" value="3.2473939838560253" />
-      <entry key="S5" value="3.6642270844485694" />
-      <entry key="S10" value="3.825676652751495" />
-      <entry key="S30" value="3.9403993161653568" />
-      <entry key="S60" value="3.9749964725419" />
-      <entry key="M2" value="4.171846945197165" />
-      <entry key="M5" value="5.653125066229603" />
-      <entry key="M10" value="8.324881709454349" />
-      <entry key="M15" value="11.955945672876851" />
-      <entry key="M30" value="23.64566179809667" />
-      <entry key="H1" value="38.09901869657283" />
-      <entry key="H2" value="49.75933426267138" />
-      <entry key="H4" value="57.20652171602818" />
-      <entry key="D1" value="64.43092647032196" />
-      <entry key="W1" value="65.77317046525722" />
+      <entry key="MS100" value="1.6127372405974811" />
+      <entry key="MS500" value="4.176574970920212" />
+      <entry key="S2" value="6.791343960379546" />
+      <entry key="S5" value="8.305177687399494" />
+      <entry key="S10" value="9.150461711710802" />
+      <entry key="S30" value="14.702940958579429" />
+      <entry key="S60" value="24.451985079916476" />
+      <entry key="M2" value="35.15949429839568" />
+      <entry key="M5" value="45.43544153677282" />
+      <entry key="M10" value="51.420561272394835" />
+      <entry key="M15" value="55.72090069460861" />
+      <entry key="M30" value="67.6959688366479" />
+      <entry key="H1" value="84.5159895811396" />
+      <entry key="H2" value="99.96810046562997" />
+      <entry key="H4" value="110.6440914584233" />
+      <entry key="D1" value="121.55955920761684" />
+      <entry key="W1" value="123.64569821823396" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -105,23 +101,23 @@
       <entry key="W1" value="0.0" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.1427594320366998" />
-      <entry key="MS500" value="2.0919146500499073" />
-      <entry key="S2" value="3.2389685381360067" />
-      <entry key="S5" value="3.6604207665079684" />
-      <entry key="S10" value="3.823688794736411" />
-      <entry key="S30" value="3.939716611022514" />
-      <entry key="S60" value="3.9746519262289337" />
-      <entry key="M2" value="4.171663065542805" />
-      <entry key="M5" value="5.653016030236893" />
-      <entry key="M10" value="8.324799101062807" />
-      <entry key="M15" value="11.955869428619328" />
-      <entry key="M30" value="23.645592240077708" />
-      <entry key="H1" value="38.09896502996029" />
-      <entry key="H2" value="49.759299876033964" />
-      <entry key="H4" value="57.20650211852002" />
-      <entry key="D1" value="64.43092281602789" />
-      <entry key="W1" value="65.77316993292438" />
+      <entry key="MS100" value="1.5536798647496368" />
+      <entry key="MS500" value="4.142489241418575" />
+      <entry key="S2" value="6.7769102456388035" />
+      <entry key="S5" value="8.298012351114465" />
+      <entry key="S10" value="9.146507607982096" />
+      <entry key="S30" value="14.70107589757507" />
+      <entry key="S60" value="24.45058508812398" />
+      <entry key="M2" value="35.15853467726012" />
+      <entry key="M5" value="45.43495055374267" />
+      <entry key="M10" value="51.420267492011384" />
+      <entry key="M15" value="55.72067597759052" />
+      <entry key="M30" value="67.69581815227606" />
+      <entry key="H1" value="84.51588946485118" />
+      <entry key="H2" value="99.9680394763503" />
+      <entry key="H4" value="110.64405725348415" />
+      <entry key="D1" value="121.55955288073604" />
+      <entry key="W1" value="123.64569729738292" />
     </decayedShown>
   </component>
   <component name="ProblemsViewState">
@@ -137,17 +133,20 @@
   <component name="ProjectSessionTemplates">
     <option name="panelTemplate">
       <template>
+        <option name="ensembleEnabled" value="true" />
+        <option name="ensembleTierId" value="balance" />
         <option name="modeId" value="Agent" />
         <option name="model">
           <model>
             <option name="modelType" value="builtin_id" />
-            <option name="modelValue" value="auto" />
+            <option name="modelValue" value="ensemble" />
           </model>
         </option>
         <option name="targetType" value="BACKGROUND" />
         <option name="worktreeMode" value="WORKSPACE" />
       </template>
     </option>
+    <option name="version" value="1" />
   </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -166,7 +165,8 @@
     "cidr.known.project.marker": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
     "copilot.chat.legacySessionMetadata.migrated": "true",
-    "git-widget-placeholder": "feature/push__notifications",
+    "git-widget-placeholder": "bug/challenge-friends",
+    "git.auto.fetch.suggestion.counter": "3",
     "ignore.virus.scanning.warn.message": "true",
     "javascript.preferred.runtime.type.id": "node",
     "kotlin-language-version-configured": "true",
@@ -177,7 +177,8 @@
     "nodejs_package_manager_path": "npm",
     "npm.local:dev.executor": "Run",
     "npm.supabase:push:dry-run.executor": "Run",
-    "settings.editor.selected.configurable": "configurable.group.language",
+    "npm.test.executor": "Run",
+    "settings.editor.selected.configurable": "com.github.copilot.settings.agentHarness.ThirdPartyAgentHarnessConfigurable",
     "ts.external.directory.path": "/Users/ivanviemoescuevas/IdeaProjects/BodegaDK/node_modules/typescript/lib",
     "vue.rearranger.settings.migration": "true"
   },
@@ -249,7 +250,8 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-30f59d01ecdd-a203e0a19954-intellij.indexing.shared.core-IU-262.10315.125" />
+        <option value="bundled-jdk-30f59d01ecdd-ac68fc9d2b05-intellij.indexing.shared.core-IU-263.7307.200" />
+        <option value="bundled-js-predefined-d6986cc7102b-56aff7b04f6f-JavaScript-IU-263.7307.200" />
       </set>
     </attachedChunks>
   </component>
@@ -349,7 +351,31 @@
       <option name="project" value="LOCAL" />
       <updated>1790255661632</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="Https setup, and notification apply to more stuff">
+      <option name="closed" value="true" />
+      <created>1792669533147</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1792669533147</updated>
+    </task>
+    <task id="LOCAL-00012" summary="Config now allow origins from https://bodegadk-test.duckdns.org and https://bodegadk.duckdns.org">
+      <option name="closed" value="true" />
+      <created>1792672619090</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1792672619090</updated>
+    </task>
+    <task id="LOCAL-00013" summary="Smoke test updated to accommodate https">
+      <option name="closed" value="true" />
+      <created>1792674753631</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1792674753631</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -381,7 +407,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="feature/push_notifications" />
+                        <option value="feature/cookie-statement" />
                       </list>
                     </value>
                   </entry>
@@ -404,7 +430,11 @@
     <MESSAGE value="script updates" />
     <MESSAGE value="finished call sites, updated documentation," />
     <MESSAGE value="Merged dev into this, and should work with notifications now..." />
-    <option name="LAST_COMMIT_MESSAGE" value="Merged dev into this, and should work with notifications now..." />
+    <MESSAGE value="Https setup, and notification apply to more stuff" />
+    <MESSAGE value="Config now allow origins from https://bodegadk-test.duckdns.org and https://bodegadk.duckdns.org" />
+    <MESSAGE value="Smoke test updated to accommodate https" />
+    <MESSAGE value="Cookie statement implemented" />
+    <option name="LAST_COMMIT_MESSAGE" value="Cookie statement implemented" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

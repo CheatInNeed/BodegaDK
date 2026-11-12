@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useApi } from '@/composables/useApi';
-import type { NotificationSummary } from '@/lib/net/api';
+import type { CreateRoomResponse, NotificationSummary } from '@/lib/net/api';
 
 export const useNotificationsStore = defineStore('notifications', () => {
   const api = useApi();
@@ -13,6 +13,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const errorMessage = ref<string | null>(null);
   const busyId = ref<string | null>(null);
   const readAllBusy = ref(false);
+  const handledChallengeIds = ref(new Set<string>());
 
   const hasUnread = computed(() => unreadCount.value > 0);
 
@@ -45,12 +46,42 @@ export const useNotificationsStore = defineStore('notifications', () => {
     busyId.value = id;
     try {
       await api.markNotificationRead(id);
+      const wasUnread = items.value.some((i) => i.id === id && !i.readAt);
       items.value = items.value.map((i) =>
         i.id === id ? { ...i, readAt: new Date().toISOString() } : i,
       );
-      unreadCount.value = Math.max(0, unreadCount.value - 1);
+      if (wasUnread) unreadCount.value = Math.max(0, unreadCount.value - 1);
     } catch (e) {
       errorMessage.value = e instanceof Error ? e.message : 'Failed to mark notification';
+    } finally {
+      busyId.value = null;
+    }
+  }
+
+  async function respondToChallenge(notification: NotificationSummary, accept: boolean) {
+    const challengeId = notification.payload?.challengeId;
+    if (busyId.value !== null || readAllBusy.value || handledChallengeIds.value.has(notification.id)) return;
+    errorMessage.value = null;
+    if (notification.type !== 'challenge.received' || typeof challengeId !== 'string' || !challengeId.trim()) {
+      errorMessage.value = 'notifications.actionError';
+      return;
+    }
+
+    busyId.value = notification.id;
+    try {
+      let room: CreateRoomResponse | undefined;
+      if (accept) {
+        room = (await api.acceptChallenge(challengeId)).room;
+      } else {
+        await api.declineChallenge(challengeId);
+      }
+      handledChallengeIds.value.add(notification.id);
+      // Reading is secondary: a successful acceptance must still open the lobby
+      // if updating the notification fails.
+      await markRead(notification.id);
+      return room;
+    } catch (e) {
+      errorMessage.value = e instanceof Error ? e.message : 'notifications.actionError';
     } finally {
       busyId.value = null;
     }
@@ -78,6 +109,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     errorMessage.value = null;
     loading.value = false;
     open.value = false;
+    handledChallengeIds.value.clear();
   }
 
   return {
@@ -89,10 +121,12 @@ export const useNotificationsStore = defineStore('notifications', () => {
     busyId,
     readAllBusy,
     hasUnread,
+    handledChallengeIds,
     toggle,
     close,
     load,
     markRead,
+    respondToChallenge,
     markAllRead,
     clear,
   };

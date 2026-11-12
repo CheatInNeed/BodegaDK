@@ -15,12 +15,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/SignupPage.vue'),
     meta: { requiresAuth: false },
   },
-  {
-    path: '/custom',
-    name: 'custom',
-    component: () => import('@/pages/AvatarCustomizePage.vue'),
-    meta: { requiresAuth: true },
-  },
 
   // App shell pages (with layout)
   {
