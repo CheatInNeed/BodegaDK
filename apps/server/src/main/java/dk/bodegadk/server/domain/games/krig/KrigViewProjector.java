@@ -67,6 +67,7 @@ public class KrigViewProjector implements ViewProjector<KrigState> {
             view.put("lastTrick", result);
         }
 
+        view.put("history", state.history().events());
         return view;
     }
 

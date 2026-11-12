@@ -1,16 +1,8 @@
 import type {
-    CardDisplayModel,
     GameRoomLayoutSpec,
     SeatPositionClass,
     SeatViewModel,
-    TableLayoutMode,
 } from './types';
-
-type ParsedCard = {
-    rank: string;
-    suit: string;
-    suitColor: 'red' | 'black';
-};
 
 const RING_PRESETS: Record<number, SeatPositionClass[]> = {
     1: ['seat-bottom'],
@@ -55,78 +47,6 @@ export function arrangeSeats(seats: SeatViewModel[], layout: GameRoomLayoutSpec)
     }));
 }
 
-export function renderHandCards(cards: Array<{ card: string; selected: boolean }>, options?: { offsetStep?: number }): string {
-    const offsetStep = options?.offsetStep ?? 16;
-    return cards.map((item, index) => `
-      <button class="play-card ${item.selected ? 'selected' : ''}" data-action="toggle-card" data-card="${item.card}" style="--card-offset:${index * offsetStep}px">
-        ${renderCard({ kind: 'face', cardCode: item.card, selected: item.selected, interactive: true })}
-      </button>
-    `).join('');
-}
-
-export function renderCard(model: CardDisplayModel): string {
-    if (model.kind === 'stack') {
-        return renderCardStack(model.count ?? 1);
-    }
-
-    if (model.kind === 'back') {
-        return `
-      <span class="play-card-slot play-card-slot-back ${sizeClass(model)}">
-        <span class="play-card-slot-label">${model.label ?? 'Hidden'}</span>
-      </span>
-    `;
-    }
-
-    if (model.kind === 'empty') {
-        return `
-      <span class="play-card-slot ${sizeClass(model)}">
-        <span class="play-card-slot-label">${model.label ?? '-'}</span>
-      </span>
-    `;
-    }
-
-    const parsed = parseCardCode(model.cardCode ?? '--');
-    const colorClass = parsed.suitColor === 'red' ? 'red' : 'black';
-
-    return `
-    <span class="play-card-face ${colorClass} ${sizeClass(model)} ${model.selected ? 'selected' : ''}">
-      <span class="play-card-corner">${parsed.rank}${parsed.suit}</span>
-      <span class="play-card-center">${parsed.suit}</span>
-      <span class="play-card-corner rotate">${parsed.rank}${parsed.suit}</span>
-    </span>
-  `;
-}
-
-function renderCardStack(count: number): string {
-    const displayCount = Math.max(1, Math.min(count, 8));
-    let html = '';
-
-    for (let i = 0; i < displayCount; i++) {
-        html += `<span class="mini-card-back" style="--stack-offset:${i * 10}px"></span>`;
-    }
-
-    return `<span class="card-stack">${html}</span>`;
-}
-
-function sizeClass(model: CardDisplayModel): string {
-    if (model.size === 'sm') return 'play-card-face-sm';
-    if (model.size === 'lg') return 'play-card-face-lg';
-    return '';
-}
-
-function parseCardCode(cardCode: string): ParsedCard {
-    const normalized = cardCode.trim().toUpperCase();
-    const suitKey = normalized.charAt(0);
-    const rank = normalized.slice(1) || '?';
-
-    if (suitKey === 'H') return { rank, suit: '\u2665', suitColor: 'red' };
-    if (suitKey === 'D') return { rank, suit: '\u2666', suitColor: 'red' };
-    if (suitKey === 'S') return { rank, suit: '\u2660', suitColor: 'black' };
-    if (suitKey === 'C') return { rank, suit: '\u2663', suitColor: 'black' };
-
-    return { rank: normalized, suit: '\u2022', suitColor: 'black' };
-}
-
 export function createLayoutSpec(input: Partial<GameRoomLayoutSpec> & Pick<GameRoomLayoutSpec, 'maxPlayers' | 'preferredLayout'>): GameRoomLayoutSpec {
     return {
         tableVariant: 'green-felt',
@@ -135,8 +55,4 @@ export function createLayoutSpec(input: Partial<GameRoomLayoutSpec> & Pick<GameR
         seatRenderMode: 'label-only',
         ...input,
     };
-}
-
-export function fallbackLayoutMode(playerCount: number): TableLayoutMode {
-    return playerCount <= 2 ? 'duel' : 'ring';
 }

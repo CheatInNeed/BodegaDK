@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import { resolvePlayerName } from '../../game-room/player-display';
 import type { GameAdapter } from '../../game-room/types';
 import { createLayoutSpec } from '../../game-room/ui';
@@ -44,8 +45,8 @@ export const snydAdapter: GameAdapter<SnydPublicState, SnydPrivateState, SnydVie
 
         const claim = publicState?.lastClaim;
         const lastClaimText = claim
-            ? `${resolvePlayerName(playerNames, claim.playerId)} claimed ${claim.count} x ${claim.claimRank}`
-            : 'No claim yet';
+            ? t('room.snyd.claim', { name: resolvePlayerName(playerNames, claim.playerId), count: claim.count, rank: claim.claimRank })
+            : t('room.snyd.noClaim');
         const isMyTurn = !!selfPlayerId && publicState?.turnPlayerId === selfPlayerId;
 
         return {

@@ -6,7 +6,9 @@ import dk.bodegadk.server.domain.primitives.Card;
 import dk.bodegadk.server.domain.primitives.Deck;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class KrigEngine implements GameEngine<KrigState, KrigAction> {
     private static final int PLAYER_COUNT = 2;
@@ -144,6 +146,7 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
                     state.centerPile().size(),
                     state.warDepth()
             ));
+            recordWar(state, resolution.firstCard, resolution.secondCard);
             state.setStatusText("KRIG! Flip your war card!");
             return;
         }
@@ -195,6 +198,7 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
                     state.centerPile().size(),
                     state.warDepth()
             ));
+            recordWar(state, firstCard, secondCard);
             state.setStatusText("KRIG igen! Flip your war card again!");
             return;
         }
@@ -207,6 +211,15 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
                                     String secondPlayerId, Card secondCard, String winnerId, String outcome) {
         int cardsWon = state.centerPile().size();
         awardCenterPile(state, winnerId);
+        Map<String, Object> trick = new LinkedHashMap<>();
+        trick.put("winnerPlayerId", winnerId);
+        trick.put("firstPlayerId", firstPlayerId);
+        trick.put("firstCard", firstCard);
+        trick.put("secondPlayerId", secondPlayerId);
+        trick.put("secondCard", secondCard);
+        trick.put("cardsWon", cardsWon);
+        trick.put("warDepth", state.warDepth());
+        state.history().add("KRIG_TRICK", trick);
         state.setPresentationEventId(state.presentationEventId() + 1);
         state.setLastTrick(new KrigState.TrickResult(
                 state.trickNumber(),
@@ -294,7 +307,21 @@ public class KrigEngine implements GameEngine<KrigState, KrigAction> {
         }
     }
 
+    /** War stake cards are face down, so only the tied face-up cards are recorded. */
+    private void recordWar(KrigState state, Card firstCard, Card secondCard) {
+        Map<String, Object> war = new LinkedHashMap<>();
+        war.put("firstPlayerId", state.playerIds().get(0));
+        war.put("firstCard", firstCard);
+        war.put("secondPlayerId", state.playerIds().get(1));
+        war.put("secondCard", secondCard);
+        war.put("warDepth", state.warDepth());
+        state.history().add("KRIG_WAR", war);
+    }
+
     private void finishGame(KrigState state, String winnerPlayerId, String statusText) {
+        Map<String, Object> gameOver = new LinkedHashMap<>();
+        gameOver.put("winnerPlayerId", winnerPlayerId);
+        state.history().add("GAME_OVER", gameOver);
         state.setPhase(GameState.Phase.FINISHED);
         state.rematchPlayerIds().clear();
         state.setWinnerPlayerId(winnerPlayerId);

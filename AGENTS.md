@@ -67,6 +67,7 @@ Do not run `deploy:main` or `deploy:dev` unless explicitly asked; they switch gi
 ### `apps/web`
 - Keep all user-facing strings in `apps/web/src/i18n.ts`; do not hardcode UI copy in render functions.
 - Keep styles in `apps/web/public/styles.css` and reuse existing CSS variables/tokens.
+- Game room UI must follow the "Minimal UI principles" in `docs/contracts/gameroom_ui_contract.md` (HighCard is the reference room).
 - Do not introduce Tailwind, inline styles, or external font dependencies.
 - Ensure TypeScript output remains compatible with `apps/web/public/dist`.
 - Treat `apps/web/public/app-config.js` as generated runtime config, not a tracked source file.

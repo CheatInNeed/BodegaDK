@@ -202,11 +202,14 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
             InMemoryRuntimeStore.RoomSnapshot room
     ) {
         String selectedGame = normalizedGame(room.selectedGame());
-        if (!KRIG_GAME_TYPE.equals(selectedGame)) {
+        if (!isSupportedGame(selectedGame)) {
             return GameLoopService.LoopResult.error("BAD_MESSAGE: invalid envelope or type");
         }
         if (room.status() != InMemoryRuntimeStore.RoomStatus.IN_GAME) {
             return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: game has not started");
+        }
+        if (HIGHCARD_GAME_TYPE.equals(selectedGame)) {
+            return applyHighCardRematch(state, command, room);
         }
 
         KrigState current = runtimeStore.loadOrInitGameState(
@@ -236,6 +239,34 @@ public class HighCardEnginePortAdapter implements GameLoopService.EnginePort {
                 nextRoomState,
                 nextRoomState.publicState(),
                 privateUpdates,
+                false,
+                null
+        );
+    }
+
+    private GameLoopService.LoopResult applyHighCardRematch(
+            GameLoopService.RoomState state,
+            GameLoopService.ActionCommand command,
+            InMemoryRuntimeStore.RoomSnapshot room
+    ) {
+        HighCardState current = runtimeStore.loadOrInitGameState(
+                command.roomCode(), HighCardState.class,
+                () -> highCardEngine.init(room.participantIds())
+        );
+
+        HighCardState next;
+        try {
+            next = highCardEngine.requestRematch(command.playerId(), current);
+        } catch (GameEngine.GameRuleException ruleException) {
+            return GameLoopService.LoopResult.error("RULES_NOT_AVAILABLE: " + ruleException.getMessage());
+        }
+
+        runtimeStore.saveGameState(command.roomCode(), next);
+        GameLoopService.RoomState nextRoomState = toHighCardRoomState(state, room, command.playerId(), next);
+        return GameLoopService.LoopResult.success(
+                nextRoomState,
+                nextRoomState.publicState(),
+                privateUpdatesForAllPlayers(nextRoomState, room.participantIds()),
                 false,
                 null
         );

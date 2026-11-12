@@ -1,4 +1,7 @@
+import type { GameLogEntry } from '../../game-room/types';
+
 export type KrigViewModel = {
+    history: GameLogEntry[];
     roomCode: string;
     trickNumber: number;
     selfPlayerId: string | null;

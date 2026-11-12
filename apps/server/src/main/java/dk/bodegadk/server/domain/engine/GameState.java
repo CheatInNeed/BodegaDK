@@ -17,12 +17,14 @@ public abstract class GameState {
     private int currentTurnIndex;
     private Phase phase;
     private String winnerPlayerId;
+    private final GameHistory history;
 
     protected GameState(List<String> playerIds) {
         this.playerIds = List.copyOf(playerIds);
         this.currentTurnIndex = 0;
         this.phase = Phase.WAITING;
         this.winnerPlayerId = null;
+        this.history = new GameHistory();
     }
 
     /** Copy constructor — used by subclass {@code copy()} implementations. */
@@ -31,6 +33,7 @@ public abstract class GameState {
         this.currentTurnIndex = other.currentTurnIndex;
         this.phase = other.phase;
         this.winnerPlayerId = other.winnerPlayerId;
+        this.history = new GameHistory(other.history);
     }
 
     /* ── Getters ── */
@@ -40,6 +43,7 @@ public abstract class GameState {
     public int currentTurnIndex()         { return currentTurnIndex; }
     public Phase phase()                  { return phase; }
     public String winnerPlayerId()        { return winnerPlayerId; }
+    public GameHistory history()          { return history; }
 
     public String currentPlayerId() {
         return playerIds.get(currentTurnIndex);

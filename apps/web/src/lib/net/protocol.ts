@@ -7,6 +7,17 @@ export type WsEnvelope<TType extends string, TPayload> = {
 };
 
 export type PlayerRef = string | { playerId: string; handCount?: number; name?: string };
+
+/**
+ * One public game event from `publicState.history` (server-capped at 100, oldest first).
+ * `data` values are strings: player ids, card codes, counts.
+ */
+export type HistoryEvent = {
+    seq: number;
+    at: number;
+    type: string;
+    data: Record<string, string>;
+};
 export type RoomStatus = 'LOBBY' | 'IN_GAME' | 'FINISHED' | 'ABANDONED';
 export type CasinoValueMap = Record<string, number[]>;
 

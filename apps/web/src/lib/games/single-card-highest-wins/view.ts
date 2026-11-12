@@ -1,3 +1,5 @@
+import type { GameLogEntry } from '../../game-room/types';
+
 export type SingleCardHighestWinsViewModel = {
     roomCode: string;
     dealerLabel: string;
@@ -10,4 +12,7 @@ export type SingleCardHighestWinsViewModel = {
     lastDealerCard: string | null;
     hand: Array<{ card: string; selected: boolean }>;
     selectedCard: string | null;
+    history: GameLogEntry[];
+    isFinished: boolean;
+    didWin: boolean;
 };
