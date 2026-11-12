@@ -78,24 +78,28 @@ function leaveTable() {
           <slot name="self-display" />
         </div>
 
-        <!-- Your-turn pill (row keeps its height so the layout doesn't jump) -->
-        <div v-if="isMyTurn !== undefined" class="gt-turn-pill-row">
-          <Transition name="gt-turn-pill">
-            <div v-if="isMyTurn && !state.winnerPlayerId" class="gt-turn-pill">
-              <div class="gt-turn-dot"></div>
-              <span>{{ t('room.yourTurn') }}</span>
+        <!-- Bottom: hand in the middle, turn pill + actions beside it, so hovered
+             cards popping up never cover the buttons. Stacks on narrow screens. -->
+        <div v-if="slots.hand || slots.actions || isMyTurn !== undefined" class="gt-bottom">
+          <div v-if="slots.hand" ref="handEl" class="gt-hand">
+            <slot name="hand" />
+          </div>
+
+          <div class="gt-side-actions">
+            <!-- Your-turn pill (row keeps its height so the layout doesn't jump) -->
+            <div v-if="isMyTurn !== undefined" class="gt-turn-pill-row">
+              <Transition name="gt-turn-pill">
+                <div v-if="isMyTurn && !state.winnerPlayerId" class="gt-turn-pill">
+                  <div class="gt-turn-dot"></div>
+                  <span>{{ t('room.yourTurn') }}</span>
+                </div>
+              </Transition>
             </div>
-          </Transition>
-        </div>
 
-        <!-- Actions -->
-        <div v-if="slots.actions" class="gt-actions">
-          <slot name="actions" />
-        </div>
-
-        <!-- Hand tray -->
-        <div v-if="slots.hand" ref="handEl" class="gt-hand">
-          <slot name="hand" />
+            <div v-if="slots.actions" class="gt-actions">
+              <slot name="actions" />
+            </div>
+          </div>
         </div>
 
         <GameSidePanel :history-entries="historyEntries ?? []" :chat-messages="chatMessages" />

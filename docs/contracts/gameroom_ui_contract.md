@@ -44,7 +44,7 @@ Props:
 - `state: RoomSessionState` — connection, errors, winner
 - `layout: 'duel' | 'ring'` — table layout mode
 - `gameTitle: string` — displayed in leave confirmation
-- `isMyTurn?: boolean` — turn-based games only (Snyd, Casino, 500). When set, a "Din tur" pill is shown above the actions row while it is the player's turn; the row keeps its height so the layout doesn't shift. Omit for games without turns (HighCard, Krig).
+- `isMyTurn?: boolean` — turn-based games only (Snyd, Casino, 500). When set, a "Din tur" pill is shown above the action buttons (beside the hand) while it is the player's turn; its row keeps its height so the layout doesn't shift. Omit for games without turns (HighCard, Krig).
 - `historyEntries?: GameLogEntry[]` — entries for the side panel's history tab. HighCard and Krig map `publicState.history` (server-side, see PROTOCOL.md) into these via `lib/game-room/history.ts`; Snyd, Casino and 500 don't supply any yet.
 
 ### Side panel (`GameSidePanel.vue`)
@@ -119,9 +119,12 @@ Every active card game room is composed from these zones:
 3. **Opponents** — Opponent zones (duel: single row top; ring: positioned seats)
 4. **Center** — Game-specific focal content (battle cards, piles, claims)
 5. **Self zone** — Current player display (melds, score)
-6. **Actions** — Game action buttons
-7. **Hand** — Current player's card hand (collapsible tray)
-8. **Overlay** — Post-game winner display
+6. **Bottom** — One row: the current player's hand fan centred, with the
+   "Din tur" pill and the `#actions` buttons stacked beside it on the right.
+   Buttons never sit above the hand, because hovered cards pop up over that
+   space. The fan narrows (`--fan-max`) to leave room for the buttons; at
+   ≤760px (phones, no hover pop) the pill and buttons move above the hand.
+7. **Overlay** — Post-game winner display
 
 ## Shared layout rules
 
