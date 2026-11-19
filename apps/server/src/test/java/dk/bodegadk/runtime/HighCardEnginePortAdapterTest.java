@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dk.bodegadk.server.domain.engine.GameState;
+import dk.bodegadk.server.domain.games.highcard.HighCardState;
 import dk.bodegadk.server.domain.games.krig.KrigState;
 import org.junit.jupiter.api.Test;
 
@@ -82,6 +83,15 @@ class HighCardEnginePortAdapterTest {
         assertNotNull(result.privateUpdates().get("p1"));
         assertTrue(result.publicUpdate().has("computerCard"));
         assertEquals("IN_GAME", result.publicUpdate().path("status").asText());
+
+        JsonNode history = result.publicUpdate().path("history");
+        assertEquals(1, history.size());
+        assertEquals("HIGHCARD_ROUND", history.get(0).path("type").asText());
+        assertEquals(cardToPlay, history.get(0).path("data").path("playerCard").asText());
+
+        // A reconnecting client gets the same history in its snapshot.
+        GameLoopService.RoomState reconnect = service.prepareSnapshot(roomCode, "p1");
+        assertEquals(1, reconnect.publicState().path("history").size());
     }
 
     @Test
@@ -211,6 +221,55 @@ class HighCardEnginePortAdapterTest {
         assertTrue(resolvedResult.publicUpdate().path("lastTrick").has("winnerPlayerId"));
         assertEquals(52, resolvedResult.publicUpdate().path("drawPileCounts").path("p1").asInt()
                 + resolvedResult.publicUpdate().path("drawPileCounts").path("p2").asInt());
+
+        assertEquals(0, waitingResult.publicUpdate().path("history").size());
+        JsonNode history = resolvedResult.publicUpdate().path("history");
+        assertEquals(1, history.size());
+        // Random deal: the first trick is either won outright or a tie that declares war.
+        assertTrue(java.util.Set.of("KRIG_TRICK", "KRIG_WAR").contains(history.get(0).path("type").asText()));
+    }
+
+    @Test
+    void highCardRematchAfterFinishDealsNewGame() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
+
+        String roomCode = store.createRoom("highcard", false, "p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
+        store.markRoomInGame(roomCode, "p1");
+
+        HighCardState finished = new HighCardState(List.of("p1"));
+        finished.setPhase(GameState.Phase.FINISHED);
+        finished.setWins(5);
+        finished.setLosses(2);
+        finished.history().add("GAME_OVER", java.util.Map.of("winnerPlayerId", "p1"));
+        store.saveGameState(roomCode, finished);
+
+        GameLoopService.LoopResult result = service.handleAction(command(roomCode, "p1", "REQUEST_REMATCH", JsonNodeFactory.instance.objectNode()));
+
+        assertFalse(result.isError());
+        assertFalse(result.finished());
+        assertFalse(result.publicUpdate().path("finished").asBoolean());
+        assertEquals(1, result.publicUpdate().path("round").asInt());
+        assertEquals(0, result.publicUpdate().path("wins").asInt());
+        assertEquals(0, result.publicUpdate().path("history").size());
+        assertEquals(7, result.privateUpdates().get("p1").path("hand").size());
+    }
+
+    @Test
+    void highCardRematchBeforeFinishIsRejected() {
+        InMemoryRuntimeStore store = new InMemoryRuntimeStore();
+        HighCardEnginePortAdapter adapter = new HighCardEnginePortAdapter(store, new ObjectMapper());
+        GameLoopService service = new GameLoopService(store, java.util.List.of(adapter));
+
+        String roomCode = store.createRoom("highcard", false, "p1");
+        store.joinRoom(roomCode, "p1", null, "token-p1");
+        assertFalse(service.handleAction(command(roomCode, "p1", "START_GAME", JsonNodeFactory.instance.objectNode())).isError());
+
+        GameLoopService.LoopResult result = service.handleAction(command(roomCode, "p1", "REQUEST_REMATCH", JsonNodeFactory.instance.objectNode()));
+
+        assertTrue(result.isError());
     }
 
     @Test
@@ -246,6 +305,7 @@ class HighCardEnginePortAdapterTest {
         assertEquals(26, secondVote.publicUpdate().path("drawPileCounts").path("p2").asInt());
         assertEquals(26, secondVote.privateUpdates().get("p1").path("drawPileCount").asInt());
         assertEquals(26, secondVote.privateUpdates().get("p2").path("drawPileCount").asInt());
+        assertEquals(0, secondVote.publicUpdate().path("history").size());
     }
 
     private GameLoopService.ActionCommand flipCommand(String roomCode, String playerId) {

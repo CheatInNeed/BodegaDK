@@ -153,6 +153,40 @@ class KrigEngineTest {
         assertEquals(10, resolved.drawPiles().get("p1").size());
         assertEquals(0, resolved.drawPiles().get("p2").size());
         assertTrue(resolved.isFinished());
+
+        var types = resolved.history().events().stream().map(e -> e.type()).toList();
+        assertEquals(List.of("KRIG_WAR", "KRIG_TRICK", "GAME_OVER"), types);
+        var war = resolved.history().events().get(0);
+        assertEquals("H7", war.data().get("firstCard"));
+        assertEquals("S7", war.data().get("secondCard"));
+        var trick = resolved.history().events().get(1);
+        assertEquals("p1", trick.data().get("winnerPlayerId"));
+        assertEquals("10", trick.data().get("cardsWon"));
+        assertEquals("1", trick.data().get("warDepth"));
+        // Face-down war stakes must never appear in the public history.
+        for (var event : resolved.history().events()) {
+            assertFalse(event.data().containsValue("H2"));
+            assertFalse(event.data().containsValue("S3"));
+        }
+    }
+
+    @Test
+    void singleFlipDoesNotRecordHistoryUntilTrickResolves() {
+        KrigState state = buildState(
+                List.of(new Card("H", "K"), new Card("H", "2")),
+                List.of(new Card("S", "3"), new Card("S", "4"))
+        );
+
+        KrigState waiting = engine.apply(new KrigAction("p1"), state);
+        assertTrue(waiting.history().events().isEmpty());
+
+        KrigState resolved = engine.apply(new KrigAction("p2"), waiting);
+        var trick = resolved.history().events().getLast();
+        assertEquals("KRIG_TRICK", trick.type());
+        assertEquals("HK", trick.data().get("firstCard"));
+        assertEquals("S3", trick.data().get("secondCard"));
+        assertEquals("p1", trick.data().get("winnerPlayerId"));
+        assertEquals("2", trick.data().get("cardsWon"));
     }
 
     @Test
@@ -205,6 +239,18 @@ class KrigEngineTest {
         assertEquals(26, restarted.drawPiles().get("p1").size());
         assertEquals(26, restarted.drawPiles().get("p2").size());
         assertTrue(restarted.rematchPlayerIds().isEmpty());
+    }
+
+    @Test
+    void rematchClearsHistory() {
+        KrigState finished = buildState(List.of(), List.of());
+        finished.history().add("GAME_OVER", java.util.Map.of("winnerPlayerId", "p1"));
+        finished.setPhase(GameState.Phase.FINISHED);
+        finished.rematchPlayerIds().add("p1");
+
+        KrigState restarted = engine.requestRematch("p2", finished);
+
+        assertTrue(restarted.history().events().isEmpty());
     }
 
     private KrigState buildState(List<Card> p1Pile, List<Card> p2Pile) {

@@ -33,6 +33,7 @@ public class HighCardViewProjector implements ViewProjector<HighCardState> {
         }
         view.put("finished", state.isFinished());
         view.put("winner", state.winnerPlayerId());
+        view.put("history", state.history().events());
         return view;
     }
 

@@ -1,4 +1,5 @@
-import { ref, onUnmounted, type Ref } from 'vue';
+import { ref, onUnmounted, watch, type Ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { createGameRoomSession } from '@/lib/game-room/session';
 import type {
   GameAdapter,
@@ -23,6 +24,12 @@ export function useGameSession<
 
   const unsubscribe = session.subscribe((nextState) => {
     state.value = nextState;
+    viewModel.value = session.toViewModel();
+  });
+
+  // Adapters produce translated text, so rebuild the view model on language switch.
+  const { locale } = useI18n();
+  watch(locale, () => {
     viewModel.value = session.toViewModel();
   });
 

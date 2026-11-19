@@ -1,7 +1,9 @@
+import { t } from '../../../i18n';
+import { formatCard, readHistory, toLogEntries } from '../../game-room/history';
 import type { GameAdapter } from '../../game-room/types';
 import type { RoomSessionState, UiIntent } from '../../game-room/types';
 import { createLayoutSpec } from '../../game-room/ui';
-import type { ClientToServerMessage } from '../../net/protocol';
+import type { ClientToServerMessage, HistoryEvent } from '../../net/protocol';
 import type { SingleCardHighestWinsViewModel } from '../single-card-highest-wins/view';
 
 type HighCardPublicState = {
@@ -38,7 +40,7 @@ export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateSt
         return normalized === 'highcard' || normalized === 'single-card-highest-wins';
     },
 
-    toViewModel({ publicState, privateState, selectedCards }) {
+    toViewModel({ publicState, privateState, selectedCards, selfPlayerId }) {
         const handCodes = Array.isArray(privateState?.hand)
             ? privateState.hand.filter((card): card is string => typeof card === 'string')
             : [];
@@ -52,8 +54,8 @@ export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateSt
 
         return {
             roomCode: typeof publicState?.roomCode === 'string' ? publicState.roomCode : '-',
-            dealerLabel: 'Dealer',
-            playerLabel: 'You',
+            dealerLabel: t('room.highcard.dealer'),
+            playerLabel: t('room.highcard.you'),
             middleCard: typeof publicState?.computerCard === 'string' ? publicState.computerCard : '--',
             scoreYou: wins,
             scoreDealer: losses,
@@ -62,6 +64,10 @@ export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateSt
             lastDealerCard: typeof lastRound?.dealerCard === 'string' ? lastRound.dealerCard : null,
             hand,
             selectedCard: selectedCards[0] ?? null,
+            history: toLogEntries(readHistory(publicState?.history), describeHighCardEvent),
+            isFinished: publicState?.finished === true,
+            // The dealer isn't a player, so a loss has no winner id; compare against self.
+            didWin: publicState?.finished === true && !!selfPlayerId && publicState?.winner === selfPlayerId,
         };
     },
 
@@ -71,6 +77,10 @@ export const highcardAdapter: GameAdapter<HighCardPublicState, HighCardPrivateSt
 };
 
 function buildHighCardAction(intent: UiIntent, state: RoomSessionState): ClientToServerMessage | null {
+    if (intent.type === 'REQUEST_REMATCH') {
+        return { type: 'REQUEST_REMATCH', payload: {} };
+    }
+
     if (intent.type !== 'PLAY_SELECTED') return null;
     if (state.winnerPlayerId) return null;
     if (state.selectedHandCards.length !== 1) return null;
@@ -85,20 +95,39 @@ function buildHighCardAction(intent: UiIntent, state: RoomSessionState): ClientT
     };
 }
 
+function describeHighCardEvent(event: HistoryEvent) {
+    const d = event.data;
+    if (event.type === 'HIGHCARD_ROUND') {
+        const params = { round: d.round ?? '?', player: formatCard(d.playerCard), dealer: formatCard(d.dealerCard) };
+        const key = d.comparison === 'HIGHER' ? 'room.history.highcard.higher'
+            : d.comparison === 'LOWER' ? 'room.history.highcard.lower'
+                : 'room.history.highcard.equal';
+        return { text: t(key, params), kind: 'move' as const };
+    }
+    if (event.type === 'GAME_OVER') {
+        const params = { wins: d.wins ?? '0', losses: d.losses ?? '0' };
+        return {
+            text: t(d.winnerPlayerId ? 'room.history.highcard.won' : 'room.history.highcard.lost', params),
+            kind: 'round' as const,
+        };
+    }
+    return null;
+}
+
 function toFeedbackText(round: HighCardPublicState['lastRound']): string {
     if (!round) {
-        return 'Play a card to reveal round result.';
+        return t('room.highcard.feedback.none');
     }
-    const playerCard = typeof round.playerCard === 'string' ? round.playerCard : 'your card';
-    const dealerCard = typeof round.dealerCard === 'string' ? round.dealerCard : 'dealer card';
+    const playerCard = typeof round.playerCard === 'string' ? round.playerCard : t('room.highcard.yourCard');
+    const dealerCard = typeof round.dealerCard === 'string' ? round.dealerCard : t('room.highcard.dealerCard');
     if (round.comparison === 'HIGHER') {
-        return `You won the round: ${playerCard} was higher than ${dealerCard}.`;
+        return t('room.highcard.feedback.higher', { player: playerCard, dealer: dealerCard });
     }
     if (round.comparison === 'LOWER') {
-        return `Dealer won the round: ${playerCard} was lower than ${dealerCard}.`;
+        return t('room.highcard.feedback.lower', { player: playerCard, dealer: dealerCard });
     }
     if (round.comparison === 'EQUAL') {
-        return `Tie on value (${playerCard} vs ${dealerCard}) counts as dealer win.`;
+        return t('room.highcard.feedback.equal', { player: playerCard, dealer: dealerCard });
     }
-    return 'Round result unavailable.';
+    return t('room.highcard.feedback.unknown');
 }
