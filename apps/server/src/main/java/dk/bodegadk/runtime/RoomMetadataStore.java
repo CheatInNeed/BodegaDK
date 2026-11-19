@@ -22,13 +22,22 @@ public interface RoomMetadataStore {
 
     void updateRoomGameType(String roomCode, String gameType);
 
+    default void updateRoomMode(String roomCode, String mode) {
+    }
+
     void updateRoomVisibility(String roomCode, RoomVisibility visibility);
 
     void updateRoomStatus(String roomCode, InMemoryRuntimeStore.RoomStatus status);
 
     void deleteRoom(String roomCode);
 
-    UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId, int minPlayers, int maxPlayers, boolean strictCount);
+    UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId,
+                       int minPlayers, int maxPlayers, boolean strictCount);
+
+    default UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId,
+                               int minPlayers, int maxPlayers, boolean strictCount, String mode, Integer rating) {
+        return enqueueTicket(gameType, userId, username, clientSessionId, minPlayers, maxPlayers, strictCount);
+    }
 
     Optional<MatchmakingTicket> ticket(UUID ticketId);
 
@@ -90,7 +99,9 @@ public interface RoomMetadataStore {
             int minPlayers,
             int maxPlayers,
             boolean strictCount,
-            Instant createdAt
+            Instant createdAt,
+            String mode,
+            Integer rating
     ) {
     }
 

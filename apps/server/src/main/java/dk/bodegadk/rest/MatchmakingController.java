@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dk.bodegadk.auth.AuthSupport;
 import dk.bodegadk.auth.AuthenticatedUser;
 import dk.bodegadk.runtime.MatchmakingService;
+import dk.bodegadk.match.MatchMode;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -15,11 +16,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/matchmaking")
+@Validated
 public class MatchmakingController {
     private final MatchmakingService matchmakingService;
 
@@ -28,14 +33,24 @@ public class MatchmakingController {
     }
 
     @PostMapping("/queue")
-    public MatchmakingResponse enqueue(Authentication authentication, @RequestBody QueueRequest request) {
+    public MatchmakingResponse enqueue(Authentication authentication, @Valid @RequestBody QueueRequest request) {
         AuthenticatedUser user = AuthSupport.requireUser(authentication);
         if (request == null || blank(request.gameType())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "gameType is required");
         }
         try {
             String clientSessionId = blank(request.clientSessionId()) ? UUID.randomUUID().toString() : request.clientSessionId();
-            return MatchmakingResponse.from(matchmakingService.enqueue(request.gameType(), user.userId(), request.username(), clientSessionId));
+            MatchMode mode;
+            try {
+                mode = request.mode() == null
+                        ? MatchMode.UNRANKED
+                        : MatchMode.valueOf(request.mode().trim().toUpperCase());
+            } catch (IllegalArgumentException exception) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mode must be RANKED or UNRANKED");
+            }
+            return MatchmakingResponse.from(matchmakingService.enqueue(
+                    request.gameType(), mode, user.userId(), request.username(), clientSessionId
+            ));
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage());
         } catch (IllegalStateException exception) {
@@ -79,12 +94,18 @@ public class MatchmakingController {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record QueueRequest(String gameType, String username, String clientSessionId) {
+    public record QueueRequest(
+            @NotBlank String gameType,
+            String username,
+            String clientSessionId,
+            String mode
+    ) {
     }
 
     public record MatchmakingResponse(
             String ticketId,
             String gameType,
+            String mode,
             String status,
             String roomCode,
             String playerId,
@@ -99,6 +120,7 @@ public class MatchmakingController {
             return new MatchmakingResponse(
                     snapshot.ticketId().toString(),
                     snapshot.gameType(),
+                    snapshot.mode(),
                     snapshot.status().name(),
                     snapshot.roomCode(),
                     snapshot.playerId(),

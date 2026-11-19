@@ -22,7 +22,7 @@ export const useMatchmakingStore = defineStore('matchmaking', () => {
   const isActive = computed(() => ticket.value !== null && !leaving.value);
   const isMatched = computed(() => ticket.value?.status === 'MATCHED');
 
-  async function enqueue(gameType: string, username?: string) {
+  async function enqueue(gameType: string, mode: 'RANKED' | 'UNRANKED', username?: string) {
     const gen = ++generation;
     loading.value = true;
     errorMessage.value = null;
@@ -33,7 +33,7 @@ export const useMatchmakingStore = defineStore('matchmaking', () => {
     matchedCountdown.value = null;
 
     try {
-      const result = await api.enqueueMatchmaking({ gameType, username });
+      const result = await api.enqueueMatchmaking({ gameType, mode, username });
       if (gen !== generation) return;
 
       ticket.value = result;

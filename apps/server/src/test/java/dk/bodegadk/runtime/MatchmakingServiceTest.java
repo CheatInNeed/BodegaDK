@@ -1,6 +1,7 @@
 package dk.bodegadk.runtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dk.bodegadk.match.MatchMode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -84,5 +85,32 @@ class MatchmakingServiceTest {
         assertEquals(InMemoryRuntimeStore.RoomStatus.IN_GAME, room.status());
         assertEquals("fem", room.selectedGame());
         assertEquals(2, room.participants().size());
+    }
+
+    @Test
+    void rankedAndUnrankedTicketsDoNotMatchEachOther() {
+        RoomMetadataStore roomMetadataStore = new InMemoryRoomMetadataStore();
+        GameCatalogService gameCatalogService = new GameCatalogService();
+        InMemoryRuntimeStore runtimeStore = new InMemoryRuntimeStore();
+        ObjectMapper objectMapper = new ObjectMapper();
+        GameLoopService gameLoopService = new GameLoopService(
+                runtimeStore,
+                java.util.List.of(new CasinoEnginePortAdapter(runtimeStore, objectMapper))
+        );
+        MatchmakingService service = new MatchmakingService(
+                roomMetadataStore, runtimeStore, gameLoopService, gameCatalogService, objectMapper
+        );
+
+        MatchmakingService.MatchmakingSnapshot unranked = service.enqueue(
+                "casino", MatchMode.UNRANKED, "p1", "Alice", "token-1"
+        );
+        MatchmakingService.MatchmakingSnapshot ranked = service.enqueue(
+                "casino", MatchMode.RANKED, "p2", "Bob", "token-2"
+        );
+
+        assertEquals(RoomMetadataStore.MatchmakingTicketStatus.WAITING, unranked.status());
+        assertEquals(RoomMetadataStore.MatchmakingTicketStatus.WAITING, ranked.status());
+        assertEquals("UNRANKED", unranked.mode());
+        assertEquals("RANKED", ranked.mode());
     }
 }

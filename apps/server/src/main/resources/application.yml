@@ -65,3 +65,14 @@ bodegadk:
     public-key: ${BODEGADK_VAPID_PUBLIC_KEY:}
     private-key: ${BODEGADK_VAPID_PRIVATE_KEY:}
     subject: ${BODEGADK_VAPID_SUBJECT:mailto:admin@bodegadk.local}
+  rating:
+    provisional-games: ${BODEGADK_RATING_PROVISIONAL_GAMES:30}
+    provisional-k: ${BODEGADK_RATING_PROVISIONAL_K:40}
+    standard-k: ${BODEGADK_RATING_STANDARD_K:20}
+    minimum-rating: ${BODEGADK_RATING_MINIMUM:100}
+    abandoned-counts-as-loss: ${BODEGADK_RATING_ABANDONED_COUNTS_AS_LOSS:true}
+  matchmaking:
+    poll-interval-ms: ${BODEGADK_MATCHMAKING_POLL_INTERVAL_MS:1000}
+    initial-window: ${BODEGADK_MATCHMAKING_INITIAL_WINDOW:100}
+    widening-per-ten-seconds: ${BODEGADK_MATCHMAKING_WIDENING:50}
+    maximum-window: ${BODEGADK_MATCHMAKING_MAXIMUM_WINDOW:500}

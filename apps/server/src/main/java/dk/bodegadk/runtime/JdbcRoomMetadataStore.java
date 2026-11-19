@@ -185,6 +185,14 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     }
 
     @Override
+    public void updateRoomMode(String roomCode, String mode) {
+        jdbcTemplate.update(
+                "update public.rooms set \"mode\" = ? where room_code = ?",
+                mode, roomCode
+        );
+    }
+
+    @Override
     public void updateRoomVisibility(String roomCode, RoomVisibility visibility) {
         jdbcTemplate.update(
                 "update public.rooms set visibility = ? where room_code = ?",
@@ -209,7 +217,15 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
     }
 
     @Override
-    public UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId, int minPlayers, int maxPlayers, boolean strictCount) {
+    public UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId,
+                              int minPlayers, int maxPlayers, boolean strictCount) {
+        return enqueueTicket(gameType, userId, username, clientSessionId, minPlayers, maxPlayers,
+                strictCount, "UNRANKED", null);
+    }
+
+    @Override
+    public UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId,
+                              int minPlayers, int maxPlayers, boolean strictCount, String mode, Integer rating) {
         List<UUID> existingTickets = jdbcTemplate.query(
                 """
                 select id
@@ -229,8 +245,9 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
         jdbcTemplate.update(
                 """
                 insert into public.matchmaking_tickets
-                    (id, game_id, user_id, client_session_id, username_snapshot, status, min_players, max_players, strict_count)
-                values (?, public.resolve_game_id(?), ?::uuid, ?, ?, 'WAITING', ?, ?, ?)
+                    (id, game_id, user_id, client_session_id, username_snapshot, status,
+                     min_players, max_players, strict_count, \"mode\", rating)
+                values (?, public.resolve_game_id(?), ?::uuid, ?, ?, 'WAITING', ?, ?, ?, ?, ?)
                 """,
                 ticketId,
                 gameType,
@@ -239,7 +256,9 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
                 username,
                 minPlayers,
                 maxPlayers,
-                strictCount
+                strictCount,
+                mode,
+                rating
         );
         return ticketId;
     }
@@ -250,7 +269,8 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
                 """
                 select tickets.id, games.slug as game_type, tickets.user_id::text as user_id,
                        tickets.username_snapshot, tickets.client_session_id, tickets.status,
-                       rooms.room_code, tickets.min_players, tickets.max_players, tickets.strict_count, tickets.created_at
+                       rooms.room_code, tickets.min_players, tickets.max_players, tickets.strict_count,
+                       tickets.created_at, tickets.\"mode\", tickets.rating
                 from public.matchmaking_tickets tickets
                 join public.games on games.id = tickets.game_id
                 left join public.rooms on rooms.id = tickets.matched_room_id
@@ -268,7 +288,8 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
                 """
                 select tickets.id, games.slug as game_type, tickets.user_id::text as user_id,
                        tickets.username_snapshot, tickets.client_session_id, tickets.status,
-                       rooms.room_code, tickets.min_players, tickets.max_players, tickets.strict_count, tickets.created_at
+                       rooms.room_code, tickets.min_players, tickets.max_players, tickets.strict_count,
+                       tickets.created_at, tickets.\"mode\", tickets.rating
                 from public.matchmaking_tickets tickets
                 join public.games on games.id = tickets.game_id
                 left join public.rooms on rooms.id = tickets.matched_room_id
@@ -344,7 +365,9 @@ public class JdbcRoomMetadataStore implements RoomMetadataStore {
                 rs.getInt("min_players"),
                 rs.getInt("max_players"),
                 rs.getBoolean("strict_count"),
-                readInstant(rs, "created_at")
+                readInstant(rs, "created_at"),
+                rs.getString("mode"),
+                (Integer) rs.getObject("rating")
         );
     }
 

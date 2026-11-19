@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
 
 @Service
 public class GameCatalogService {
@@ -67,6 +68,10 @@ public class GameCatalogService {
             return definition.minPlayers();
         }
         return Math.min(waitingCount, definition.maxPlayers());
+    }
+
+    public List<String> gameTypes() {
+        return List.copyOf(definitions.keySet());
     }
 
     private void register(GameDefinition definition) {

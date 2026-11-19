@@ -32,7 +32,10 @@ class JdbcMatchHistoryStoreTest {
         mockRoomContext(jdbcTemplate, roomId, gameId);
         when(jdbcTemplate.queryForObject(contains("select count(*)"), eq(Integer.class), eq(roomId))).thenReturn(0);
         when(jdbcTemplate.query(contains("select user_id::text"), any(RowMapper.class), eq(roomId)))
-                .thenReturn(List.of(winnerId, loserId));
+                .thenReturn(List.of(
+                        new JdbcMatchHistoryStore.ParticipantSnapshot(winnerId, false),
+                        new JdbcMatchHistoryStore.ParticipantSnapshot(loserId, false)
+                ));
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
         when(jdbcTemplate.batchUpdate(anyString(), any(List.class))).thenReturn(new int[]{1, 1});
 
@@ -66,7 +69,7 @@ class JdbcMatchHistoryStoreTest {
     }
 
     private void mockRoomContext(JdbcTemplate jdbcTemplate, String roomId, String gameId) {
-        when(jdbcTemplate.queryForObject(contains("select id::text"), any(RowMapper.class), eq("ROOM1")))
+        when(jdbcTemplate.queryForObject(contains("select rooms.id::text"), any(RowMapper.class), eq("ROOM1")))
                 .thenAnswer(invocation -> {
                     RowMapper<?> mapper = invocation.getArgument(1);
                     ResultSet resultSet = mock(ResultSet.class);

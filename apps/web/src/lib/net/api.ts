@@ -40,6 +40,7 @@ export type RoomActionResponse = { ok: boolean };
 export type MatchmakingResponse = {
   ticketId: string;
   gameType: string;
+  mode: 'RANKED' | 'UNRANKED';
   status: 'WAITING' | 'MATCHED' | 'CANCELLED' | 'EXPIRED';
   roomCode: string | null;
   playerId: string;

@@ -118,7 +118,15 @@ public class InMemoryRoomMetadataStore implements RoomMetadataStore {
     }
 
     @Override
-    public UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId, int minPlayers, int maxPlayers, boolean strictCount) {
+    public UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId,
+                              int minPlayers, int maxPlayers, boolean strictCount) {
+        return enqueueTicket(gameType, userId, username, clientSessionId, minPlayers, maxPlayers,
+                strictCount, "UNRANKED", null);
+    }
+
+    @Override
+    public UUID enqueueTicket(String gameType, String userId, String username, String clientSessionId,
+                              int minPlayers, int maxPlayers, boolean strictCount, String mode, Integer rating) {
         UUID existingTicketId = tickets.values().stream()
                 .filter(record -> record.status == MatchmakingTicketStatus.WAITING)
                 .filter(record -> record.userId.equals(userId))
@@ -131,7 +139,8 @@ public class InMemoryRoomMetadataStore implements RoomMetadataStore {
         }
 
         UUID ticketId = UUID.randomUUID();
-        tickets.put(ticketId, new MatchTicketRecord(ticketId, gameType, userId, username, clientSessionId, MatchmakingTicketStatus.WAITING, null, minPlayers, maxPlayers, strictCount, Instant.now()));
+        tickets.put(ticketId, new MatchTicketRecord(ticketId, gameType, userId, username, clientSessionId,
+                MatchmakingTicketStatus.WAITING, null, minPlayers, maxPlayers, strictCount, Instant.now(), mode, rating));
         return ticketId;
     }
 
@@ -228,8 +237,12 @@ public class InMemoryRoomMetadataStore implements RoomMetadataStore {
         private final int maxPlayers;
         private final boolean strictCount;
         private final Instant createdAt;
+        private final String mode;
+        private final Integer rating;
 
-        private MatchTicketRecord(UUID ticketId, String gameType, String userId, String username, String clientSessionId, MatchmakingTicketStatus status, String roomCode, int minPlayers, int maxPlayers, boolean strictCount, Instant createdAt) {
+        private MatchTicketRecord(UUID ticketId, String gameType, String userId, String username, String clientSessionId,
+                                  MatchmakingTicketStatus status, String roomCode, int minPlayers, int maxPlayers,
+                                  boolean strictCount, Instant createdAt, String mode, Integer rating) {
             this.ticketId = ticketId;
             this.gameType = gameType;
             this.userId = userId;
@@ -241,10 +254,13 @@ public class InMemoryRoomMetadataStore implements RoomMetadataStore {
             this.maxPlayers = maxPlayers;
             this.strictCount = strictCount;
             this.createdAt = createdAt;
+            this.mode = mode;
+            this.rating = rating;
         }
 
         private MatchmakingTicket snapshot() {
-            return new MatchmakingTicket(ticketId, gameType, userId, username, clientSessionId, status, roomCode, minPlayers, maxPlayers, strictCount, createdAt);
+            return new MatchmakingTicket(ticketId, gameType, userId, username, clientSessionId, status, roomCode,
+                    minPlayers, maxPlayers, strictCount, createdAt, mode, rating);
         }
     }
 }
