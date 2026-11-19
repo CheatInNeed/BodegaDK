@@ -2,6 +2,10 @@ import type { ClientToServerMessage } from '../../net/protocol';
 import type { RoomSessionState, UiIntent } from '../../game-room/types';
 
 export function buildCasinoAction(intent: UiIntent, state: RoomSessionState): ClientToServerMessage | null {
+    if (intent.type === 'REQUEST_REMATCH') {
+        return { type: 'REQUEST_REMATCH', payload: {} };
+    }
+
     if (state.winnerPlayerId) {
         return null;
     }

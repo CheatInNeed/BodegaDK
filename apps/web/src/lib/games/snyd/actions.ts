@@ -5,6 +5,10 @@ import type { RoomSessionState, UiIntent } from '../../game-room/types';
  * Convert UI-level intents into protocol-compliant Snyd actions.
  */
 export function buildSnydAction(intent: UiIntent, state: RoomSessionState): ClientToServerMessage | null {
+    if (intent.type === 'REQUEST_REMATCH') {
+        return { type: 'REQUEST_REMATCH', payload: {} };
+    }
+
     if (state.winnerPlayerId) return null;
 
     if (intent.type === 'CALL_SNYD') {
