@@ -580,6 +580,28 @@ button { font: inherit; }
 
 .btn.primary:hover { background: linear-gradient(180deg, var(--primaryHover) 0%, var(--primary) 100%); }
 
+.mode-dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: var(--s4);
+    background: rgba(0, 0, 0, 0.62);
+}
+
+.mode-dialog {
+    width: min(100%, 430px);
+    display: grid;
+    gap: var(--s3);
+}
+
+.mode-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s2);
+}
+
 .sidebar {
     grid-column: 1;
     grid-row: 2;

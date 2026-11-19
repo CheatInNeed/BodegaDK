@@ -36,7 +36,11 @@ public class JdbcRatingRepository implements RatingRepository {
                     """
                     select player_game_ratings.player_id::text as player_id,
                            games.slug as game_type,
-                           rating, games_played, peak_rating, version, updated_at
+                           player_game_ratings.rating,
+                           player_game_ratings.games_played,
+                           player_game_ratings.peak_rating,
+                           player_game_ratings.version,
+                           player_game_ratings.updated_at
                     from public.player_game_ratings
                     join public.games on games.id = player_game_ratings.game_id
                     where player_game_ratings.player_id = ?::uuid
@@ -64,7 +68,11 @@ public class JdbcRatingRepository implements RatingRepository {
                 """
                 select player_game_ratings.player_id::text as player_id,
                        games.slug as game_type,
-                       rating, games_played, peak_rating, version, updated_at
+                       player_game_ratings.rating,
+                       player_game_ratings.games_played,
+                       player_game_ratings.peak_rating,
+                       player_game_ratings.version,
+                       player_game_ratings.updated_at
                 from public.player_game_ratings
                 join public.games on games.id = player_game_ratings.game_id
                 where player_game_ratings.player_id = ?::uuid

@@ -88,7 +88,12 @@ export function useApi() {
     return parseJsonResponse<api.RoomActionResponse>(response, 'Failed to claim room identity');
   }
 
-  async function enqueueMatchmaking(input: { gameType: string; username?: string; clientSessionId?: string }) {
+  async function enqueueMatchmaking(input: {
+    gameType: string;
+    mode: 'RANKED' | 'UNRANKED';
+    username?: string;
+    clientSessionId?: string;
+  }) {
     const response = await authenticatedFetch(`${resolveApiBaseUrl()}/matchmaking/queue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

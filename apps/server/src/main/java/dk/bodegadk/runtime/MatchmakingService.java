@@ -90,9 +90,14 @@ public class MatchmakingService {
 
         Integer rating = null;
         if (ratingRepository != null) {
-            rating = mode == MatchMode.RANKED
-                    ? ratingRepository.findOrCreate(userId, definition.id()).rating()
-                    : ratingRepository.find(userId, definition.id()).map(PlayerGameRating::rating).orElse(null);
+            if (mode == MatchMode.RANKED) {
+                rating = ratingRepository.findOrCreate(userId, definition.id()).rating();
+            } else {
+                rating = ratingRepository.find(userId, definition.id())
+                        .map(PlayerGameRating::rating)
+                        .map(Integer::valueOf)
+                        .orElse(null);
+            }
         }
         UUID ticketId = roomMetadataStore.enqueueTicket(
                 definition.id(),

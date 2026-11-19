@@ -3,10 +3,12 @@ import { useI18n } from 'vue-i18n';
 import { useMatchmakingStore } from '@/stores/matchmaking';
 import { useAuthStore } from '@/stores/auth';
 import GameCard from '@/components/GameCard.vue';
+import { ref } from 'vue';
 
 const { t } = useI18n();
 const matchmaking = useMatchmakingStore();
 const authStore = useAuthStore();
+const selectedGame = ref<string | null>(null);
 
 const games = [
   { id: 'snyd', titleKey: 'game.cheat', imageClass: 'game-card-snyd' },
@@ -17,7 +19,14 @@ const games = [
 ];
 
 function quickPlay(gameId: string) {
-  matchmaking.enqueue(gameId, authStore.user?.username ?? undefined);
+  selectedGame.value = gameId;
+}
+
+function chooseMode(mode: 'RANKED' | 'UNRANKED') {
+  if (!selectedGame.value) return;
+  const game = selectedGame.value;
+  selectedGame.value = null;
+  matchmaking.enqueue(game, mode, authStore.user?.username ?? undefined);
 }
 </script>
 
@@ -35,6 +44,24 @@ function quickPlay(gameId: string) {
         :disabled="matchmaking.isActive"
         @select="quickPlay(game.id)"
       />
+    </div>
+
+    <div v-if="selectedGame" class="mode-dialog-backdrop" role="presentation" @click.self="selectedGame = null">
+      <section class="mode-dialog card" role="dialog" aria-modal="true" :aria-label="t('play.mode.title')">
+        <h2 class="card-title">{{ t('play.mode.title') }}</h2>
+        <p class="sub">{{ t('play.mode.subtitle') }}</p>
+        <div class="mode-dialog-actions">
+          <button class="btn primary" type="button" @click="chooseMode('RANKED')">
+            {{ t('play.mode.ranked') }}
+          </button>
+          <button class="btn" type="button" @click="chooseMode('UNRANKED')">
+            {{ t('play.mode.unranked') }}
+          </button>
+          <button class="btn" type="button" @click="selectedGame = null">
+            {{ t('play.mode.cancel') }}
+          </button>
+        </div>
+      </section>
     </div>
   </div>
 </template>
