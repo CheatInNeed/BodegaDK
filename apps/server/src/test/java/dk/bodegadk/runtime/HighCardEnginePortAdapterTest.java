@@ -219,8 +219,13 @@ class HighCardEnginePortAdapterTest {
         assertTrue(resolvedResult.publicUpdate().path("currentFaceUpCards").path("p2").isTextual());
         assertEquals(1, resolvedResult.publicUpdate().path("lastTrick").path("trickNumber").asInt());
         assertTrue(resolvedResult.publicUpdate().path("lastTrick").has("winnerPlayerId"));
-        assertEquals(52, resolvedResult.publicUpdate().path("drawPileCounts").path("p1").asInt()
-                + resolvedResult.publicUpdate().path("drawPileCounts").path("p2").asInt());
+        // A tied first flip starts a war and holds cards in the centre pile, so count them too.
+        // After a won trick the centre pile is only kept for display; its cards are already awarded.
+        JsonNode update = resolvedResult.publicUpdate();
+        int cardsAtStake = update.path("warActive").asBoolean() ? update.path("centerPileSize").asInt() : 0;
+        assertEquals(52, update.path("drawPileCounts").path("p1").asInt()
+                + update.path("drawPileCounts").path("p2").asInt()
+                + cardsAtStake);
 
         assertEquals(0, waitingResult.publicUpdate().path("history").size());
         JsonNode history = resolvedResult.publicUpdate().path("history");
